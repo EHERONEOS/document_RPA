@@ -16,6 +16,7 @@ docs/
 runtime/
 tests/
 launch.json
+.pytest_cache/
 
 # AI Rules
 .trae/rules/*.json
