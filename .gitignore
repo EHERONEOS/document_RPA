@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+user_data*/
+*.egg-info
+
+# Virtual environments
+.venv
+.temp/*
+.env.*
+uv.lock
+docs/
+runtime/
+tests/
+launch.json
+
+# AI Rules
+.trae/rules/*.json
+
+# System files
+.DS_Store
+

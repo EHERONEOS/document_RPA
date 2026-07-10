@@ -1,0 +1,14 @@
+[project]
+name = "wise-rpa"
+version = "0.1.0"
+description = "Distributed RPA workers for carrier document automation"
+requires-python = "==3.12.12"
+dependencies = [
+    "DrissionPage==4.1.1.4",
+    "funboost==54.8",
+    "python-dotenv==1.2.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -4,7 +4,7 @@
 
 **目标：** 构建分布式 RPA 系统的首个可用 Python 骨架，包含本地模板调试、显式船司/客户路由、任务生命周期控制和队列模式入口。
 
-**架构：** 代码实现位于 `/Users/wangchao/weisi_code/wise_rpa`。设计文档和计划文档保留在 `/Users/wangchao/weisi_code/document_RPA`。首期实现把真实 WHL 页面自动化保留为业务方法入口，同时保证路由、上下文解析、生命周期开关和本地调试行为都能在不依赖 RabbitMQ 和真实浏览器的情况下测试。
+**架构：** 代码实现、设计文档、计划文档和消息模板都位于 `/Users/wangchao/weisi_code/document_RPA`。首期实现把真实 WHL 页面自动化保留为业务方法入口，同时保证路由、上下文解析、生命周期开关和本地调试行为都能在不依赖 RabbitMQ 和真实浏览器的情况下测试。
 
 **技术栈：** Python 3.12.12、uv 风格项目元数据、标准库 `unittest`、可选 funboost/RabbitMQ 入口、可选 DrissionPage 浏览器运行时。
 
@@ -12,14 +12,14 @@
 
 ## 当前工作区说明
 
-- `/Users/wangchao/weisi_code/document_RPA` 保存设计文档和 `mssage_list/msg_demo.json`。
-- `/Users/wangchao/weisi_code/wise_rpa` 里已有 `ZIM/` 下的 Python 试验代码和 `tests/` 下的测试。
-- 当前两个工作区都不是 git 仓库。下面的提交步骤只在初始化仓库后执行。
-- 现有 `ZIM/` 文件属于试验代码，本次首期 RPA 骨架实现中不要改动。
+- `/Users/wangchao/weisi_code/document_RPA` 是本项目根目录，保存代码、测试、设计文档和 `mssage_list/msg_demo.json`。
+- `/Users/wangchao/weisi_code/wise_rpa` 仅作为本次迁移前的临时代码来源，不再作为后续目标目录。
+- `ZIM/` 下的历史试验代码未迁入本项目，本次首期 RPA 骨架实现不依赖它。
+- `document_RPA` 已是 git 仓库；如后续需要提交，再按用户指示处理。
 
 ## 文件结构
 
-下面所有代码路径都相对于 `/Users/wangchao/weisi_code/wise_rpa`。
+下面所有代码路径都相对于 `/Users/wangchao/weisi_code/document_RPA`。
 
 创建或修改：
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_settings -v
 ```
 
@@ -270,7 +270,7 @@ class Settings:
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_settings -v
 ```
 
@@ -281,11 +281,11 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 git status
 ```
 
-当前工作区预期：`fatal: not a git repository`。如果执行前已初始化仓库，则运行：
+当前工作区已是 git 仓库；如需要提交，再按用户指示运行：
 
 ```bash
 git add .python-version pyproject.toml .env.example app/__init__.py app/config tests/test_settings.py
@@ -374,7 +374,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_message_context -v
 ```
 
@@ -572,7 +572,7 @@ def build_task_context(
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_message_context -v
 ```
 
@@ -583,11 +583,11 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 git status
 ```
 
-当前工作区预期：`fatal: not a git repository`。如果执行前已初始化仓库，则运行：
+当前工作区已是 git 仓库；如需要提交，再按用户指示运行：
 
 ```bash
 git add app/core/task app/queue tests/test_message_context.py
@@ -665,7 +665,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_routing -v
 ```
 
@@ -875,7 +875,7 @@ def dispatch(context: TaskContext):
 - [ ] **步骤 4：运行路由测试并确认通过**
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_routing -v
 ```
 
@@ -886,11 +886,11 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 git status
 ```
 
-当前工作区预期：`fatal: not a git repository`。如果执行前已初始化仓库，则运行：
+当前工作区已是 git 仓库；如需要提交，再按用户指示运行：
 
 ```bash
 git add app/core/task/base_task.py app/core/task/dispatcher.py app/Spider tests/test_routing.py
@@ -1056,7 +1056,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_base_task_lifecycle -v
 ```
 
@@ -1291,7 +1291,7 @@ class BaseRpaTask:
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_base_task_lifecycle tests.test_routing -v
 ```
 
@@ -1302,11 +1302,11 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 git status
 ```
 
-当前工作区预期：`fatal: not a git repository`。如果执行前已初始化仓库，则运行：
+当前工作区已是 git 仓库；如需要提交，再按用户指示运行：
 
 ```bash
 git add app/core/task/base_task.py app/core/integrations app/core/logging tests/test_base_task_lifecycle.py
@@ -1442,7 +1442,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_browser_and_dom -v
 ```
 
@@ -1677,7 +1677,7 @@ def sleep_seconds(seconds: float) -> None:
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_browser_and_dom tests.test_base_task_lifecycle tests.test_routing -v
 ```
 
@@ -1688,11 +1688,11 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 git status
 ```
 
-当前工作区预期：`fatal: not a git repository`。如果执行前已初始化仓库，则运行：
+当前工作区已是 git 仓库；如需要提交，再按用户指示运行：
 
 ```bash
 git add app/core/browser app/core/page tests/test_browser_and_dom.py
@@ -1764,7 +1764,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_local_runner -v
 ```
 
@@ -1888,7 +1888,7 @@ if __name__ == "__main__":
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m unittest tests.test_local_runner -v
 .venv/bin/python -m unittest discover -s tests -v
 ```
@@ -1900,7 +1900,7 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 .venv/bin/python -m app.dev.local_runner --message /Users/wangchao/weisi_code/document_RPA/mssage_list/msg_demo.json
 ```
 
@@ -1911,11 +1911,11 @@ cd /Users/wangchao/weisi_code/wise_rpa
 运行：
 
 ```bash
-cd /Users/wangchao/weisi_code/wise_rpa
+cd /Users/wangchao/weisi_code/document_RPA
 git status
 ```
 
-当前工作区预期：`fatal: not a git repository`。如果执行前已初始化仓库，则运行：
+当前工作区已是 git 仓库；如需要提交，再按用户指示运行：
 
 ```bash
 git add app/dev app/main.py app/queue/consumer.py app/queue/publisher.py tests/test_local_runner.py
@@ -1926,7 +1926,7 @@ git commit -m "feat: add local runner and queue entrypoints"
 
 ## 验证命令
 
-所有任务完成后，在 `/Users/wangchao/weisi_code/wise_rpa` 下运行：
+所有任务完成后，在 `/Users/wangchao/weisi_code/document_RPA` 下运行：
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
