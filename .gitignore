@@ -11,16 +11,17 @@ user_data*/
 .venv
 .temp/*
 .env.*
+!.env.example
 uv.lock
 docs/
 runtime/
-tests/
 launch.json
 .pytest_cache/
 
 # AI Rules
 .trae/rules/*.json
+tests/
+message_list/
 
 # System files
 .DS_Store
-

@@ -1,0 +1,1 @@
+"""Wise RPA application package."""
