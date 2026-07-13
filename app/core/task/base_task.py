@@ -3,7 +3,9 @@ from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
 from app.core.integrations.recorder import Recorder
 from app.core.logging.logger import log
+from app.core.page.dom import DomHelper
 from app.core.task.result import TaskResult
+from app.core.task.context import TaskContext
 
 
 class BaseRpaTask:
@@ -24,8 +26,9 @@ class BaseRpaTask:
         recorder=None,
         oss_client=None,
     ):
-        self.context = context
+        self.context = context or TaskContext()
         self.page = None
+        self.dom = None
         self.events = []
         if browser_manager is None:
             from app.core.browser.manager import BrowserManager
@@ -47,6 +50,7 @@ class BaseRpaTask:
                 self.notifier.notify_processing(self.context)
 
             self.page = self.browser_manager.start(self.context, self)
+            self.dom = DomHelper(self.page)
 
             if self.should_record():
                 self.recorder.start(self.context)
@@ -103,6 +107,7 @@ class BaseRpaTask:
 
     def login(self):
         """船司登录，由船司基类实现。"""
+        print(f"执行 {self.carrier_code} 登录入口")
         raise NotImplementedError("子类必须实现 login 方法")
 
     def execute_business(self):

@@ -1,22 +1,26 @@
-import os
-
+from funboost import BrokerEnum
+from funboost.core.broker_kind__exclusive_config_default_define import register_broker_exclusive_config_default
 from funboost.publishers.rabbitmq_amqpstorm_publisher import RabbitmqPublisherUsingAmqpStorm
+
+from app.config.rabbitmq import RabbitmqSettings
+
+
+register_broker_exclusive_config_default(
+    BrokerEnum.RABBITMQ_AMQPSTORM,
+    {
+        "queue_durable": True,
+        "passive": False,
+        "x-max-priority": None,
+        "no_ack": False,
+        "x-dead-letter-exchange": None,
+        "x-dead-letter-routing-key": None,
+    },
+)
 
 
 def build_rabbitmq_broker_config():
     """构建 RabbitMQ 队列声明配置。"""
-    config = {
-        "queue_durable": True,
-        "x-max-priority": None,
-        "no_ack": False,
-    }
-    dead_letter_exchange = os.getenv("RABBITMQ_DEAD_LETTER_EXCHANGE", "dlx_exchange").strip()
-    if dead_letter_exchange:
-        config["x-dead-letter-exchange"] = dead_letter_exchange
-    dead_letter_routing_key = os.getenv("RABBITMQ_DEAD_LETTER_ROUTING_KEY", "dlx_routing_key").strip()
-    if dead_letter_routing_key:
-        config["x-dead-letter-routing-key"] = dead_letter_routing_key
-    return config
+    return RabbitmqSettings.from_env().to_broker_exclusive_config()
 
 
 class RabbitmqPublisherWithDlx(RabbitmqPublisherUsingAmqpStorm):
@@ -37,4 +41,5 @@ class RabbitmqPublisherWithDlx(RabbitmqPublisherUsingAmqpStorm):
             "durable": self._queue_durable,
             "arguments": arguments,
             "auto_delete": False,
+            "passive": bool(broker_config.get("passive", False)),
         }

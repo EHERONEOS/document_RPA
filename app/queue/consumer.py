@@ -1,6 +1,6 @@
 from app.core.task.dispatcher import dispatch_context
 from app.queue.message import build_task_context
-from app.queue.rabbitmq import RabbitmqPublisherWithDlx, build_rabbitmq_broker_config
+from app.queue.booster import RpaBoosterParams
 
 
 def handle_message(raw_message):
@@ -12,7 +12,7 @@ def handle_message(raw_message):
 def start_consumers(queue_names):
     """启动 funboost 消费者。"""
     try:
-        from funboost import BoosterParams, BrokerEnum, boost
+        from funboost import boost
     except Exception as exc:
         raise RuntimeError(f"funboost 未安装或不可用：{exc}") from exc
 
@@ -20,11 +20,8 @@ def start_consumers(queue_names):
     for queue_name in queue_names:
 
         @boost(
-            BoosterParams(
+            RpaBoosterParams(
                 queue_name=queue_name,
-                broker_kind=BrokerEnum.RABBITMQ_AMQPSTORM,
-                broker_exclusive_config=build_rabbitmq_broker_config(),
-                publisher_override_cls=RabbitmqPublisherWithDlx,
             )
         )
         def consume(message, _queue_name=queue_name):

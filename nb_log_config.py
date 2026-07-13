@@ -14,6 +14,16 @@ ROOT_LOGGER_LEVEL = logging.INFO
 ROOT_LOGGER_FILENAME = "root.log"
 ROOT_LOGGER_FILENAME_ERROR = "root.error.log"
 LOG_PATH = Path(__file__).resolve().parent / "runtime" / "logs"
+FORMATTER_DICT = {
+    5: logging.Formatter(
+        "%(asctime)s - %(name)s - \"%(pathname)s:%(lineno)d\" - %(funcName)s - %(levelname)s - %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    ),
+    12: logging.Formatter(
+        "%(asctime)s|%(threadName)s|%(filename)s|%(funcName)s|%(lineno)d|%(levelname)s|%(message)s"
+    ),
+}
+FORMATTER_KIND = 12
 
 PRINT_WRTIE_FILE_NAME = None
 SYS_STD_FILE_NAME = None

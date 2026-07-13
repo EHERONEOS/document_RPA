@@ -1,5 +1,6 @@
 from app.core.task.errors import RouteNotFoundError
 from app.Spider.WHL.FL_WHL import fl_whl_si, fl_whl_vgm
+from app.core.task.context import TaskContext
 
 
 ROUTES = {
@@ -8,7 +9,7 @@ ROUTES = {
 }
 
 
-def dispatch(context):
+def dispatch(context: TaskContext):
     """根据完整队列名分发到客户入口方法。"""
     route = ROUTES.get(context.queue_name.upper())
     if route is None:
