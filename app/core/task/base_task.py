@@ -1,14 +1,16 @@
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
-from app.core.integrations.recorder import Recorder
+from app.core.page.recorder import Recorder
 from app.core.page.http import HttpHelper
-from app.core.logging.logger import Logger
 from app.core.page.dom import DomHelper
+from app.core.page.screenshot import Screenshot
 from app.core.task.errors import FormValidationError
 from app.core.task.errors import UnfilledFieldError
 from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
+from app.core.logging.logger import Logger
+
 
 
 class BaseRpaTask:
@@ -18,6 +20,7 @@ class BaseRpaTask:
     incognito = False
     wait_page_load = False
     fail_on_unfilled_fields = False
+    booking_no = ""
     FILL_HANDLERS = {
         "input": "_fill_if_present",
         "select": "_select_if_present",
@@ -30,13 +33,16 @@ class BaseRpaTask:
         browser_manager=None,
         notifier=None,
         publisher=None,
-        recorder=None,
+        # recorder=None,
         oss_client=None,
     ):
         self.context = context or TaskContext()
         self.page = None
         self.dom = None
         self.http = None
+        self.screenshot = None
+        self.recorder = None
+        
         self.logger = Logger()
         self.events = []
         if browser_manager is None:
@@ -47,7 +53,7 @@ class BaseRpaTask:
             self.browser_manager = browser_manager
         self.notifier = notifier or ProcessingNotifier()
         self.publisher = publisher or ResultPublisher()
-        self.recorder = recorder or Recorder()
+        # self.recorder = recorder or Recorder()
         self.oss_client = oss_client or OssClient()
 
     def run(self):
@@ -61,16 +67,16 @@ class BaseRpaTask:
             self.page = self.browser_manager.start(self.context, self)
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
+            self.screenshot = Screenshot(self.page)
+            self.recorder = Recorder(self.page)
 
-            if self.should_record():
-                self.recorder.start(self.context)
-                record_started = True
+            
 
             self.login()
+            if self.should_record():
+                self.recorder.start()
+                record_started = True
             self.execute_business()
-            if record_started:
-                record_url = self.recorder.stop(self.context)
-                record_started = False
             result = TaskResult(
                 task_id=str(self.context.task.get("id") or ""),
                 rpa_message_id=self.context.rpa_message_id,
@@ -104,7 +110,7 @@ class BaseRpaTask:
             return result
         finally:
             if record_started:
-                self.recorder.stop(self.context)
+                self.recorder.stop(self.context.queue_name, self.booking_no)
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
 
     def should_record(self):
@@ -112,22 +118,6 @@ class BaseRpaTask:
         if self.context.enable_record is not None:
             return self.context.enable_record
         return self.enable_record
-
-    def log(self, message, level="INFO"):
-        """打印任务日志。"""
-        self.logger.log(message, level=level)
-
-    def info(self, message):
-        """打印 INFO 级别任务日志。"""
-        self.logger.info(message)
-
-    def warn(self, message):
-        """打印 WARN 级别任务日志。"""
-        self.logger.warn(message)
-
-    def error(self, message):
-        """打印 ERROR 级别任务日志。"""
-        self.logger.error(message)
 
     def login(self):
         """船司登录，由船司基类实现。"""

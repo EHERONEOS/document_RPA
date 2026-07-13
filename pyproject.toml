@@ -6,6 +6,8 @@ requires-python = "==3.12.12"
 dependencies = [
     "DrissionPage",
     "funboost",
+    "numpy",
+    "opencv-python",
     "python-dotenv",
     "requests",
 ]
