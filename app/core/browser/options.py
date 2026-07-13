@@ -68,5 +68,6 @@ class BrowserOptions:
     user_data_path: str
     download_path: str
     incognito: bool = False
+    wait_page_load: bool = False
     arguments: list = field(default_factory=lambda: list(DEFAULT_BROWSER_ARGS))
     prefs: dict = field(default_factory=lambda: dict(DEFAULT_PREFS))

@@ -32,5 +32,5 @@ class Settings:
             download_dir=os.getenv("DOWNLOAD_DIR", "runtime/downloads"),
             browser_user_data_dir=os.getenv("BROWSER_USER_DATA_DIR", "runtime/browser_profiles"),
             enable_record=str_to_bool(os.getenv("ENABLE_RECORD", "false")),
-            enable_browser=str_to_bool(os.getenv("ENABLE_BROWSER", "false")),
+            enable_browser=str_to_bool(os.getenv("ENABLE_BROWSER", "true")),
         )

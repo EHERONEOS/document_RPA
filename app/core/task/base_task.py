@@ -2,8 +2,11 @@ from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
 from app.core.integrations.recorder import Recorder
-from app.core.logging.logger import log
+from app.core.page.http import HttpHelper
+from app.core.logging.logger import Logger
 from app.core.page.dom import DomHelper
+from app.core.task.errors import FormValidationError
+from app.core.task.errors import UnfilledFieldError
 from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
 
@@ -15,6 +18,10 @@ class BaseRpaTask:
     incognito = False
     wait_page_load = False
     fail_on_unfilled_fields = False
+    FILL_HANDLERS = {
+        "input": "_fill_if_present",
+        "select": "_select_if_present",
+    }
 
     def __init__(
         self,
@@ -29,6 +36,8 @@ class BaseRpaTask:
         self.context = context or TaskContext()
         self.page = None
         self.dom = None
+        self.http = None
+        self.logger = Logger()
         self.events = []
         if browser_manager is None:
             from app.core.browser.manager import BrowserManager
@@ -51,6 +60,7 @@ class BaseRpaTask:
 
             self.page = self.browser_manager.start(self.context, self)
             self.dom = DomHelper(self.page)
+            self.http = HttpHelper(self.page)
 
             if self.should_record():
                 self.recorder.start(self.context)
@@ -58,29 +68,31 @@ class BaseRpaTask:
 
             self.login()
             self.execute_business()
-            unfilled_fields = self.check_unfilled_fields()
             if record_started:
                 record_url = self.recorder.stop(self.context)
                 record_started = False
             result = TaskResult(
+                task_id=str(self.context.task.get("id") or ""),
                 rpa_message_id=self.context.rpa_message_id,
                 queue_name=self.context.queue_name,
                 success=True,
                 message="任务执行成功",
-                unfilled_fields=unfilled_fields,
+                unfilled_fields=self.get_unfilled_fields(),
                 record_url=record_url,
             )
             if self.context.enable_result_publish:
                 self.publisher.publish_result(result)
-            self.log(f"任务执行成功 queue={self.context.queue_name}")
+            self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
             return result
         except Exception as exc:
             screenshot_url = self.oss_client.local_screenshot_path(self.context.rpa_message_id)
             result = TaskResult(
+                task_id=str(self.context.task.get("id") or ""),
                 rpa_message_id=self.context.rpa_message_id,
                 queue_name=self.context.queue_name,
                 success=False,
                 message=str(exc),
+                code=getattr(exc, "code", None),
                 error_type=exc.__class__.__name__,
                 unfilled_fields=list(self.context.remain_content.keys()),
                 screenshot_url=screenshot_url,
@@ -88,12 +100,12 @@ class BaseRpaTask:
             )
             if self.context.enable_result_publish:
                 self.publisher.publish_result(result)
-            self.log(f"任务执行失败 queue={self.context.queue_name} error={exc}")
+            self.logger.error(f"任务执行失败 queue={self.context.queue_name} error={exc}")
             return result
         finally:
             if record_started:
                 self.recorder.stop(self.context)
-            self.log("任务结束，保留浏览器进程以便后续接管")
+            self.logger.info("任务结束，保留浏览器进程以便后续接管")
 
     def should_record(self):
         """判断当前任务是否录屏。"""
@@ -101,9 +113,21 @@ class BaseRpaTask:
             return self.context.enable_record
         return self.enable_record
 
-    def log(self, message):
+    def log(self, message, level="INFO"):
         """打印任务日志。"""
-        log(message)
+        self.logger.log(message, level=level)
+
+    def info(self, message):
+        """打印 INFO 级别任务日志。"""
+        self.logger.info(message)
+
+    def warn(self, message):
+        """打印 WARN 级别任务日志。"""
+        self.logger.warn(message)
+
+    def error(self, message):
+        """打印 ERROR 级别任务日志。"""
+        self.logger.error(message)
 
     def login(self):
         """船司登录，由船司基类实现。"""
@@ -120,7 +144,59 @@ class BaseRpaTask:
 
     def check_unfilled_fields(self):
         """检查未填字段。"""
-        unfilled_fields = list(self.context.remain_content.keys())
+        unfilled_fields = self.get_unfilled_fields()
         if unfilled_fields:
-            self.log(f"存在未处理字段：{unfilled_fields}")
+            self.logger.warn(f"存在未处理字段：{unfilled_fields}")
         return unfilled_fields
+
+    def get_unfilled_fields(self):
+        """获取当前未处理字段列表。"""
+        return list(self.context.remain_content.keys())
+
+    def raise_if_unfilled_fields(self, stage="填单流程"):
+        """在具体填单阶段主动触发未填字段校验。"""
+        unfilled_fields = self.check_unfilled_fields()
+        if unfilled_fields:
+            raise UnfilledFieldError(f"{stage}存在未处理字段：{unfilled_fields}")
+        return unfilled_fields
+
+    def _fill_if_present(self, locator, field_name, source=None, timeout=2):
+        """字段有值时输入。"""
+        source = self.context.content if source is None else source
+        source = source or {}
+        value = source.get(field_name, "")
+        if value in (None, ""):
+            return
+        if self.dom.input_text(locator, value, timeout=timeout):
+            self.mark_field_done(field_name)
+
+    def _select_if_present(self, locator, field_name, source=None, timeout=2):
+        """字段有值时选择。"""
+        source = self.context.content if source is None else source
+        source = source or {}
+        value = source.get(field_name, "")
+        if value in (None, ""):
+            return
+        if self.dom.select(locator, value, timeout=timeout):
+            self.mark_field_done(field_name)
+
+    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None, timeout=2):
+        """按字段类型填写。"""
+        handler = self.FILL_HANDLERS.get(field_type)
+        if not handler:
+            raise ValueError(f"不支持的字段类型：{field_type}")
+        getattr(self, handler)(locator, field_name, source, timeout)
+
+
+
+    def verify_from_value(self,field_type, locator, field_name,source=None):
+        """校验单个字段值。"""
+        source = self.context.content if source is None else source
+        source = source or {}
+        source_value = source.get(field_name, "")
+        if field_type == "input":
+            field_value = self.dom.get_value(locator)
+        elif field_type == "select":
+            field_value = self.dom.get_select_value(locator)
+        if field_value != source_value:
+            raise FormValidationError(f"{field_name} 值不匹配：输入值 {field_value} != 期望值 {source_value}")

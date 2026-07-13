@@ -13,6 +13,9 @@ class LocalPage:
     def ele(self, locator, timeout=0):
         return None
 
+    def eles(self, locator, timeout=0):
+        return []
+
 
 class BrowserManager:
     """DrissionPage 浏览器管理器。"""
@@ -43,6 +46,7 @@ class BrowserManager:
             user_data_path=user_data_path,
             download_path=download_path,
             incognito=bool(getattr(task, "incognito", False)),
+            wait_page_load=bool(getattr(task, "wait_page_load", False)),
         )
 
     def start(self, context, task):
@@ -56,7 +60,7 @@ class BrowserManager:
             log(f"浏览器开关关闭，使用本地空页面 port={options.port} profile={options.user_data_path}")
             return self.page
         try:
-            from DrissionPage import ChromiumOptions, ChromiumPage
+            from DrissionPage import ChromiumOptions, Chromium
 
             co = ChromiumOptions()
             co.set_local_port(options.port)
@@ -68,8 +72,10 @@ class BrowserManager:
             co.set_pref("download.default_directory", options.download_path)
             for key, value in options.prefs.items():
                 co.set_pref(key, value)
-            self.page = ChromiumPage(co)
-            self.browser = self.page
+            if not options.wait_page_load:
+                co.set_load_mode("none")
+            self.browser = Chromium(co)
+            self.page = self.browser.latest_tab
             log(f"浏览器启动或接管成功 port={options.port} profile={options.user_data_path}")
             return self.page
         except Exception as exc:

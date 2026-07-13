@@ -1,4 +1,5 @@
 from app.core.task.errors import BusinessError
+from app.Spider.ZIM.ZIM_SI import ZimSiTask
 
 
 def _raise_unimplemented(context, business_code):
@@ -6,9 +7,15 @@ def _raise_unimplemented(context, business_code):
     raise BusinessError(f"ZIM {business_code} 业务暂未实现：{context.queue_name}")
 
 
+class FlZimSiTask(ZimSiTask):
+    """FL 客户的 ZIM SI 任务。"""   
+    incognito = False
+
+
+
 def fl_zim_si(context):
     """FL_ZIM_SI 队列入口。"""
-    _raise_unimplemented(context, "SI")
+    return FlZimSiTask(context).run()
 
 
 def fl_zim_vgm(context):
