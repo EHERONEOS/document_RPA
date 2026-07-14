@@ -9,5 +9,5 @@ class WhlBaseTask(BaseRpaTask):
 
     def login(self):
         """执行 WHL 登录。"""
-        self.log("执行 WHL 登录入口")
+        self.logger.info("执行 WHL 登录入口")
         raise LoginError("登录失败")

@@ -37,4 +37,4 @@ class WhlSiTask(WhlBaseTask):
 
     def submit_or_save(self):
         """保存或提交。"""
-        self.log("WHL SI 保存或提交入口")
+        self.logger.info("WHL SI 保存或提交入口")

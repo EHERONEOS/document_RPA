@@ -62,7 +62,7 @@ class BaseRpaTask:
         record_url = ""
         try:
             if self.context.enable_notify:
-                self.notifier.notify_processing(self.context.rpa_message_id, self.context.queue_name)
+                self.notifier.notify_processing(self.context)
 
             self.page = self.browser_manager.start(self.context, self)
             self.dom = DomHelper(self.page)

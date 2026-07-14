@@ -5,7 +5,7 @@ description = "Distributed RPA workers for carrier document automation"
 requires-python = "==3.12.12"
 dependencies = [
     "DrissionPage",
-    "funboost",
+    "funboost>=54.8",
     "numpy",
     "opencv-python",
     "python-dotenv",

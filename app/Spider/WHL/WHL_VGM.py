@@ -10,4 +10,4 @@ class WhlVgmTask(WhlBaseTask):
     def execute_business(self):
         """执行 WHL VGM 通用填单流程。"""
         self.mark_field_done("bookingNo")
-        self.log("WHL VGM 填单入口")
+        self.logger.info("WHL VGM 填单入口")
