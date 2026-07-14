@@ -71,3 +71,9 @@ SI_BASE_INPUT_FIELDS = tuple((locator, field_name) for field_type, locator, fiel
 SI_BASE_SELECT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_BASE_FILL_FIELDS if field_type == "select")
 SI_CONTAINER_INPUT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_CONTAINER_FILL_FIELDS if field_type == "input")
 SI_CONTAINER_SELECT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_CONTAINER_FILL_FIELDS if field_type == "select")
+
+
+
+ROW_VGM_A = "c:.detail>div:nth-child(2) .grid-selected .edit_vgm" # 打开VGM弹窗按钮
+VGM_ALERT_FRAME= "c:.layui-layer-content iframe"#VGM弹窗iframe定位
+

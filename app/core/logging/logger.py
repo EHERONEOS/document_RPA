@@ -1,10 +1,61 @@
 from datetime import datetime
+from inspect import currentframe
+from pathlib import Path
+import sys
+
+
+_LEVEL_COLORS = {
+    "DEBUG": "\033[36m",
+    "INFO": "\033[32m",
+    "WARN": "\033[33m",
+    "WARNING": "\033[33m",
+    "ERROR": "\033[31m",
+}
+_RESET = "\033[0m"
+_LOGGER_FILE = Path(__file__).resolve()
+
+
+def _display_path(file_path):
+    path = Path(file_path).resolve()
+    try:
+        return str(path.relative_to(Path.cwd()))
+    except ValueError:
+        return path.name
+
+
+def _caller():
+    frame = currentframe()
+    try:
+        while frame:
+            frame = frame.f_back
+            if not frame:
+                break
+            if Path(frame.f_code.co_filename).resolve() != _LOGGER_FILE:
+                return (
+                    _display_path(frame.f_code.co_filename),
+                    frame.f_code.co_name,
+                    frame.f_lineno,
+                )
+        return "<unknown>", "<unknown>", 0
+    finally:
+        del frame
+
+
+def _colorize(level):
+    if not getattr(sys.stdout, "isatty", lambda: False)():
+        return level
+    return f"{_LEVEL_COLORS.get(level, _RESET)}{level}{_RESET}"
 
 
 def log(message, level="INFO"):
-    """打印带级别的中文执行日志。"""
+    """打印带有时间、调用位置和级别的彩色执行日志。"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now}] [{str(level).upper()}] {message}")
+    level = str(level).upper()
+    file_path, function, line = _caller()
+    print(
+        f"[{now}] [{file_path}] [{function}:{line}] [{_colorize(level)}] {message}",
+        flush=True,
+    )
 
 
 def info(message):

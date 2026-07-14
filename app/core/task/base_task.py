@@ -92,6 +92,7 @@ class BaseRpaTask:
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
             return result
         except Exception as exc:
+            self.logger.error(f"任务执行失败 queue={self.context.queue_name} error={exc}")
             # screenshot_url = self.oss_client.local_screenshot_path(self.context.rpa_message_id)
             result = TaskResult(
                 task_id =self.context.task.get("id") or "",
@@ -105,7 +106,6 @@ class BaseRpaTask:
             )
             if self.context.enable_result_publish:
                 self.publisher.publish_result(result)
-            self.logger.error(f"任务执行失败 queue={self.context.queue_name} error={exc}")
             return result
         finally:
             if record_started:

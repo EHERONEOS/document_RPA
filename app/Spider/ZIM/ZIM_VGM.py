@@ -2,14 +2,15 @@ import time
 
 from app.Spider.ZIM import selectors
 from app.Spider.ZIM.base import ZimBaseTask
+from app.core.page.dom import DomHelper
 from app.core.task.context import TaskContext
 from app.core.task.errors import LoginError
 
 
-class ZimSiTask(ZimBaseTask):
-    """ZIM 通用 SI 业务流程。"""
+class ZimVGMTask(ZimBaseTask):
+    """ZIM 通用 VGM 业务流程。"""
 
-    business_code = "SI"
+    business_code = "VGM"
     incognito = False
     wait_page_load = False
 
@@ -23,31 +24,22 @@ class ZimSiTask(ZimBaseTask):
         """执行业务流程。"""
         # img_path = self.screenshot.page_shot(self.booking_no,"SI",is_error=False)
         bo_row = self.query_booking(self.booking_no)
-        detail_url = (
-            "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"
-            f"?type=mbl&ord_no={bo_row.get('job_no')}"
-        )
-        self.page.get(detail_url)
-        time.sleep(3)
-        self.fill_base_fields()
-        self.fill_containers()
-        self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
-        self.verify_from()
-        # self.verify_form_values(
-        #     form_name="ZIM SI 表单",
-        #     source=self.content,
-        #     input_fields=selectors.SI_BASE_INPUT_FIELDS,
-        #     select_fields=selectors.SI_BASE_SELECT_FIELDS,
-        #     repeating_groups=(
-        #         {
-        #             "path": "totalContainers",
-        #             "items": self.content.get("totalContainers") or [],
-        #             "row_selector": selectors.CON_BODY_ROW,
-        #             "input_fields": selectors.SI_CONTAINER_INPUT_FIELDS,
-        #             "select_fields": selectors.SI_CONTAINER_SELECT_FIELDS,
-        #         },
-        #     ),
+        iframe_dom: DomHelper = self.dom.in_frame(selectors.DC_LIST_FRAME) 
+        iframe_dom.click(selectors.ROW_VGM_A)
+        alert_iframe = iframe_dom.in_frame(selectors.VGM_ALERT_FRAME)
+        
+        pass
+        # detail_url = (
+        #     "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"
+        #     f"?type=mbl&ord_no={bo_row.get('job_no')}"
         # )
+        # self.page.get(detail_url)
+        # time.sleep(3)
+        # self.fill_base_fields()
+        # self.fill_containers()
+        # self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
+        # self.verify_from()
+
 
     def fill_base_fields(self):
         """填写基础提单信息。"""

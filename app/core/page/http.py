@@ -1,12 +1,14 @@
 from app.core.logging.logger import log
 from DrissionPage import ChromiumPage
+from DrissionPage._pages.chromium_base import ChromiumBase
+
 
 
 class HttpHelper:
     """页面 HTTP 监听封装。"""
 
-    def __init__(self, page):
-        self.page: ChromiumPage = page
+    def __init__(self, page:ChromiumBase):
+        self.page = page
 
     def wait_api_finished(self, url, trigger=None, timeout=30, method=("GET", "POST"), res_type=True, is_regex=False):
         """监听接口并在触发动作后返回监听结果。"""

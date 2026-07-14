@@ -12,7 +12,7 @@ def run_local_message(message_path):
         message,
         runtime_mode="local",
         enable_notify=False,
-        enable_result_publish=True,
+        enable_result_publish=False,
         enable_record=False,
     )
     return dispatch_context(context)

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.logging.logger import log
+from DrissionPage._elements.none_element import NoneElement
 
 
 class Screenshot:
@@ -99,7 +100,7 @@ class Screenshot:
             raise RuntimeError("当前页面对象不支持元素定位")
 
         element = self.page.ele(actual_locator, timeout=timeout)
-        if element is None:
+        if element is None or isinstance(element, NoneElement):
             raise RuntimeError(f"元素不存在，无法截图：{actual_locator}")
         return element
 

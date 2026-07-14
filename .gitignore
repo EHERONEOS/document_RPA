@@ -22,6 +22,7 @@ launch.json
 .trae/rules/*.json
 tests/
 message_list/
+.idea/
 
 # System files
 .DS_Store
