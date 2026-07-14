@@ -43,7 +43,7 @@ class RabbitmqSettings:
         config = {
             "queue_durable": self.queue_durable,
             "passive": self.queue_passive,
-            "x-max-priority": None,
+            "x-max-priority": 0,
             "no_ack": self.no_ack,
         }
         if self.dead_letter_exchange:

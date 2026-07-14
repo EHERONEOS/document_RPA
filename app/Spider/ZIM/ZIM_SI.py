@@ -3,6 +3,7 @@ import time
 from app.Spider.ZIM import selectors
 from app.Spider.ZIM.base import ZimBaseTask
 from app.core.task.context import TaskContext
+from app.core.task.errors import LoginError
 
 
 class ZimSiTask(ZimBaseTask):
@@ -22,7 +23,7 @@ class ZimSiTask(ZimBaseTask):
         """执行业务流程。"""
         # img_path = self.screenshot.page_shot(self.booking_no,"SI",is_error=False)
         bo_row = self.query_booking(self.booking_no)
-        return
+        raise LoginError("测试异常")
         detail_url = (
             "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"
             f"?type=mbl&ord_no={bo_row.get('job_no')}"

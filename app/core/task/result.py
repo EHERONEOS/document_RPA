@@ -5,35 +5,28 @@ from typing import Any
 @dataclass
 class TaskResult:
     """任务回传结果。"""
-
-    rpa_message_id: str
-    queue_name: str
+    task_id:str
     success: bool
-    message: str
-    task_id: str = ""
-    error_type: str = ""
-    unfilled_fields: list = field(default_factory=list)
-    screenshot_url: str = ""
-    record_url: str = ""
+    rpaMessageId: str = ""
+    saveType: int = 1
+    img: str = ""
     code: int | None = None
-    save_type: int = 1
-    attachments: list = field(default_factory=list)
-    content: dict[str, Any] = field(default_factory=dict)
+    executeRecordFiles: str = ""
+    remark: str = ""
+    attachments: str = ""
+    content: str = ""
 
     def to_payload(self):
         """转换为结果回传 payload。"""
         return {
-            "id": self.task_id,
-            "rpaMessageId": self.rpa_message_id,
-            "queueName": self.queue_name,
+            "task_id": self.task_id,
             "success": self.success,
-            "message": self.message,
-            "errorType": self.error_type,
-            "unfilledFields": self.unfilled_fields,
-            "screenshotUrl": self.screenshot_url,
-            "recordUrl": self.record_url,
+            "rpaMessageId": self.rpaMessageId,
+            "saveType": self.saveType,
+            "img": self.img,
+            "executeRecordFiles": self.executeRecordFiles,
+            "remark": self.remark,
             "code": self.code,
-            "saveType": self.save_type,
             "attachments": self.attachments,
             "content": self.content,
         }

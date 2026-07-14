@@ -10,19 +10,16 @@ from app.queue.rabbitmq import RabbitmqPublisherWithDlx, build_rabbitmq_broker_c
 class ResultPublisher:
     """任务结果回传。"""
 
-    DEFAULT_RESULT_QUEUE = "DOCUMENT_UPDATE"
-    RETRY_TIMES = 3
+    DOCUMENT_UPDATE = "gcp_document_update"
+    RETRY_TIMES = 1
 
-    def __init__(self, queue_name=None):
-        self.queue_name = (
-            str(queue_name or os.getenv("RESULT_PUBLISH_QUEUE", self.DEFAULT_RESULT_QUEUE)).strip()
-            or self.DEFAULT_RESULT_QUEUE
-        )
+    def __init__(self):
+        pass
 
     def publish_result(self, result):
         payload = self.build_reply_data(result)
         log(f"任务结果回传 {payload}")
-        self.send_msg_to_queue(self.queue_name, payload)
+        self.send_msg_to_queue( payload)
         return payload
 
     def build_reply_data(self, result):
@@ -35,10 +32,10 @@ class ResultPublisher:
             "id": task_id,
             "success": result.success,
             "code": self._resolve_code(result),
-            "rpaMessageId": result.rpa_message_id,
-            "saveType": result.save_type,
-            "img": result.screenshot_url,
-            "executeRecordFiles": result.record_url,
+            "rpaMessageId": result.rpaMessageId,
+            "saveType": result.saveType,
+            "img": result.img,
+            "executeRecordFiles": result.executeRecordFiles,
         }
 
         if result.content:
@@ -46,17 +43,23 @@ class ResultPublisher:
         if result.attachments:
             payload["attachments"] = result.attachments
 
-        status_remarks = self._build_status_remarks(result)
+        status_remarks = {"message": result.remark}
         if status_remarks:
             payload["statusRemarks"] = status_remarks
 
         return payload
 
-    def send_msg_to_queue(self, queue_name, data, delay=0):
+    def send_msg_to_queue(self, data, delay=0):
         """临时发布一条结果回传消息。"""
         task_options = TaskOptions(countdown=delay) if delay else None
         broker_config = build_rabbitmq_broker_config().copy()
-        broker_config.update({"passive": True})
+        broker_config.update(
+            {
+                "passive": True,
+                "x-dead-letter-exchange": "timeout_dlx_exchange",
+                "x-dead-letter-routing-key": "timeout_dlx_routing_key",
+            }
+        )
 
         last_exc = None
         for _ in range(self.RETRY_TIMES):
@@ -64,15 +67,18 @@ class ResultPublisher:
             try:
                 publisher = get_publisher(
                     PublisherParams(
-                        queue_name=queue_name,
-                        logger_prefix=queue_name,
-                        broker_kind=BrokerEnum.RABBITMQ_AMQPSTORM,
+                        queue_name=self.DOCUMENT_UPDATE,
+                        logger_prefix=self.DOCUMENT_UPDATE,
+
                         broker_exclusive_config=broker_config,
-                        should_check_publish_func_params=False,
+                        broker_kind=BrokerEnum.RABBITMQ_AMQPSTORM,
                         publisher_override_cls=RabbitmqPublisherWithDlx,
                     )
                 )
-                publisher.publish(msg={"task": data}, task_options=task_options)
+                publisher.publish(
+                    msg={"task": data},
+                    task_options=task_options,
+                )
                 return True
             except Exception as exc:
                 last_exc = exc

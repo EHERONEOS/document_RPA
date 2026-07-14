@@ -62,7 +62,7 @@ class BaseRpaTask:
         record_url = ""
         try:
             if self.context.enable_notify:
-                self.notifier.notify_processing(self.context)
+                self.notifier.notify_processing(self.context.rpa_message_id, self.context.queue_name)
 
             self.page = self.browser_manager.start(self.context, self)
             self.dom = DomHelper(self.page)
@@ -78,31 +78,30 @@ class BaseRpaTask:
                 record_started = True
             self.execute_business()
             result = TaskResult(
-                task_id=str(self.context.task.get("id") or ""),
-                rpa_message_id=self.context.rpa_message_id,
-                queue_name=self.context.queue_name,
+                task_id =self.context.task.get("id") or "",
                 success=True,
-                message="任务执行成功",
-                unfilled_fields=self.get_unfilled_fields(),
-                record_url=record_url,
+                code=200,
+                rpaMessageId = self.context.rpa_message_id,
+                img="图片地址",
+                executeRecordFiles="",
+                remark="",
+                attachments="附件地址",
             )
             if self.context.enable_result_publish:
                 self.publisher.publish_result(result)
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
             return result
         except Exception as exc:
-            screenshot_url = self.oss_client.local_screenshot_path(self.context.rpa_message_id)
+            # screenshot_url = self.oss_client.local_screenshot_path(self.context.rpa_message_id)
             result = TaskResult(
-                task_id=str(self.context.task.get("id") or ""),
-                rpa_message_id=self.context.rpa_message_id,
-                queue_name=self.context.queue_name,
+                task_id =self.context.task.get("id") or "",
                 success=False,
-                message=str(exc),
                 code=getattr(exc, "code", None),
-                error_type=exc.__class__.__name__,
-                unfilled_fields=list(self.context.remain_content.keys()),
-                screenshot_url=screenshot_url,
-                record_url=record_url,
+                rpaMessageId = self.context.rpa_message_id,
+                img="图片地址",
+                executeRecordFiles="",
+                remark=str(exc),
+                attachments="附件地址",
             )
             if self.context.enable_result_publish:
                 self.publisher.publish_result(result)

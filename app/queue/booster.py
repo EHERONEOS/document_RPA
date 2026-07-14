@@ -1,5 +1,8 @@
+import os
+
 from funboost import BrokerEnum, BoosterParams
 
+from app.config.types import str_to_bool
 from app.queue.rabbitmq import RabbitmqPublisherWithDlx, build_rabbitmq_broker_config
 
 
@@ -14,5 +17,5 @@ class RpaBoosterParams(BoosterParams):
     concurrent_num: int = 1
     # max_retry_times: int = 0
     logger_prefix: str = ""
-    is_support_remote_kill_task: bool = True
+    is_support_remote_kill_task: bool = str_to_bool(os.getenv("ENABLE_REMOTE_KILL_TASK", "false"))
     publisher_override_cls: type = RabbitmqPublisherWithDlx

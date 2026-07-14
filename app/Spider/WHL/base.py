@@ -1,4 +1,5 @@
 from app.core.task.base_task import BaseRpaTask
+from app.core.task.errors import LoginError
 
 
 class WhlBaseTask(BaseRpaTask):
@@ -9,3 +10,4 @@ class WhlBaseTask(BaseRpaTask):
     def login(self):
         """执行 WHL 登录。"""
         self.log("执行 WHL 登录入口")
+        raise LoginError("登录失败")
