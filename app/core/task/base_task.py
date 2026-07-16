@@ -134,8 +134,8 @@ class BaseRpaTask:
     def check_unfilled_fields(self):
         """检查未填字段。"""
         unfilled_fields = self.get_unfilled_fields()
-        if unfilled_fields:
-            self.logger.warn(f"存在未处理字段：{unfilled_fields}")
+        # if unfilled_fields:
+        #     self.logger.warn(f"存在未处理字段：{unfilled_fields}")
         return unfilled_fields
 
     def get_unfilled_fields(self):

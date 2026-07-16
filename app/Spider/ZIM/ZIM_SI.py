@@ -33,21 +33,6 @@ class ZimSiTask(ZimBaseTask):
         self.fill_containers()
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
         self.verify_from()
-        # self.verify_form_values(
-        #     form_name="ZIM SI 表单",
-        #     source=self.content,
-        #     input_fields=selectors.SI_BASE_INPUT_FIELDS,
-        #     select_fields=selectors.SI_BASE_SELECT_FIELDS,
-        #     repeating_groups=(
-        #         {
-        #             "path": "totalContainers",
-        #             "items": self.content.get("totalContainers") or [],
-        #             "row_selector": selectors.CON_BODY_ROW,
-        #             "input_fields": selectors.SI_CONTAINER_INPUT_FIELDS,
-        #             "select_fields": selectors.SI_CONTAINER_SELECT_FIELDS,
-        #         },
-        #     ),
-        # )
 
     def fill_base_fields(self):
         """填写基础提单信息。"""

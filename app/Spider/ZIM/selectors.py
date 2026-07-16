@@ -16,7 +16,7 @@ NOTIFY_ADDRESS="#nty_address" #通知人人地址
 CONTRACT_NO ="#conf_no" #合约号
 PAYMENT_TERM = "#pay_term_frt_hbl" #付款方式
 REMARK = "#remark" #备注
- 
+
 HS_CODE = "#HS_code" #HS CODE
 PCS_UNIT = "#pcs_unit_code" #包装单位
 MARK = "#goods_mark" #唛头
@@ -32,39 +32,43 @@ CON_ROW_QTY =".qty"              #件数 #tbContainer>tr:nth-child(1) .qty
 CON_ROW_KGS =".kgs"              #毛重 #tbContainer>tr:nth-child(1) .kgs
 CON_ROW_CBM =".cbm"              #体积 #tbContainer>tr:nth-child(1) .cbm
 CON_ROW_UNIT =".unit"            #包装单位 #tbContainer>tr:nth-child(1) .unit
+
+
 RELEASE_TYPE ="#release_type" #提单类型
 HBL_NUM ="#hbl_num" #提单件数
 
 # SI 基础信息填写配置：(字段类型, 定位器, content 字段名)
 SI_BASE_FILL_FIELDS = (
-    ("input", SJIPPER, "shp_name"),
-    ("input", SJIPPER_ADDRESS, "shp_address"),
-    ("input", CONSIGNEE, "cns_name"),
-    ("input", CONSIGNEE_ADDRESS, "cns_address"),
-    ("input", NOTIFY, "nty_name"),
-    ("input", NOTIFY_ADDRESS, "nty_address"),
-    ("input", CONTRACT_NO, "conf_no"),
-    ("select", PAYMENT_TERM, "pay_term"),
-    ("input", REMARK, "remark"),
-    ("input", HS_CODE, "HS_code"),
-    ("select", PCS_UNIT, "pcs_unit"),
-    ("input", MARK, "goods_mark"),
-    ("input", DESC, "goods_desc"),
-    ("select", RELEASE_TYPE, "release_type"),
-    ("input", HBL_NUM, "hbl_num"),
+    ("input", SJIPPER, "shipperTitle"),
+    ("input", SJIPPER_ADDRESS, "shipperAddress"),
+    ("input", CONSIGNEE, "consigneeTitle"),
+    ("input", CONSIGNEE_ADDRESS, "consigneeTitle"),
+    ("input", NOTIFY, "notifyTitle"),
+    ("input", NOTIFY_ADDRESS, "notifyAddress"),
+    ("input", CONTRACT_NO, "scNo"),
+    ("select", PAYMENT_TERM, "paymentType"),
+    ("input", REMARK, "remarks"),
+    ("input", HS_CODE, "totalHsCode"),
+    ("select", PCS_UNIT, "totalAmountUnit"),
+    ("input", MARK, "totalMarks"),
+    ("input", DESC, "totalGoodsDesc"),
+
+    ("select", RELEASE_TYPE, "releaseMode"),
+    ("input", HBL_NUM, "numberOfOriginal"),
 )
 
 # SI 箱货信息填写配置：(字段类型, 定位器, content 字段名)
 SI_CONTAINER_FILL_FIELDS = (
-    ("input", CON_ROW_CON_NO, "con_no"),
-    ("input", CON_ROW_SEAL_NO, "seal_no"),
-    ("select", CON_ROW_SIZE, "con_size"),
-    ("select", CON_ROW_CON_TYPE, "con_type"),
-    ("input", CON_ROW_QTY, "con_qty"),
-    ("input", CON_ROW_KGS, "con_kgs"),
-    ("input", CON_ROW_CBM, "con_cbm"),
-    ("input", CON_ROW_UNIT, "con_unit"),
+    ("input", CON_ROW_CON_NO, "containerNo"),
+    ("input", CON_ROW_SEAL_NO, "sealNo"),
+    ("select", CON_ROW_SIZE, "containerSize"),
+    ("select", CON_ROW_CON_TYPE, "splitContainerType"),
+    ("input", CON_ROW_QTY, "packages"),
+    ("input", CON_ROW_KGS, "grossWeight"),
+    ("input", CON_ROW_CBM, "volume"),
+    ("input", CON_ROW_UNIT, "packageUnit"),
 )
+
 
 # 基于填写配置自动派生校验配置，避免填写和校验维护两套字段映射。
 SI_BASE_INPUT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_BASE_FILL_FIELDS if field_type == "input")

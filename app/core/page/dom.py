@@ -53,6 +53,7 @@ class DomHelper:
             return False
         element.click()
         element.input(value, clear=True)
+        self.page.run_js("arguments[0].blur();", element)
         log(f"输入{name}")
         return True
 
@@ -74,7 +75,7 @@ class DomHelper:
                 raise ValueError(f"不支持的 select 选择方式：{by}")
         except RuntimeError as exc:
             raise ElementNotFoundError(f"{name}选项不存在：{value}") from exc
-
+        self.page.run_js("arguments[0].blur();", element)
         log(f"选择{name}")
         return True
 
