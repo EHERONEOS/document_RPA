@@ -6,7 +6,7 @@ import sys
 
 _LEVEL_COLORS = {
     "DEBUG": "\033[36m",
-    "INFO": "\033[32m",
+    "INFO": "\033[34m",
     "WARN": "\033[33m",
     "WARNING": "\033[33m",
     "ERROR": "\033[31m",

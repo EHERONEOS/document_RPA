@@ -60,6 +60,10 @@ class BaseRpaTask:
         """执行完整任务生命周期。"""
         record_started = False
         record_url = ""
+        success = False
+        code = 0
+        screenshot_url= ""
+        remark = ""
         try:
             if self.context.enable_notify:
                 self.notifier.notify_processing(self.context)
@@ -68,48 +72,71 @@ class BaseRpaTask:
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
-            self.recorder = Recorder(self.page)
-
+            self.oss_client = OssClient()
             
+            # self.recorder = Recorder(self.page)
 
             self.login()
-            if self.should_record():
-                self.recorder.start()
-                record_started = True
+            # if self.should_record():
+            #     record_started = True
             self.execute_business()
-            result = TaskResult(
-                task_id =self.context.task.get("id") or "",
-                success=True,
-                code=200,
-                rpaMessageId = self.context.rpa_message_id,
-                img="图片地址",
-                executeRecordFiles="",
-                remark="",
-                attachments="附件地址",
-            )
-            if self.context.enable_result_publish:
-                self.publisher.publish_result(result)
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
-            return result
+            success = True
+            code = 200
+
+            # result = TaskResult(
+            #     task_id =self.context.task.get("id") or "",
+            #     success=True,
+            #     code=200,
+            #     rpaMessageId = self.context.rpa_message_id,
+            #     img="图片地址",
+            #     executeRecordFiles="",
+            #     remark="",
+            #     attachments="附件地址",
+            # )
+            # if self.context.enable_result_publish:
+            #     self.publisher.publish_result(result)
+            # self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
+            # return result
         except Exception as exc:
             self.logger.error(f"任务执行失败 queue={self.context.queue_name} error={exc}")
-            # screenshot_url = self.oss_client.local_screenshot_path(self.context.rpa_message_id)
-            result = TaskResult(
-                task_id =self.context.task.get("id") or "",
-                success=False,
-                code=getattr(exc, "code", None),
-                rpaMessageId = self.context.rpa_message_id,
-                img="图片地址",
-                executeRecordFiles="",
-                remark=str(exc),
-                attachments="附件地址",
-            )
             if self.context.enable_result_publish:
-                self.publisher.publish_result(result)
-            return result
+                
+                file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
+                screenshot_url = self.oss_client.oss_upload(file_path)
+            success = False;
+            code = getattr(exc, "code", 0)  
+            remark = str(exc)  
+            # if self.context.enable_result_publish:
+            #     file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
+            #     screenshot_url = self.oss_client.oss_upload(file_path)
+            #     result = TaskResult(
+            #         task_id =self.context.task.get("id") or "",
+            #         success=False,
+            #         code=getattr(exc, "code", None),
+            #         rpaMessageId = self.context.rpa_message_id,
+            #         img=screenshot_url or "",
+            #         executeRecordFiles="",
+            #         remark=str(exc),
+            #         attachments="附件地址",
+            #     )
+            #     self.publisher.publish_result(result)
+            # return False
         finally:
-            if record_started:
-                self.recorder.stop(self.context.queue_name, self.booking_no)
+            # if record_started:
+            #     self.recorder.stop(self.context.queue_name, self.booking_no)
+            if self.context.enable_result_publish:
+                result = TaskResult(
+                    task_id =self.context.task.get("id") or "",
+                    success=success,
+                    code=code,
+                    rpaMessageId = self.context.rpa_message_id,
+                    img=screenshot_url or "",
+                    executeRecordFiles="",
+                    remark=remark,
+                    attachments="附件地址",
+                )
+                self.publisher.publish_result(result)
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
 
     def should_record(self):
@@ -152,38 +179,40 @@ class BaseRpaTask:
 
 
 
-    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None,o_selector=None, timeout=2):
+    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None,o_selector=None,frame=None, timeout=2):
         """按字段类型填写。"""
         source = self.content if source is None else source
         source = source or {}
         value = source.get(field_name, "")
+        frame = frame or self.dom
         if value in (None, ""):
             return
         if field_type == "input":
-            self.dom.input_text(locator, value, timeout=timeout)
+            frame.input_text(locator, value, timeout=timeout)
         elif field_type == "select":
-            self.dom.select(locator, value, timeout=timeout)
+            frame.select(locator, value, timeout=timeout)
         elif field_type == "s_select":
-            self.dom.search_select(locator, value,o_selector, timeout=timeout)
+            frame.search_select(locator, value,o_selector, timeout=timeout)
         else:
             raise ValueError(f"不支持的字段类型：{field_type}")
         # self.mark_field_done(field_name,source)
 
 
 
-    def verify_from_value(self,field_type, locator, field_name,source=None,null_check=False):
+    def verify_from_value(self, field_type, locator, field_name,source=None,frame=None,null_check=False):
         """校验单个字段值。"""
         source = self.remain_content if source is None else source
         source = source or {}
         source_value = source.get(field_name, "")
         if source_value is None and null_check:
             return
+        frame = frame or self.dom
         if field_type == "input":
-            field_value = self.dom.get_value(locator)
+            field_value = frame.get_value(locator)
         elif field_type == "select":
-            field_value = self.dom.get_select_value(locator)
+            field_value = frame.get_select_value(locator)
         elif field_type == "s_select":
-            field_value = self.dom.get_value(locator)
+            field_value = frame.get_value(locator)
         if field_value != source_value:
             raise FormValidationError(f"{field_name} 值不匹配：输入值 {field_value} != 期望值 {source_value}")
         self.mark_field_done(field_name,source)

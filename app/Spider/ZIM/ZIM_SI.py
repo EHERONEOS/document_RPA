@@ -22,7 +22,6 @@ class ZimSiTask(ZimBaseTask):
 
     def execute_business(self):
         """执行业务流程。"""
-        # img_path = self.screenshot.page_shot(self.booking_no,"SI",is_error=False)
         bo_row = self.query_booking(self.booking_no)
         detail_url = (
             "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"
@@ -30,12 +29,15 @@ class ZimSiTask(ZimBaseTask):
         )
         self.page.get(detail_url)
         time.sleep(3)
+        # element = self.dom._find("c:.center_box")
+        # file_path = self.screenshot.element_shot(element,self.booking_no,"SI",error=False)
+        # self.oss_client.oss_upload(file_path)
+        
         self.fill_base_fields()
         self.fill_containers()
         self.verify_from()
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
         pass
-        # self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
 
     def fill_base_fields(self):
         """填写基础提单信息。"""

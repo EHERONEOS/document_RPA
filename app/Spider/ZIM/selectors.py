@@ -66,4 +66,26 @@ SI_VERIFY_FIELDS=(
 
 ROW_VGM_A = "c:.detail>div:nth-child(2) .grid-selected .edit_vgm" # 打开VGM弹窗按钮
 VGM_ALERT_FRAME= "c:.layui-layer-content iframe"#VGM弹窗iframe定位
+VGM_ADD_BTN ="#btnAddContainer" # 添加箱货按钮
+VGM_DELETE_BTN ="c:#tbContainer .hbl_tbtnDel" # 删除箱货按钮
+VGM_CON_BODY_ROW = "c:#tbContainer>tr" #单个箱货行dom 需要后面加上nth-child(1)
+# VGM 箱货信息填写配置：(字段类型, 定位器, content 字段名)
+VGM_CONTAINER_FILL_FIELDS = (
+    ("input", ".container" , "containerNo"), # 箱号
+    ("input", ".seal_no" , "sealNo"), # 封号
+    ("select", ".cont_size_name" , "containerSize"), # 尺寸
+    ("select", ".cont_type" , "splitContainerType"), # 箱型
+    ("input", ".qty" , "packages"), # 件数
+    ("input", ".unit" , "packageUnit"), # 包装单位
+    ("input", ".kgs" , "grossWeight"), # 毛重
+    ("input", ".cbm" , "volume"), # 体积
+    ("select", ".vgm_wgt_type" , "method"), # 称重方式
+    ("input", ".vgm_wgt" , "weight"), # 重量
+)
+VGM_BASE_FILL_FIELDS= (
+    ("input", "#vgm_man", "contacts"), # VGM联系人
+    ("input", "#vgm_tel", "tel"), # VGM联系电话
+    ("input", "#vgm_mail", "email"), # VGM邮箱
+    ("input", "#vgm_addr", "address"), # VGM地址
+)
 
