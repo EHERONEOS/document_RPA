@@ -4,9 +4,6 @@ from app.Spider.ZIM.ZIM_VGM import ZimVGMTask
 
 
 
-def _raise_unimplemented(context, business_code):
-    """终止尚未实现的 ZIM 业务，避免任务被标记为成功。"""
-    raise BusinessError(f"ZIM {business_code} 业务暂未实现：{context.queue_name}")
 
 
 class FlZimSiTask(ZimSiTask):

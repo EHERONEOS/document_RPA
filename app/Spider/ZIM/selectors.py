@@ -5,76 +5,62 @@ SEARCH_BTN = "#btnSearch" # 搜索按钮
 BOOKING_GET_LIST_API = "https://cis.zim-logistics.com.cn/Ebooking/PlaceBooking/GetList" # 订舱列表接口
 
 
-# 订舱填单字段
-SJIPPER="#shp_name"  # 收货人
-SJIPPER_ADDRESS="#shp_address" #收货人地址
-CONSIGNEE="#Cns_name"  # 收货人
-CONSIGNEE_ADDRESS="#cns_address" #收货人地址
-NOTIFY = "#nty_name"  # 通知人
-NOTIFY_ADDRESS="#nty_address" #通知人人地址
+# SI 基础信息填写配置：(字段类型, 定位器, content 字段名,空值跳过校验, s_select:搜索选项定位器)
+SI_BASE_FILL_FIELDS = (
+    ("input", "#shp_name", "shipperTitle"), # 发货人
+    ("input", "#shp_address", "shipperAddress"), # 发货人地址
+    ("input", "#Cns_name", "consigneeTitle"), # 收货人
+    ("input", "#cns_address", "consigneeAddress"), # 收货人地址
+    ("input", "#nty_name", "notifyTitle"), # 通知人
+    ("input", "#nty_address", "notifyAddress"), # 通知人地址
+    ("input", "#conf_no", "scNo",True), # 合约号
+    ("select", "#pay_term_frt_hbl", "paymentType"), # 付款方式
+    ("input", "#remark", "remarks",True), # 备注
+    ("input", "#HS_code", "totalHsCode"), # HS CODE
+    ("select", "#pcs_unit_code", "totalAmountUnit"), # 包装单位
+    ("input", "#goods_mark", "totalMarks"), # 唛头
+    ("input", "#goods_desc", "totalGoodsDesc"), # 货描
+    ("select", "#release_type", "releaseMode"), # 提单类型
+    # ("input", "#hbl_num", "numberOfOriginal"), # 提单件数
+    ("s_select", "#frt_pay_at_code","frtPayAtCode",True,"c:.autocomplete-suggestions>.autocomplete-suggestion"), # 付款地code
+)
 
-CONTRACT_NO ="#conf_no" #合约号
-PAYMENT_TERM = "#pay_term_frt_hbl" #付款方式
-REMARK = "#remark" #备注
 
-HS_CODE = "#HS_code" #HS CODE
-PCS_UNIT = "#pcs_unit_code" #包装单位
-MARK = "#goods_mark" #唛头
-DESC = "#goods_desc" #货描
 ADD_CON_BTN = "#btnAddContainer" #添加箱货按钮
 DELETE_CON_BTN = "c:#tbContainer>tr .hbl_tbtnDel" #删除箱货按钮
 CON_BODY_ROW = "c:#tbContainer>tr" #单个箱货行dom 需要后面加上nth-child(1)
-CON_ROW_CON_NO =".container"     #箱号 #tbContainer>tr:nth-child(1) .container
-CON_ROW_SEAL_NO =".seal_no"      #封号 #tbContainer>tr:nth-child(1) .seal_no
-CON_ROW_SIZE =".cont_size_name"  #尺寸 #tbContainer>tr:nth-child(1) .cont_size_name
-CON_ROW_CON_TYPE =".cont_type"   #箱型 #tbContainer>tr:nth-child(1) .cont_type
-CON_ROW_QTY =".qty"              #件数 #tbContainer>tr:nth-child(1) .qty
-CON_ROW_KGS =".kgs"              #毛重 #tbContainer>tr:nth-child(1) .kgs
-CON_ROW_CBM =".cbm"              #体积 #tbContainer>tr:nth-child(1) .cbm
-CON_ROW_UNIT =".unit"            #包装单位 #tbContainer>tr:nth-child(1) .unit
-
-
-RELEASE_TYPE ="#release_type" #提单类型
-HBL_NUM ="#hbl_num" #提单件数
-
-# SI 基础信息填写配置：(字段类型, 定位器, content 字段名)
-SI_BASE_FILL_FIELDS = (
-    ("input", SJIPPER, "shipperTitle"),
-    ("input", SJIPPER_ADDRESS, "shipperAddress"),
-    ("input", CONSIGNEE, "consigneeTitle"),
-    ("input", CONSIGNEE_ADDRESS, "consigneeTitle"),
-    ("input", NOTIFY, "notifyTitle"),
-    ("input", NOTIFY_ADDRESS, "notifyAddress"),
-    ("input", CONTRACT_NO, "scNo"),
-    ("select", PAYMENT_TERM, "paymentType"),
-    ("input", REMARK, "remarks"),
-    ("input", HS_CODE, "totalHsCode"),
-    ("select", PCS_UNIT, "totalAmountUnit"),
-    ("input", MARK, "totalMarks"),
-    ("input", DESC, "totalGoodsDesc"),
-
-    ("select", RELEASE_TYPE, "releaseMode"),
-    ("input", HBL_NUM, "numberOfOriginal"),
-)
-
 # SI 箱货信息填写配置：(字段类型, 定位器, content 字段名)
 SI_CONTAINER_FILL_FIELDS = (
-    ("input", CON_ROW_CON_NO, "containerNo"),
-    ("input", CON_ROW_SEAL_NO, "sealNo"),
-    ("select", CON_ROW_SIZE, "containerSize"),
-    ("select", CON_ROW_CON_TYPE, "splitContainerType"),
-    ("input", CON_ROW_QTY, "packages"),
-    ("input", CON_ROW_KGS, "grossWeight"),
-    ("input", CON_ROW_CBM, "volume"),
-    ("input", CON_ROW_UNIT, "packageUnit"),
+    ("input", ".container" , "containerNo"), # 箱号
+    ("input", ".seal_no" , "sealNo"), # 封号
+    ("select", ".cont_size_name" , "containerSize"), # 尺寸
+    ("select", ".cont_type" , "splitContainerType"), # 箱型
+    ("input", ".qty" , "packages"), # 件数
+    ("input", ".kgs" , "grossWeight"), # 毛重
+    ("input", ".cbm" , "volume"), # 体积
+    ("input", ".unit" , "packageUnit"), # 包装单位
 )
 
+#需要检验的字段(字段类型, 定位器, content 字段名,空值跳过校验)
+SI_VERIFY_FIELDS=(
+    *SI_BASE_FILL_FIELDS,
+    ("input","#vessel","vessel",True), # 船名
+    ("input","#voyage","voyage",True), # 航次
+    ("input","#pr_code","receiptPlaceCode",True), # 装货地五字码
+    ("input","#pr_name","receiptPlace",True), # 装货地
 
-# 基于填写配置自动派生校验配置，避免填写和校验维护两套字段映射。
-SI_BASE_INPUT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_BASE_FILL_FIELDS if field_type == "input")
-SI_BASE_SELECT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_BASE_FILL_FIELDS if field_type == "select")
-SI_CONTAINER_INPUT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_CONTAINER_FILL_FIELDS if field_type == "input")
-SI_CONTAINER_SELECT_FIELDS = tuple((locator, field_name) for field_type, locator, field_name in SI_CONTAINER_FILL_FIELDS if field_type == "select")
+    ("input","#pol_code","polCode",True), # 起运港五字码
+    ("input","#pol_name","pol",True), # 起运港
+
+    ("input","#pod_code","podCode",True), # 目的港五字码
+    ("input","#pod_name","pod",True), # 目的港
+
+    ("input","#pl_code","deliveryPlaceCode",True), # 交付地五字码
+    ("input","#pl_name","deliveryPlace",True), # 交付地
+
+    # ("input","#fd_code","finalDestinationCode"), # 最终目的地五字码
+    ("input","#fd_name","finalDestination",True), # 最终目的地(未定义)
+)
 
 
 

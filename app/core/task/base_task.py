@@ -127,15 +127,16 @@ class BaseRpaTask:
         """执行业务填单，由具体业务类实现。"""
         raise NotImplementedError("子类必须实现 execute_business 方法")
 
-    def mark_field_done(self, field_name):
+    def mark_field_done(self, field_name,source=None):
         """字段填入成功后，从 remain_content 删除。"""
-        self.context.remain_content.pop(field_name, None)
+        source = self.remain_content if source is None else source
+        source.pop(field_name, None)
 
     def check_unfilled_fields(self):
         """检查未填字段。"""
         unfilled_fields = self.get_unfilled_fields()
-        # if unfilled_fields:
-        #     self.logger.warn(f"存在未处理字段：{unfilled_fields}")
+        if unfilled_fields:
+            self.logger.warn(f"存在未处理字段：{unfilled_fields}")
         return unfilled_fields
 
     def get_unfilled_fields(self):
@@ -149,43 +150,40 @@ class BaseRpaTask:
             raise UnfilledFieldError(f"{stage}存在未处理字段：{unfilled_fields}")
         return unfilled_fields
 
-    def _fill_if_present(self, locator, field_name, source=None, timeout=2):
-        """字段有值时输入。"""
-        source = self.context.content if source is None else source
-        source = source or {}
-        value = source.get(field_name, "")
-        if value in (None, ""):
-            return
-        if self.dom.input_text(locator, value, timeout=timeout):
-            self.mark_field_done(field_name)
 
-    def _select_if_present(self, locator, field_name, source=None, timeout=2):
-        """字段有值时选择。"""
-        source = self.context.content if source is None else source
-        source = source or {}
-        value = source.get(field_name, "")
-        if value in (None, ""):
-            return
-        if self.dom.select(locator, value, timeout=timeout):
-            self.mark_field_done(field_name)
 
-    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None, timeout=2):
+    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None,o_selector=None, timeout=2):
         """按字段类型填写。"""
-        handler = self.FILL_HANDLERS.get(field_type)
-        if not handler:
+        source = self.content if source is None else source
+        source = source or {}
+        value = source.get(field_name, "")
+        if value in (None, ""):
+            return
+        if field_type == "input":
+            self.dom.input_text(locator, value, timeout=timeout)
+        elif field_type == "select":
+            self.dom.select(locator, value, timeout=timeout)
+        elif field_type == "s_select":
+            self.dom.search_select(locator, value,o_selector, timeout=timeout)
+        else:
             raise ValueError(f"不支持的字段类型：{field_type}")
-        getattr(self, handler)(locator, field_name, source, timeout)
+        # self.mark_field_done(field_name,source)
 
 
 
-    def verify_from_value(self,field_type, locator, field_name,source=None):
+    def verify_from_value(self,field_type, locator, field_name,source=None,null_check=False):
         """校验单个字段值。"""
-        source = self.context.content if source is None else source
+        source = self.remain_content if source is None else source
         source = source or {}
         source_value = source.get(field_name, "")
+        if source_value is None and null_check:
+            return
         if field_type == "input":
             field_value = self.dom.get_value(locator)
         elif field_type == "select":
             field_value = self.dom.get_select_value(locator)
+        elif field_type == "s_select":
+            field_value = self.dom.get_value(locator)
         if field_value != source_value:
             raise FormValidationError(f"{field_name} 值不匹配：输入值 {field_value} != 期望值 {source_value}")
+        self.mark_field_done(field_name,source)

@@ -1,3 +1,5 @@
+import time
+
 from app.core.logging.logger import log
 from app.core.task.errors import ElementNotFoundError
 from DrissionPage._elements.none_element import NoneElement
@@ -78,6 +80,28 @@ class DomHelper:
         self.page.run_js("arguments[0].blur();", element)
         log(f"选择{name}")
         return True
+
+    def search_select(self, locator, value,child_locator, name=None, required=True, timeout=2):
+        """搜索并选择"""
+        name = locator if name is None else name
+        element = self._find(locator, name, required, timeout)
+        if self._is_missing_element(element):
+            return False
+        element.click()
+        element.input(value, clear=True)
+        time.sleep(1)
+
+        child_elements = self.page.eles(child_locator, timeout=timeout)
+        for child_element in child_elements:
+            if value in (getattr(child_element, "text", "") or ""):
+                child_element.click()
+                log(f"搜索并选择{name}")
+                return True
+
+        if required:
+            raise ElementNotFoundError(f"{name}选项不存在：{value}")
+        return False
+
 
     def get_text(self, locator, name=None, required=True, timeout=2):
         """获取元素文本。"""

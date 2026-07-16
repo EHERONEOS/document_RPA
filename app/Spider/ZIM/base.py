@@ -1,4 +1,5 @@
 import time
+from urllib.parse import urlsplit
 
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.errors import BrowserStartError, BusinessError, LoginError
@@ -7,27 +8,6 @@ from app.core.page.dom import DomHelper
 
 
 LOGIN_URL = "https://cis.zim-logistics.com.cn/Account/Login"
-HEADERS_GET = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    "Referer": LOGIN_URL,
-}
-HEADERS_POST = {
-    "User-Agent": HEADERS_GET["User-Agent"],
-    "Accept": "text/plain, */*; q=0.01",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-    "Origin": "https://cis.zim-logistics.com.cn",
-    "Referer": LOGIN_URL,
-    "X-Requested-With": "XMLHttpRequest",
-    "sec-ch-ua-platform": "\"macOS\"",
-    "sec-ch-ua": "\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"",
-    "sec-ch-ua-mobile": "?0",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Dest": "empty",
-}
 recapture_token=""
 class ZimBaseTask(BaseRpaTask):
     """ZIM 船司公共能力。"""
@@ -38,13 +18,49 @@ class ZimBaseTask(BaseRpaTask):
 
     def _ensure_browser_ready(self):
         """ZIM 登录依赖真实浏览器页面和 Session 能力。"""
-        required_methods = ("get", "post", "change_mode")
+        required_methods = ("get", "post", "change_mode", "run_js")
         missing_methods = [method for method in required_methods if not hasattr(self.page, method)]
         if missing_methods:
             raise BrowserStartError(
                 f"ZIM 登录依赖真实浏览器页面，当前 page={self.page.__class__.__name__}，"
                 f"缺少方法: {', '.join(missing_methods)}。请先开启 ENABLE_BROWSER=true"
             )
+
+    def _get_login_headers(self):
+        origin = f"{urlsplit(self.login_url).scheme}://{urlsplit(self.login_url).netloc}"
+        browser_headers = self.page.run_js(
+            """
+            return {
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                platform: navigator.userAgentData && navigator.userAgentData.platform,
+                brands: navigator.userAgentData && navigator.userAgentData.brands,
+                mobile: navigator.userAgentData && navigator.userAgentData.mobile,
+            };
+            """
+        ) or {}
+        headers = {
+            "User-Agent": browser_headers.get("userAgent"),
+            "Accept": "text/plain, */*; q=0.01",
+            "Accept-Language": browser_headers.get("language"),
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": origin,
+            "Referer": self.login_url,
+            "X-Requested-With": "XMLHttpRequest",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+        }
+        if browser_headers.get("platform"):
+            headers["sec-ch-ua-platform"] = f'"{browser_headers["platform"]}"'
+        if browser_headers.get("brands"):
+            headers["sec-ch-ua"] = ", ".join(
+                f'"{brand["brand"]}";v="{brand["version"]}"'
+                for brand in browser_headers["brands"]
+            )
+        if browser_headers.get("mobile") is not None:
+            headers["sec-ch-ua-mobile"] = "?1" if browser_headers["mobile"] else "?0"
+        return {key: value for key, value in headers.items() if value}
 
     def login(self):
         """执行 ZIM 登录。"""
@@ -57,6 +73,7 @@ class ZimBaseTask(BaseRpaTask):
             self.logger.info("已登录")
             return
         self.logger.info("登录信息失效,开始登录")
+        login_headers = self._get_login_headers()
         self.page.change_mode(mode="s",copy_cookies=True)
         payload = {
             "UserName": website_info.get("websiteAccount"),
@@ -65,8 +82,8 @@ class ZimBaseTask(BaseRpaTask):
             "recaptureToken": recapture_token,
         }
         res = self.page.post(
-            self.login_url, 
-            headers=HEADERS_POST, 
+            self.login_url,
+            headers=login_headers,
             data=payload,
             allow_redirects=False,
             verify=False,
