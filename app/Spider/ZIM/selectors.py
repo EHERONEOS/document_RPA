@@ -22,7 +22,7 @@ SI_BASE_FILL_FIELDS = (
     ("input", "#goods_desc", "totalGoodsDesc"), # 货描
     ("select", "#release_type", "releaseMode"), # 提单类型
     # ("input", "#hbl_num", "numberOfOriginal"), # 提单件数
-    ("s_select", "#frt_pay_at_code","frtPayAtCode",True,"c:.autocomplete-suggestions>.autocomplete-suggestion"), # 付款地code
+    ("s_select", "#frt_pay_at_code","partyPaymentPlace",True,"c:.autocomplete-suggestions>.autocomplete-suggestion"), # 付款地code
 )
 
 

@@ -112,7 +112,7 @@
       "totalGoodsDesc": "货描",
       "releaseMode":"SEA WAYBILL",
       "numberOfOriginal":"3",
-      "frtPayAtCode":"AFDHD",
+      "partyPaymentPlace":"AFDHD",
       "vessel":"XIN AN",
       "voyage":"69S",
       "receiptPlaceCode":"CNSHA",
