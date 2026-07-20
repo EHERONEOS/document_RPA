@@ -1,10 +1,8 @@
 import os
 
-from funboost import BrokerEnum, PublisherParams, get_publisher
-from funboost.core.func_params_model import TaskOptions
+from funboost import BrokerEnum, PriorityConsumingControlConfig, PublisherParams, get_publisher
 
 from app.core.logging.logger import log
-from app.queue.rabbitmq import RabbitmqPublisherWithDlx, build_rabbitmq_broker_config
 
 
 class ResultPublisher:
@@ -51,15 +49,14 @@ class ResultPublisher:
 
     def send_msg_to_queue(self, data, delay=0):
         """临时发布一条结果回传消息。"""
-        task_options = TaskOptions(countdown=delay) if delay else None
-        broker_config = build_rabbitmq_broker_config().copy()
-        broker_config.update(
-            {
-                "passive": True,
-                "x-dead-letter-exchange": "timeout_dlx_exchange",
-                "x-dead-letter-routing-key": "timeout_dlx_routing_key",
-            }
-        )
+        priority_control_config = PriorityConsumingControlConfig(countdown=delay) if delay else None
+        broker_config={
+            "x-max-priority": None,
+            "durable": True,
+            "passive": True,
+            "x-dead-letter-exchange": "timeout_dlx_exchange",
+            "x-dead-letter-routing-key": "timeout_dlx_routing_key"
+        }
 
         last_exc = None
         for _ in range(self.RETRY_TIMES):
@@ -69,15 +66,13 @@ class ResultPublisher:
                     PublisherParams(
                         queue_name=self.DOCUMENT_UPDATE,
                         logger_prefix=self.DOCUMENT_UPDATE,
-
                         broker_exclusive_config=broker_config,
                         broker_kind=BrokerEnum.RABBITMQ_AMQPSTORM,
-                        publisher_override_cls=RabbitmqPublisherWithDlx,
                     )
                 )
                 publisher.publish(
                     msg={"task": data},
-                    task_options=task_options,
+                    priority_control_config=priority_control_config,
                 )
                 return True
             except Exception as exc:

@@ -33,6 +33,7 @@ def start_consumers(queue_names):
         @boost(
             RpaBoosterParams(
                 queue_name=queue_name,
+                logger_prefix=queue_name,
             )
         )
         def consume(message=None, task=None, _queue_name=queue_name, **kwargs):

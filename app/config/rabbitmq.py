@@ -2,7 +2,6 @@ import os
 from dataclasses import dataclass
 from urllib.parse import quote_plus
 
-from app.config.types import str_to_bool
 
 
 @dataclass(frozen=True)
@@ -14,11 +13,11 @@ class RabbitmqSettings:
     host: str
     port: int
     virtual_host: str
-    dead_letter_exchange: str
-    dead_letter_routing_key: str
-    queue_durable: bool
-    queue_passive: bool
-    no_ack: bool
+    # dead_letter_exchange: str
+    # dead_letter_routing_key: str
+    # queue_durable: bool
+    # queue_passive: bool
+    # no_ack: bool
 
     @property
     def url(self):
@@ -32,22 +31,22 @@ class RabbitmqSettings:
             host=os.getenv("RABBITMQ_HOST", "192.168.60.106"),
             port=int(os.getenv("RABBITMQ_PORT", "5672")),
             virtual_host=os.getenv("RABBITMQ_VIRTUAL_HOST", "/"),
-            dead_letter_exchange=os.getenv("RABBITMQ_DEAD_LETTER_EXCHANGE", "dlx_exchange"),
-            dead_letter_routing_key=os.getenv("RABBITMQ_DEAD_LETTER_ROUTING_KEY", "dlx_routing_key"),
-            queue_durable=str_to_bool(os.getenv("RABBITMQ_QUEUE_DURABLE", "true")),
-            queue_passive=str_to_bool(os.getenv("RABBITMQ_QUEUE_PASSIVE", "false")),
-            no_ack=str_to_bool(os.getenv("RABBITMQ_NO_ACK", "false")),
+            # dead_letter_exchange="dlx_exchange",
+            # dead_letter_routing_key="dlx_routing_key",
+            # queue_durable=True,
+            # queue_passive=False,
+            # no_ack=False,
         )
 
-    def to_broker_exclusive_config(self):
-        config = {
-            "queue_durable": self.queue_durable,
-            "passive": self.queue_passive,
-            "x-max-priority": 0,
-            "no_ack": self.no_ack,
-        }
-        if self.dead_letter_exchange:
-            config["x-dead-letter-exchange"] = self.dead_letter_exchange
-        if self.dead_letter_routing_key:
-            config["x-dead-letter-routing-key"] = self.dead_letter_routing_key
-        return config
+    # def to_broker_exclusive_config(self):
+    #     config = {
+    #         "queue_durable": self.queue_durable,
+    #         "passive": self.queue_passive,
+    #         # "x-max-priority": 0,
+    #         # "no_ack": self.no_ack,
+    #     }
+    #     if self.dead_letter_exchange:
+    #         config["x-dead-letter-exchange"] = self.dead_letter_exchange
+    #     if self.dead_letter_routing_key:
+    #         config["x-dead-letter-routing-key"] = self.dead_letter_routing_key
+    #     return config

@@ -1,32 +1,19 @@
-from funboost import BrokerEnum
-from funboost.core.broker_kind__exclusive_config_default_define import register_broker_exclusive_config_default
+from funboost import BrokerEnum, register_custom_broker
+from funboost.consumers.rabbitmq_amqpstorm_consumer import RabbitmqConsumerAmqpStorm
 from funboost.publishers.rabbitmq_amqpstorm_publisher import RabbitmqPublisherUsingAmqpStorm
 
 from app.config.rabbitmq import RabbitmqSettings
 
 
-register_broker_exclusive_config_default(
-    BrokerEnum.RABBITMQ_AMQPSTORM,
-    {
-        "queue_durable": True,
-        "passive": False,
-        "x-max-priority": None,
-        "no_ack": False,
-        "x-dead-letter-exchange": None,
-        "x-dead-letter-routing-key": None,
-    },
-)
-
-
-def build_rabbitmq_broker_config():
-    """构建 RabbitMQ 队列声明配置。"""
-    return RabbitmqSettings.from_env().to_broker_exclusive_config()
+# def build_rabbitmq_broker_config():
+#     """构建 RabbitMQ 队列声明配置。"""
+#     return RabbitmqSettings.from_env().to_broker_exclusive_config()
 
 
 class RabbitmqPublisherWithDlx(RabbitmqPublisherUsingAmqpStorm):
     """声明已有 RabbitMQ 队列时携带死信交换机参数。"""
 
-    def custom_init(self):
+    def custom_init(self) -> None:
         arguments = {}
         broker_config = self.publisher_params.broker_exclusive_config
         if broker_config.get("x-max-priority"):
@@ -43,3 +30,10 @@ class RabbitmqPublisherWithDlx(RabbitmqPublisherUsingAmqpStorm):
             "auto_delete": False,
             "passive": bool(broker_config.get("passive", False)),
         }
+
+
+register_custom_broker(
+    BrokerEnum.RABBITMQ_AMQPSTORM,
+    RabbitmqPublisherWithDlx,
+    RabbitmqConsumerAmqpStorm,
+)

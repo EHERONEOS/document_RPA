@@ -4,14 +4,23 @@ version = "0.1.0"
 description = "Distributed RPA workers for carrier document automation"
 requires-python = "==3.12.12"
 dependencies = [
-    "DrissionPage",
-    "funboost>=54.8",
-    "numpy",
-    "opencv-python",
-    "pyyaml",
-    "python-dotenv",
-    "requests",
+    "DrissionPage==4.1.1.4",
+    "funboost==44.0",
+    "numpy==2.5.1",
+    "opencv-python==5.0.0.93",
+    "pyyaml==6.0.3",
+    "python-dotenv==1.2.2",
+    "requests==2.34.2",
+    "async-timeout==5.0.1",
+    "setuptools==80.10.2",
     "nacos-sdk-python==0.1.7",
+]
+
+[tool.uv]
+override-dependencies = [
+    "aiohttp==3.14.1",
+    "invoke==3.0.3",
+    "kafka-python==3.0.8",
 ]
 
 [tool.pytest.ini_options]

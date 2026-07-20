@@ -104,7 +104,7 @@ class BaseRpaTask:
                 
                 file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
                 screenshot_url = self.oss_client.oss_upload(file_path)
-            success = False;
+            success = False
             code = getattr(exc, "code", 0)  
             remark = str(exc)  
             # if self.context.enable_result_publish:

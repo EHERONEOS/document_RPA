@@ -1,7 +1,8 @@
-from funboost.funboost_config_deafult import (
-    BrokerConnConfig as DefaultBrokerConnConfig,
-    FunboostCommonConfig as DefaultFunboostCommonConfig,
-)
+# from funboost.funboost_config_deafult import (
+#     BrokerConnConfig as DefaultBrokerConnConfig,
+#     FunboostCommonConfig as DefaultFunboostCommonConfig,
+# )
+from funboost.utils.simple_data_class import DataClassBase
 
 from app.config.rabbitmq import RabbitmqSettings
 
@@ -9,7 +10,7 @@ from app.config.rabbitmq import RabbitmqSettings
 _rabbitmq = RabbitmqSettings.from_env()
 
 
-class BrokerConnConfig(DefaultBrokerConnConfig):
+class BrokerConnConfig(DataClassBase):
     RABBITMQ_USER = _rabbitmq.user
     RABBITMQ_PASS = _rabbitmq.password
     RABBITMQ_HOST = _rabbitmq.host
@@ -18,7 +19,7 @@ class BrokerConnConfig(DefaultBrokerConnConfig):
     RABBITMQ_URL = _rabbitmq.url
 
 
-class FunboostCommonConfig(DefaultFunboostCommonConfig):
+class FunboostCommonConfig(DataClassBase):
     NB_LOG_FORMATER_INDEX_FOR_CONSUMER_AND_PUBLISHER = 12
     TIMEZONE = "Asia/Shanghai"
     SHOW_HOW_FUNBOOST_CONFIG_SETTINGS = False
