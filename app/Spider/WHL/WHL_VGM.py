@@ -1,4 +1,4 @@
-from app.Spider.WHL.base import WhlBaseTask
+from app.spider.WHL.base import WhlBaseTask
 
 
 class WhlVgmTask(WhlBaseTask):

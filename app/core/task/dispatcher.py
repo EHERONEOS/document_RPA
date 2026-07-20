@@ -5,7 +5,7 @@ from app.core.task.errors import RouteNotFoundError
 
 def dispatch_context(context):
     """根据船司代码加载 router 并分发任务。"""
-    module_name = f"app.Spider.{context.carrier_code}.router"
+    module_name = f"app.spider.{context.carrier_code}.router"
     try:
         router = import_module(module_name)
     except ModuleNotFoundError as exc:

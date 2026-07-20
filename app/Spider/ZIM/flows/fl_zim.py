@@ -1,5 +1,5 @@
-from app.Spider.ZIM.tasks.zim_si import ZimSiTask
-from app.Spider.ZIM.tasks.zim_vgm import ZimVGMTask
+from app.spider.ZIM.tasks.zim_si import ZimSiTask
+from app.spider.ZIM.tasks.zim_vgm import ZimVGMTask
 
 
 

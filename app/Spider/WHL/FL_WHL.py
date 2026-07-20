@@ -1,5 +1,5 @@
-from app.Spider.WHL.WHL_SI import WhlSiTask
-from app.Spider.WHL.WHL_VGM import WhlVgmTask
+from app.spider.WHL.WHL_SI import WhlSiTask
+from app.spider.WHL.WHL_VGM import WhlVgmTask
 
 
 class FlWhlSiTask(WhlSiTask):

@@ -1,5 +1,5 @@
 from app.core.task.errors import RouteNotFoundError
-from app.Spider.WHL.FL_WHL import fl_whl_si, fl_whl_vgm
+from app.spider.WHL.FL_WHL import fl_whl_si, fl_whl_vgm
 from app.core.task.context import TaskContext
 
 

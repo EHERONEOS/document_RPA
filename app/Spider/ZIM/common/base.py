@@ -4,7 +4,7 @@ from urllib.parse import urlsplit
 
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.errors import BrowserStartError, BusinessError, LoginError
-from app.Spider.ZIM.common import selectors
+from app.spider.ZIM.common import selectors
 from app.core.page.dom import DomHelper
 
 

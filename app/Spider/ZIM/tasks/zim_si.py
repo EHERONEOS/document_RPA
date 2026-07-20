@@ -1,7 +1,7 @@
 import time
 
-from app.Spider.ZIM.common import selectors
-from app.Spider.ZIM.common.base import ZimBaseTask
+from app.spider.ZIM.common import selectors
+from app.spider.ZIM.common.base import ZimBaseTask
 from app.core.task.context import TaskContext
 from app.core.task.errors import LoginError
 
