@@ -8,8 +8,10 @@ dependencies = [
     "funboost>=54.8",
     "numpy",
     "opencv-python",
+    "pyyaml",
     "python-dotenv",
     "requests",
+    "nacos-sdk-python==0.1.7",
 ]
 
 [tool.pytest.ini_options]

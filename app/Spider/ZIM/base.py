@@ -1,3 +1,4 @@
+import os
 import time
 from urllib.parse import urlsplit
 
@@ -64,6 +65,8 @@ class ZimBaseTask(BaseRpaTask):
 
     def login(self):
         """执行 ZIM 登录。"""
+        print(os.getenv("TTSHITU_USER"))
+        print(os.getenv("TTSHITU_PWD"))
         self._ensure_browser_ready()
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")

@@ -1,4 +1,4 @@
-from app.Spider.ZIM.FL_ZIM import fl_zim_si, fl_zim_vgm
+from app.Spider.ZIM.fl_zim import fl_zim_si, fl_zim_vgm
 from app.core.task.context import TaskContext
 from app.core.task.errors import RouteNotFoundError
 
