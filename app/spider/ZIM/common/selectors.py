@@ -17,7 +17,7 @@ SI_BASE_FILL_FIELDS = (
     ("select", "#pay_term_frt_hbl", "paymentType"), # 付款方式
     ("input", "#remark", "remarks",True), # 备注
     ("input", "#HS_code", "totalHsCode"), # HS CODE
-    ("select", "#pcs_unit_code", "totalAmountUnit"), # 包装单位
+    # ("select", "#pcs_unit_code", "totalAmountUnit"), # 包装单位
     ("input", "#goods_mark", "totalMarks"), # 唛头
     ("input", "#goods_desc", "totalGoodsDesc"), # 货描
     ("select", "#release_type", "releaseMode"), # 提单类型

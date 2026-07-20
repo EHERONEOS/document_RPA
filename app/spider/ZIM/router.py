@@ -1,11 +1,11 @@
-from app.spider.ZIM.flows.fl_zim import fl_zim_si, fl_zim_vgm
+from app.spider.ZIM.flows.qtct_zim import qtct_zim_si, qtct_zim_vgm
 from app.core.task.context import TaskContext
 from app.core.task.errors import RouteNotFoundError
 
 
 ROUTES = {
-    "FL_ZIM_SI": fl_zim_si,
-    "FL_ZIM_VGM": fl_zim_vgm,
+    "QTCT_ZIM_SI": qtct_zim_si,
+    "QTCT_ZIM_VGM": qtct_zim_vgm,
 }
 
 

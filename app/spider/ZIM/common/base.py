@@ -105,7 +105,7 @@ class ZimBaseTask(BaseRpaTask):
         """判断是否登录"""
         return self.login_url not in self.page.url
 
-    def query_booking(self,booking_no):
+    def query_booking(self,blNo:str):
         """查询订舱单据"""
         # 点击订舱导航菜单并等待订舱列表接口完成
         self.http.wait_api_finished(
@@ -113,7 +113,7 @@ class ZimBaseTask(BaseRpaTask):
             trigger=lambda: self.dom.click(selectors.DC_MENU)
         )
         iframe_dom: DomHelper = self.dom.in_frame(selectors.DC_LIST_FRAME) 
-        iframe_dom.input_text(selectors.SEARCH_BOOK_NO, booking_no)
+        iframe_dom.input_text(selectors.SEARCH_BOOK_NO, blNo)
         # 点击搜索按钮并等待订舱列表接口完成
         res = self.http.wait_api_finished(
             selectors.BOOKING_GET_LIST_API,
@@ -122,6 +122,6 @@ class ZimBaseTask(BaseRpaTask):
         if not res or res.get("total") !=1:
             raise BusinessError("查询订舱单据失败")
         bo_row = res.get("datas",{})[0]
-        if not bo_row or bo_row.get("gdNo") != booking_no:
+        if not bo_row or bo_row.get("gdNo") != blNo:
             raise BusinessError("订舱列表接口返回数据异常")
         return bo_row
