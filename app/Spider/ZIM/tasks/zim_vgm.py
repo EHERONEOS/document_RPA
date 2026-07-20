@@ -35,16 +35,6 @@ class ZimVGMTask(ZimBaseTask):
         self.verify_from()
         self.raise_if_unfilled_fields(stage="ZIM VGM 填单流程")
         pass
-        # detail_url = (
-        #     "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"
-        #     f"?type=mbl&ord_no={bo_row.get('job_no')}"
-        # )
-        # self.page.get(detail_url)
-        # time.sleep(3)
-        # self.fill_base_fields()
-        # self.fill_containers()
-        # self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
-        # self.verify_from()
 
 
     def fill_base_fields(self):

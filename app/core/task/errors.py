@@ -59,4 +59,4 @@ class FormValidationError(RpaError):
 class UnfilledFieldError(RpaError):
     """存在未处理字段。"""
 
-    code = 400
+    code = 402

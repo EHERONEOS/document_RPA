@@ -65,8 +65,6 @@ class ZimBaseTask(BaseRpaTask):
 
     def login(self):
         """执行 ZIM 登录。"""
-        print(os.getenv("TTSHITU_USER"))
-        print(os.getenv("TTSHITU_PWD"))
         self._ensure_browser_ready()
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")
@@ -93,7 +91,7 @@ class ZimBaseTask(BaseRpaTask):
             timeout=30
         )
         if not res or res.status_code != 200 or res.text != "success":
-            raise LoginError("Session 模式登录提交失败")
+            raise LoginError("Session登录提交失败")
         self.page.change_mode(mode="d",copy_cookies=True)
         self.page.get(self.index_url)
         time.sleep(3)

@@ -174,7 +174,7 @@ class BaseRpaTask:
         """在具体填单阶段主动触发未填字段校验。"""
         unfilled_fields = self.check_unfilled_fields()
         if unfilled_fields:
-            raise UnfilledFieldError(f"{stage}存在未处理字段：{unfilled_fields}")
+            raise UnfilledFieldError(f"{stage}存在漏填字段：{unfilled_fields}")
         return unfilled_fields
 
 
