@@ -1,6 +1,5 @@
-from app.core.task.errors import BusinessError
-from app.Spider.ZIM.zim_si import ZimSiTask
-from app.Spider.ZIM.zim_vgm import ZimVGMTask
+from app.Spider.ZIM.tasks.zim_si import ZimSiTask
+from app.Spider.ZIM.tasks.zim_vgm import ZimVGMTask
 
 
 

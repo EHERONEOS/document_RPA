@@ -1,4 +1,5 @@
 
+import json
 import os
 import nacos
 import yaml
@@ -31,4 +32,12 @@ def load_nacos_environment() -> dict[str, str]:
     os.environ["DINGTALK_ROBOT_API"] = DINGTALK_ROBOT_API
     os.environ["DINGTALK_CCAM_API"] = DINGTALK_CCAM_API
     os.environ["API_PREFIX"] = API_PREFIX
-    os.environ["API_HEADERS"] = API_HEADERS
+    os.environ["API_HEADERS"] = json.dumps(API_HEADERS, ensure_ascii=False)
+    return {
+        "TTSHITU_USER": TTSHITU_USER,
+        "TTSHITU_PWD": TTSHITU_PWD,
+        "DINGTALK_ROBOT_API": DINGTALK_ROBOT_API,
+        "DINGTALK_CCAM_API": DINGTALK_CCAM_API,
+        "API_PREFIX": API_PREFIX,
+        "API_HEADERS": os.environ["API_HEADERS"],
+    }
