@@ -7,9 +7,9 @@ from app.queue.message import build_task_context
 
 def run_local_message(message_path):
     """使用本地消息模板直接调试业务代码。"""
-    message = load_message_template(message_path)
+    task = load_message_template(message_path)
     context = build_task_context(
-        message,
+        task,
         runtime_mode="local",
         enable_notify=False,
         enable_result_publish=False,

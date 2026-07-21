@@ -26,7 +26,6 @@ class ZimSiTask(ZimBaseTask):
 
     def execute_business(self):
         """执行业务流程。"""
-        raise LoginError("ZIM SI 登录失败")
         bo_row = self.query_booking(self.content.get("blNo"))
         # self.mark_field_done("blNo")
         detail_url = (

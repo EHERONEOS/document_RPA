@@ -13,8 +13,7 @@ def bootstrap_environment():
     global _BOOTSTRAPPED
     if _BOOTSTRAPPED:
         return
-
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = Path(__file__).resolve().parents[2]
     load_dotenv(project_root / ".env", override=False)
     load_nacos_environment()
     _BOOTSTRAPPED = True
