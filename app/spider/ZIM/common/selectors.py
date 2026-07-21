@@ -17,12 +17,11 @@ SI_BASE_FILL_FIELDS = (
     ("select", "#pay_term_frt_hbl", "paymentType"), # 付款方式
     ("input", "#remark", "remarks",True), # 备注
     ("input", "#HS_code", "totalHsCode"), # HS CODE
-    # ("select", "#pcs_unit_code", "totalAmountUnit"), # 包装单位
+    ("select", "#pcs_unit_code", "totalAmountUnit"), # 包装单位
     ("input", "#goods_mark", "totalMarks"), # 唛头
     ("input", "#goods_desc", "totalGoodsDesc"), # 货描
     ("select", "#release_type", "releaseMode"), # 提单类型
-    # ("input", "#hbl_num", "numberOfOriginal"), # 提单件数
-    ("s_select", "#frt_pay_at_code","partyPaymentPlace",True,"c:.autocomplete-suggestions>.autocomplete-suggestion"), # 付款地code
+    ("s_select", "#frt_pay_at_code","partyPaymentPlaceCode",True,"c:.autocomplete-suggestions>.autocomplete-suggestion"), # 付款地code
 )
 
 
@@ -44,22 +43,23 @@ SI_CONTAINER_FILL_FIELDS = (
 #需要检验的字段(字段类型, 定位器, content 字段名,空值跳过校验)
 SI_VERIFY_FIELDS=(
     *SI_BASE_FILL_FIELDS,
-    ("input","#vessel","vessel",True), # 船名
-    ("input","#voyage","voyage",True), # 航次
-    ("input","#pr_code","receiptPlaceCode",True), # 装货地五字码
+    # ("input","#vessel","vessel",True), # 船名
+    # ("input","#voyage","voyage",True), # 航次
+    ("input", "#frt_pay_at", "partyPaymentPlace"), # 付款地
+    ("input", "#hbl_num", "numberOfOriginal"), # 提单件数
     ("input","#pr_name","receiptPlace",True), # 装货地
 
-    ("input","#pol_code","polCode",True), # 起运港五字码
     ("input","#pol_name","pol",True), # 起运港
 
-    ("input","#pod_code","podCode",True), # 目的港五字码
     ("input","#pod_name","pod",True), # 目的港
 
-    ("input","#pl_code","deliveryPlaceCode",True), # 交付地五字码
     ("input","#pl_name","deliveryPlace",True), # 交付地
 
-    # ("input","#fd_code","finalDestinationCode"), # 最终目的地五字码
     ("input","#fd_name","finalDestination",True), # 最终目的地(未定义)
+    ("input", "#cbm_hbl", "totalVolume"), # CBM总体积
+    ("input", "#wgt_hbl", "totalGrossWeight"), # KGS总毛重
+    ("input", "#pcs_hbl", "totalAmount"), # Qty总件数
+
 )
 
 

@@ -21,6 +21,8 @@ class BaseRpaTask:
     wait_page_load = False
     fail_on_unfilled_fields = False
     booking_no = ""
+    ignored_unfilled_fields=[]# 忽略的未填字段列表
+    attachments = [] #草稿件
     FILL_HANDLERS = {
         "input": "_fill_if_present",
         "select": "_select_if_present",
@@ -83,49 +85,22 @@ class BaseRpaTask:
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
             success = True
             code = 200
-
-            # result = TaskResult(
-            #     task_id =self.context.task.get("id") or "",
-            #     success=True,
-            #     code=200,
-            #     rpaMessageId = self.context.rpa_message_id,
-            #     img="图片地址",
-            #     executeRecordFiles="",
-            #     remark="",
-            #     attachments="附件地址",
-            # )
-            # if self.context.enable_result_publish:
-            #     self.publisher.publish_result(result)
-            # self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
-            # return result
         except Exception as exc:
             self.logger.error(f"任务执行失败 queue={self.context.queue_name} error={exc}")
             if self.context.enable_result_publish:
                 
                 file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
-                screenshot_url = self.oss_client.oss_upload(file_path)
+                file_info = self.oss_client.oss_upload(file_path)
+                screenshot_url = file_info.get("url") or ""
             success = False
             code = getattr(exc, "code", 0)  
             remark = str(exc)  
-            # if self.context.enable_result_publish:
-            #     file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
-            #     screenshot_url = self.oss_client.oss_upload(file_path)
-            #     result = TaskResult(
-            #         task_id =self.context.task.get("id") or "",
-            #         success=False,
-            #         code=getattr(exc, "code", None),
-            #         rpaMessageId = self.context.rpa_message_id,
-            #         img=screenshot_url or "",
-            #         executeRecordFiles="",
-            #         remark=str(exc),
-            #         attachments="附件地址",
-            #     )
-            #     self.publisher.publish_result(result)
-            # return False
         finally:
             # if record_started:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
             if self.context.enable_result_publish:
+                if success or len(self.attachments) > 0:
+                    attachments = self.get_attachments()
                 result = TaskResult(
                     task_id =self.context.task.get("id") or "",
                     success=success,
@@ -134,7 +109,7 @@ class BaseRpaTask:
                     img=screenshot_url or "",
                     executeRecordFiles="",
                     remark=remark,
-                    attachments="附件地址",
+                    attachments=attachments or ""
                 )
                 self.publisher.publish_result(result)
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
@@ -159,21 +134,16 @@ class BaseRpaTask:
         source = self.remain_content if source is None else source
         source.pop(field_name, None)
 
-    def check_unfilled_fields(self):
-        """检查未填字段。"""
-        unfilled_fields = self.get_unfilled_fields()
-        if unfilled_fields:
-            self.logger.warn(f"存在未处理字段：{unfilled_fields}")
-        return unfilled_fields
-
-    def get_unfilled_fields(self):
-        """获取当前未处理字段列表。"""
-        return list(self.context.remain_content.keys())
-
     def raise_if_unfilled_fields(self, stage="填单流程"):
         """在具体填单阶段主动触发未填字段校验。"""
-        unfilled_fields = self.check_unfilled_fields()
+        ignored_fields = set(self.ignored_unfilled_fields or [])
+        unfilled_fields = [
+            field_name
+            for field_name in self.context.remain_content.keys()
+            if field_name not in ignored_fields
+        ]
         if unfilled_fields:
+            self.logger.warn(f"存在未处理字段：{unfilled_fields}")
             raise UnfilledFieldError(f"{stage}存在漏填字段：{unfilled_fields}")
         return unfilled_fields
 
@@ -216,3 +186,19 @@ class BaseRpaTask:
         if field_value != source_value:
             raise FormValidationError(f"{field_name} 值不匹配：输入值 {field_value} != 期望值 {source_value}")
         self.mark_field_done(field_name,source)
+
+
+    def get_attachments(self):
+        """发送草稿件。"""
+        attachments = []
+        for attachment in self.attachments:
+            file_info = self.oss_client.oss_upload(attachment)
+            attachments.append({
+                "fileName": file_info['filename'],
+                "type": "DRAFT",
+                "fileObjectName": file_info['objectName']
+            })
+        return attachments
+        # if self.attachments:
+            # self.publisher.publish_attachments(self.attachments)
+            # self.attachments = {}

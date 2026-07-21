@@ -28,7 +28,7 @@ class OssClient:
                     if is_remove:
                         os.remove(file_path)
                     self.logger.info(f"上传文件成功，接口响应：{data}")
-                    return data.get("url")
+                    return data
                 else:
                     self.logger.error(f"上传文件到OSS 失败: 状态码 {response.status_code}")
                     pass

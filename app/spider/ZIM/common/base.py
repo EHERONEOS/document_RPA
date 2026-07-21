@@ -68,7 +68,7 @@ class ZimBaseTask(BaseRpaTask):
         self._ensure_browser_ready()
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")
-        self.page.get(self.index_url)
+        self.page.get(self.index_url ,show_errmsg=True)
         time.sleep(3)
         if self.is_login():
             self.logger.info("已登录")
@@ -93,7 +93,7 @@ class ZimBaseTask(BaseRpaTask):
         if not res or res.status_code != 200 or res.text != "success":
             raise LoginError("Session登录提交失败")
         self.page.change_mode(mode="d",copy_cookies=True)
-        self.page.get(self.index_url)
+        self.page.get(self.index_url,show_errmsg=True)
         time.sleep(3)
         if not self.is_login():
             raise LoginError("登录失败")

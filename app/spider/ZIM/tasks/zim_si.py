@@ -10,34 +10,38 @@ class ZimSiTask(ZimBaseTask):
     """ZIM 通用 SI 业务流程。"""
 
     business_code = "SI"
-    incognito = False
-    wait_page_load = False
+    incognito = False # 是否使用无痕模式
+    wait_page_load = False # 是否等待页面加载完成
+    ignored_unfilled_fields = ["jobNo","blNo","carrier","isUserSave"]# 忽略的未填字段列表
+    
 
     def __init__(self, context: TaskContext):
         super().__init__(context)
         self.content = context.content or {}
         self.remain_content = context.remain_content or {}
         self.booking_no = self.content.get("jobNo")
-        self.mark_field_done("jobNo")
+        # self.mark_field_done("jobNo")
+        # self.mark_field_done("carrier")
+        # self.mark_field_done("isUserSave")
 
     def execute_business(self):
         """执行业务流程。"""
         bo_row = self.query_booking(self.content.get("blNo"))
-        self.mark_field_done("blNo")
+        # self.mark_field_done("blNo")
         detail_url = (
             "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"
             f"?type=mbl&ord_no={bo_row.get('job_no')}"
         )
-        self.page.get(detail_url)
+        self.page.get(detail_url,show_errmsg=True)
         time.sleep(3)
-        # element = self.dom._find("c:.center_box")
-        # file_path = self.screenshot.element_shot(element,self.booking_no,"SI",error=False)
-        # self.oss_client.oss_upload(file_path)
         
         self.fill_base_fields()
         self.fill_containers()
         self.verify_from()
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
+        file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=False)
+        self.attachments.append(file_path)
+
         pass
 
     def fill_base_fields(self):
