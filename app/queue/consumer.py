@@ -7,26 +7,19 @@ from app.queue.message import build_task_context
 from app.queue.booster import RpaBoosterParams
 
 
-def handle_message(raw_message):
+def handle_message(task):
     """处理单条队列消息。"""
-    context = build_task_context(raw_message)
+    context = build_task_context(task)
     return dispatch_context(context)
 
 
-def build_raw_message(message=None, task=None, **kwargs):
-    """兼容 funboost 传入整包消息或 task 关键字参数两种形式。"""
-    if isinstance(message, dict) and "task" in message:
-        return message
-    if isinstance(task, dict):
-        return {"task": task}
-    if kwargs:
-        return kwargs
-    return message or {}
+# def build_raw_message(task=None):
+#     """将 funboost 传入的 task 对象整理为内部统一消息结构。"""
+#     return task or {}
 
 
-def save_task_message(raw_message, queue_name):
+def save_task_message(task, queue_name):
     """将队列 task 消息保存到本地文件。"""
-    task = raw_message.get("task") if isinstance(raw_message, dict) else None
     if not isinstance(task, dict):
         return
 
@@ -55,10 +48,8 @@ def start_consumers(queue_names):
                 logger_prefix=queue_name,
             )
         )
-        def consume(message=None, task=None, _queue_name=queue_name, **kwargs):
-            raw_message = build_raw_message(message=message, task=task, **kwargs)
-            # save_task_message(raw_message, _queue_name)
-            return handle_message(raw_message)
+        def consume(task=None, _queue_name=queue_name):
+            return handle_message(task or {})
 
         consumers.append(consume)
 

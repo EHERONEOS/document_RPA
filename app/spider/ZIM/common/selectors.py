@@ -3,6 +3,7 @@ DC_LIST_FRAME = "css:#iframeContainer iframe[src*='/Ebooking/PlaceBooking/List']
 SEARCH_BOOK_NO = "css:#ref_no" #提单号
 SEARCH_BTN = "#btnSearch" # 搜索按钮
 BOOKING_GET_LIST_API = "https://cis.zim-logistics.com.cn/Ebooking/PlaceBooking/GetList" # 订舱列表接口
+SAVE_SI_API= "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/SaveHblComfirm" # 保存SI接口
 
 
 # SI 基础信息填写配置：(字段类型, 定位器, content 字段名,空值跳过校验, s_select:搜索选项定位器)
@@ -39,6 +40,8 @@ SI_CONTAINER_FILL_FIELDS = (
     ("input", ".cbm" , "volume"), # 体积
     ("input", ".unit" , "packageUnit"), # 包装单位
 )
+SI_SAVE_BTN = "#Shp_Save" # 截单保存按钮
+SI_SUBMIT_BTN = "#Shp_Edit" # 截单提交按钮
 
 #需要检验的字段(字段类型, 定位器, content 字段名,空值跳过校验)
 SI_VERIFY_FIELDS=(

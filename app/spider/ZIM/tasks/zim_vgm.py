@@ -14,13 +14,13 @@ class ZimVGMTask(ZimBaseTask):
     business_code = "VGM"
     incognito = False
     wait_page_load = False
+    ignored_unfilled_fields = ["bookingNo","carrier","isUserSave"]# 忽略的未填字段列表
 
     def __init__(self, context: TaskContext):
         super().__init__(context)
         self.content = context.content or {}
         self.remain_content = context.remain_content or {}
-        self.booking_no = self.content.get("jobNo")
-        self.mark_field_done("jobNo")
+        self.booking_no = self.content.get("bookingNo")
 
     def execute_business(self):
         """执行业务流程。"""

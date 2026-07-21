@@ -3,7 +3,7 @@ import time
 from app.spider.ZIM.common import selectors
 from app.spider.ZIM.common.base import ZimBaseTask
 from app.core.task.context import TaskContext
-from app.core.task.errors import LoginError
+from app.core.task.errors import BusinessError, LoginError
 
 
 class ZimSiTask(ZimBaseTask):
@@ -26,6 +26,7 @@ class ZimSiTask(ZimBaseTask):
 
     def execute_business(self):
         """执行业务流程。"""
+        raise LoginError("ZIM SI 登录失败")
         bo_row = self.query_booking(self.content.get("blNo"))
         # self.mark_field_done("blNo")
         detail_url = (
@@ -41,6 +42,15 @@ class ZimSiTask(ZimBaseTask):
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
         file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=False)
         self.attachments.append(file_path)
+        result = self.http.wait_api_finished(
+            selectors.SAVE_SI_API,
+            trigger=lambda: self.dom.click(selectors.SI_SAVE_BTN),
+            timeout=20,
+            required=False
+        )
+        if not result:
+            raise BusinessError("ZIM SI 保存失败")
+        print(result)
 
         pass
 

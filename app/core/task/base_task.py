@@ -98,21 +98,25 @@ class BaseRpaTask:
         finally:
             # if record_started:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
+            attachments = None
             if self.context.enable_result_publish:
                 if success or len(self.attachments) > 0:
                     attachments = self.get_attachments()
+
                 result = TaskResult(
-                    task_id =self.context.task.get("id") or "",
+                    task_id =self.context.task_id or "",
                     success=success,
                     code=code,
                     rpaMessageId = self.context.rpa_message_id,
                     img=screenshot_url or "",
                     executeRecordFiles="",
                     remark=remark,
-                    attachments=attachments or ""
+                    attachments=attachments or None
                 )
+                
                 self.publisher.publish_result(result)
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
+            return True
 
     def should_record(self):
         """判断当前任务是否录屏。"""

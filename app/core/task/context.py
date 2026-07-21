@@ -8,9 +8,8 @@ from app.core.task.errors import QueueNameError
 @dataclass
 class TaskContext:
     """单条 RPA 消息的运行上下文。"""
-
-    raw_message: dict
     task: dict
+    task_id: str | int
     queue_name: str
     rpa_message_id: str
     customer_code: str

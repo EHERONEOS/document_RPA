@@ -10,7 +10,7 @@ class HttpHelper:
     def __init__(self, page:ChromiumBase):
         self.page = page
 
-    def wait_api_finished(self, url, trigger=None, timeout=30, method=("GET", "POST"), res_type=True, is_regex=False):
+    def wait_api_finished(self, url, trigger=None, timeout=30, method=("GET", "POST"), res_type=True, is_regex=False, required=True):
         """监听接口并在触发动作后返回监听结果。"""
         if not hasattr(self.page, "listen"):
             raise RuntimeError("当前页面不支持接口监听")
@@ -28,5 +28,9 @@ class HttpHelper:
             
             log(f"监听到接口响应：{packet.url}")
             return None if packet.is_failed else packet.response.body
+        except RuntimeError as e:
+            if required:
+                raise RuntimeError(e)
+            return None
         finally:
             listener.stop()

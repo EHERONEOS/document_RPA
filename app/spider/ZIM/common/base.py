@@ -2,6 +2,7 @@ import os
 import time
 from urllib.parse import urlsplit
 
+from app.core.integrations.captcha import get_ym_hcaptcha_code
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.errors import BrowserStartError, BusinessError, LoginError
 from app.spider.ZIM.common import selectors
@@ -9,7 +10,7 @@ from app.core.page.dom import DomHelper
 
 
 LOGIN_URL = "https://cis.zim-logistics.com.cn/Account/Login"
-recapture_token="P1_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.haJwZACjZXhwzmpZ0LuncGFzc2tlecUFa51ocVMfgrB_aYev5u2XSnHNzShNAGgmL0Ay_L9pm0c9XPTL_TRTCHvv1H44oSZPWVXg771PpmvlJwLJh7YGVSf62M33gi9uetx8fgWRb_SUXlIgkNrPhi10-pCuctyfvrAL8tboSk3L1I7JIs78yMsqiP1JrtcW_EWEvmVwHtZaxNhb5ac96Z0i1k6bRgsAZCg2s7KVNfH_XgYwDLX7Po0qcMibC5hoO8dk37eqBXo9a7zdKiorikt5gDNva-6rcRTt3-bwRfOwLcrFQVrOGzGE3pkB7bfB0jXwFBJk3xI5kPXhGiAzU-UCoOEHjleEavrP812ta3HkFzd5O2qhyraVCOvZ4r3dZQYpzhj-NtTrm_ylq7DSPGt5hU-l1Os55oWrlWrOwil0deO7fvU9VFRVC7-CXYbvdoerilmTGJQ6aZPoOEohow1PlBWpAUYET86UlRpUHtwfkYhPdf3HtPLjPAZB4dpgBm2lTSIdouczGFK48aOtjGpTohScVe1AGeiVNDDEg2q94ODGfhbEeI7o_TIU1Syga6KarG2lyyNyJeFhzyx5eE9CrF_nITd_F4I-oc8rlQCXr_vpUjVgBMLBJNdDN2devI7Q3Ge20y9_q_btm8Co2wnwAbcDbOUVmGJSKvY46QPV7KbLK7BfhViim1vIe5xgRUTRnncXqiz9tQ0MPOBSgJa5laKdVO_fH4MoGOuNsmRk-cL4pzTg6qUrV1SjrABk4Cu2hxSq_eR4YEd4yyoBoJSAetuI57NIBNdJEZooDTjuAqIU10gJWOPOWZR9Tzsv8ZWvSRYzOEbPUXwxd6xRk_ZnIl8ZXI7yWJXYE4J2Lg79LFu0BQ2Y9-6FGeSCxwQ8od8xRvarNseG8Cb6c6MjPmJ_xjn9HRlUkWw_pbWRRwsBikouv-GoynyivxW3PcwfNaaPNic1V6FSjUnhRUJdOLg7_VwaXMgwja8-WpF2qpowLfNfxXwUAiz8wweGzp4IoA7IMqx_27jJ1pKn43ZL64efj8muUQk8aqoLVMxLWIAkrg8u_8DGe8BUDpwTU4vfrsvzpUVkpyiVTSrIlP9ukiyJjgiuZXS2fdH9H_HwgfNg7ZNNWwl4Gp2zJQigs6Aw1PtNb5bzUsgXoWRGaLaNj7e9MXslPzvbBOcqi_hfglKMJsSpIDQDUZch5vVZIe4fpO8YCW-2ljdLPQWwRtborm_kiair1Nm8IvuPTC399ZzyihQFNB4S5wQEdJEnpTczSwc1iEkffUIyEZfa4dnKBPMgsc_F_ZQXGmEanRIkbTLbMuX2EvKxjnEjn9kz_cGqCdTy-lYWHokI5W8ltQBGd_SPV60BL46h-3zLOZwIeddGdS-c7m7IFY9DXq2SAyUuf8k1btFdQ4_5OUFHl6ukaDhQY9fIeJtHZXFKHfJDnQ9cj2xOQDGq004wtfP3gvnQPDx0akuaJzLOOGnvWB6hIm9XLlhMX5brOnMzhnvX0NoQTJ3-3xo6gfwX4b7JEn5x-jSqPVz6FfXTUiW1fB49MdhndjreqQhZQGYqWu0BmsFmDzPeNuprSp9CRDTav12kpbywOa_qCVeU0Fh4ova9GSUtLsZJXPNV7TUnpOvAGEbGlGeTJufdVXTfIY_4N036Ty8ZW6qwxIGF4pXBLWwE41P0jb3xjzyltoSRXi9MxYMtwuKVp7FQFkKEezQCvjQNfJ3DA1keFDsB4Re4Klek6GlrelrZFxdL2J03W0BPx81lD438ryh_9yLBOhV_lIxbDHnsepAF3_ipWLHY_96BC5go_Iqq3bYrdJQvM1hGFNE_ItFufit3GbDrvI8Tz7aHET20JiOhTm3xSUsC7sE7IzHv4--ia3KoMjk4YWU3YTaoc2hhcmRfaWTODTtkKQ.X595ZT4JfgrqlwlVBNi5Rdj6tc8Yd-eIid1VWaITh3U"
+# recapture_token= "P1_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.haJwZACjZXhwzmpfMiancGFzc2tlecUFwC6kkhQQBKuOce8krO7O4ZbPWkfLHcESC2PxgIqarBE6bm54oA7O7YYo6HxspxIS1ivMQwWHq32Df8R_JKu_mXp7pvWLnN9L76VOjXusuK33_JMTk6hhvq4XPItv4wROVj5wMYGKsHEgRX1dD1a_2xV-fYgDf0eA8HDNLk-Fg-45oi90YKS7CtsO6HqmEm6OhVV75SV0vG3_ul1PF-zyHUa8rf6XySbq5Sqv0Tsa-v5jmmulY60OdXxzU2KG5NmSQTjzM100_WJz6QFyxN3z3QM5rBxOgZJiHkdl-jNa99JH21NXJ_WRqjZWT9K_I4--Cf0cyzgXLbQLF3vLnfLfOV88nUGhW8mHIfx4zlMlIVshRVCbbnySEMb4_Qgtoa-g5cbBQtXzSIVCV4_3u08Y6-2AqIcKz--ioNwnVfUqwf3AdchNQN8IGNxSc3pkEhAH81VMGMy8qjEqJ1hqB-RXDPznD2mkJU08MlxXcfN3KD44w5KsDoLFDHj1UzTsTzj5LeGsQh1bRIaTU1nJhEWhXXgGZz88oMiFbDDwTwg6kKEh7ADZ0IpLmzJyEtKZ5PGwm0voEOy0r2wGK42HCdE3Cz_qQb7cD5wgDVEYKYWF_yhQ14H8kprqfV8VqDizUswWedxvlKnpTaE1E4MOVqbEo1mxPhICKSofJ_cdBtuwn-BLIPOq5A8VvonFo0_l5fLSm50KwnUQrHXSGT09dKBfdJ6qRcB-OfJWQhsKn6jjC3MWz-JEWtwkN9JtPyf4NdNAQe1XLVQkRQj8qtgLTtttfU3NlEJNFRefb-5v2DQ-StyuDX7EtkWrPsy4md1is_JsnWIfpvC6Qf4sEo0HdiRzZJvcP_BBL69Lr5oXBTc3qAR8P9zpbzC-KtLv_5THrc6RAYbqNRv2N6hKeYWfbU2q-U0N5GMB7n4O8A7RRgHZdlS9Jq6rsSyeCDOXX8GGGWbfFWryRaVIk3orOfGxK4Re5tPMAij6SG2JDbXwFDa3yXOjSiYAnQQ6IUo2ZtZ3I06xdMRCfBJSlr0zN29As6qQ4gvlIGB6Bx4ZMiqTMc5J6jQlr7YIYmwBBRIN6zRpdY3aDAuwF6zp_qPk-_LJleHLj5KUc8cL75xZzlJYDXyzNfqLp-YKnmaIDKFxAeGY20-K1T_uUCgRtyvm80IeDBngmC1pSlE2nQW1-YOY--rf5FsimWj7aojKUF_dPqTKSUz7X72z20htxpUnDi6jI0zB0JtfkIwRG9DIzMnGchacSZlsFlZNHGDsJ74PYwIPRU1MCixt4Qo5RMKUwoRBdaTjrblGCqZRzTsbydWtpJG6qAoe_rqyqI92la0sUyzYQAtBcGOH5zxR4g8cFd3wNbNyoK-F9M-0cFAWSsNfVy6YMYzbKzXJmBvymCpqdv5jUgPHhCnxurL-5lqRKRGuGA-F7nSp9q_bygIT2XukNje1U3E8d9kTljxiVAzELEUBqzbpGmtXgWov8s9yOeMVe8nzuIgzEzi_yYFiU6Iy-Q0uZT2JHZVOwfQCIZmc1sQCuA9OoJFp3QDx21SMxIIkLVW9vWb21SEupFZY35J1YzlBHSnaHTeXDQ5cu4bK-rI2_Sn7pjjN3JQb1JEY6YCVm9HlH_btl0B3g8E2IrdpdLQbGlbiei_9BVhtwBnlkHTXd0Hzk6aC0Tjks4-ghhv8769jql85khlcVbPCx4J3_vTB8jg34d61LOujLgF8cVE1a5cBNtksPNOTW8modUU7BN7WsiawlN9l0RZiJ49pqd4EtL-5-sxUYA5xRi6d5AExy2m--QZUvTClkUB5p59U58a5o92Ji0VwxU0oIzVn1RVAszvVr2cFqPh8iZanYmO3axXech8xq9n7MdyoQ19md_LON4owk3qkVX25lGZkt4nzqUpmTKGuVtGTj_r-5hJlfp5_ffkjPkaIyyTMu7PUtUk5JW7I3iPlZrrWVylhJgqBnb-momtyqDIzYzI0Y2M3qHNoYXJkX2lkzg07ZCk.HA7UyK9q75AM1cut6z5RgXQ-q1l_jvZgv2XAs07RFn4"
 class ZimBaseTask(BaseRpaTask):
     """ZIM 船司公共能力。"""
     carrier_code = "ZIM"
@@ -74,11 +75,16 @@ class ZimBaseTask(BaseRpaTask):
             self.logger.info("已登录")
             return
         self.logger.info("登录信息失效,开始登录")
+        self.logger.info("开始获取验证码")
+        recapture_token = get_ym_hcaptcha_code(self.siteKey,self.login_url)
+        self.logger.info(f"验证码获取成功")
         login_headers = self._get_login_headers()
         self.page.change_mode(mode="s",copy_cookies=True)
         payload = {
-            "UserName": website_info.get("websiteAccount"),
-            "Password": website_info.get("websitePassword"),
+            # "UserName": website_info.get("websiteAccount"),
+            # "Password": website_info.get("websitePassword"),
+            "UserName": "qiantang",
+            "Password": "Qt*123456",
             "OfficeCode": "",
             "recaptureToken": recapture_token,
         }

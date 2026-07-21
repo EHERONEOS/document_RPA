@@ -5,9 +5,9 @@ from typing import Any
 @dataclass
 class TaskResult:
     """任务回传结果。"""
-    task_id:str
+    task_id:str | int
     success: bool
-    rpaMessageId: str = ""
+    rpaMessageId: str
     saveType: int = 1
     img: str = ""
     code: int | None = None

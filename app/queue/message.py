@@ -9,15 +9,15 @@ def _require_dict(value, name):
 
 
 def build_task_context(
-    raw_message,
+    task,
     *,
     runtime_mode="queue",
     enable_notify=True,
     enable_result_publish=True,
     enable_record=None,
 ):
-    """从原始队列消息构建任务上下文。"""
-    task = _require_dict(raw_message.get("task"), "task")
+    """从原始队列 task 消息构建任务上下文。"""
+    # task = _require_dict(raw_message, "task")
     queue_name = str(task.get("rpaTaskTopic") or "").strip().upper()
     if not queue_name:
         raise MessageParseError("task.rpaTaskTopic 不能为空")
@@ -26,12 +26,14 @@ def build_task_context(
     website_info = _require_dict(task.get("websiteInfo"), "task.websiteInfo")
     content = _require_dict(task.get("content"), "task.content")
     rpa_message_id = str(task.get("rpaMessageId") or "").strip()
+    task_id = task.get("id")
     if not rpa_message_id:
         raise MessageParseError("task.rpaMessageId 不能为空")
 
     return TaskContext(
-        raw_message=raw_message,
+        # raw_message=raw_message,
         task=task,
+        task_id=task_id,
         queue_name=queue_name,
         rpa_message_id=rpa_message_id,
         customer_code=customer_code,
