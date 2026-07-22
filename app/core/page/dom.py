@@ -162,3 +162,10 @@ class DomHelper:
         if not iframe:
             return None
         return DomHelper(iframe)
+
+    # def wait_eles_loaded(self, locator,any_one=False, required=True, timeout=10):
+    #     """等待元素加待元素被加载到 DOM"""
+    #     success =  self.page.wait.eles_loaded(locator, timeout=timeout,any_one=any_one)
+    #     if required or not success:
+    #         raise ElementNotFoundError(f"等待元素{locator} 加载超时")
+    #     return True

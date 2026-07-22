@@ -29,6 +29,7 @@ class ZimVGMTask(ZimBaseTask):
         bo_row = self.query_booking(self.booking_no)
         iframe_dom: DomHelper = self.dom.in_frame(selectors.DC_LIST_FRAME) 
         iframe_dom.click(selectors.ROW_VGM_A)
+        time.sleep(1)
         self.alert_iframe = iframe_dom.in_frame(selectors.VGM_ALERT_FRAME)
         self.fill_containers()
         self.fill_base_fields()
@@ -46,7 +47,9 @@ class ZimVGMTask(ZimBaseTask):
     def fill_containers(self):
         """填写箱货信息。"""
         contain_list = self.content.get("containers") or []
+        time.sleep(1)
         self.alert_iframe.click_all(selectors.VGM_DELETE_BTN, required=False, timeout=2)
+        
         for index, contain in enumerate(contain_list, start=1):
             row_selector = f"{selectors.VGM_CON_BODY_ROW}:nth-child({index})"
             self.alert_iframe.click(selectors.VGM_ADD_BTN, timeout=2)
