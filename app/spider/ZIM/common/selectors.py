@@ -1,3 +1,4 @@
+SYS_EXCEPTION_P = "x://*[contains(concat(' ', normalize-space(@class), ' '), ' container ')]/p[contains(normalize-space(), '该功能正在维护')]" # 系统异常页面
 DC_MENU="x://div[@data-action='Place Booking'][contains(string(), '订舱')]" # 订舱导航菜单
 DC_LIST_FRAME = "css:#iframeContainer iframe[src*='/Ebooking/PlaceBooking/List']"
 SEARCH_BOOK_NO = "css:#ref_no" #提单号
@@ -91,4 +92,4 @@ VGM_BASE_FILL_FIELDS= (
     ("input", "#vgm_mail", "email"), # VGM邮箱
     ("input", "#vgm_addr", "address"), # VGM地址
 )
-
+VGM_SUBMIT_BTN = "x://*[@class='layui-layer-btn0' and normalize-space()='Submit']" # VGM提交按钮

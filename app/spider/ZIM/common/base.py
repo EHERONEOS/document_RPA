@@ -70,6 +70,7 @@ class ZimBaseTask(BaseRpaTask):
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")
         self.page.get(self.index_url ,show_errmsg=True)
+        self.sys_exception_refresh()
         time.sleep(3)
         if self.is_login():
             self.logger.info("已登录")
@@ -105,7 +106,16 @@ class ZimBaseTask(BaseRpaTask):
             raise LoginError("登录失败")
 
 
-
+    def sys_exception_refresh(self):
+        """系统异常刷新页面"""
+        for _ in range(3):
+            sys_exception_p = self.dom._find(selectors.SYS_EXCEPTION_P, required=False)
+            if not sys_exception_p:
+                return
+            self.logger.error("系统异常刷新页面")
+            self.page.refresh()
+            time.sleep(2)
+        raise BusinessError("系统异常，刷新3次后仍未恢复")
 
     def is_login(self):
         """判断是否登录"""

@@ -20,15 +20,17 @@ class DomHelper:
     def _find(self, locator, name=None, required=True, timeout=2):
         name = locator if name is None else name
         element = self.page.ele(locator, timeout=timeout)
-        if self._is_missing_element(element) and required:
-            raise ElementNotFoundError(f"{name}元素不存在：{locator}")
+        if self._is_missing_element(element):
+            if required:
+                raise ElementNotFoundError(f"{name}元素不存在：{locator}")
+            return False
         return element
 
     def click(self, locator, name=None, required=True, timeout=2):
         """点击元素。"""
         name = locator if name is None else name
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return False
         element.click()
         log(f"点击{name}")
@@ -51,8 +53,11 @@ class DomHelper:
         """输入文本。"""
         name = locator if name is None else name
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return False
+        original_value = element.value
+        if original_value == value:
+            return True
         element.click()
         element.input(value, clear=True)
         self.page.run_js("arguments[0].blur();", element)
@@ -63,7 +68,7 @@ class DomHelper:
         """选择 select 选项。"""
         name = locator if name is None else name
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return False
 
         try:
@@ -85,8 +90,12 @@ class DomHelper:
         """搜索并选择"""
         name = locator if name is None else name
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return False
+
+        original_value = element.value
+        if original_value == value:
+            return True
         element.click()
         element.input(value, clear=True)
         time.sleep(1)
@@ -106,14 +115,14 @@ class DomHelper:
     def get_text(self, locator, name=None, required=True, timeout=2):
         """获取元素文本。"""
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return ""
         return getattr(element, "text", "") or ""
 
     def get_value(self, locator, name=None, required=True, timeout=2):
         """获取 input value。"""
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return ""
         value = element.value
         return "" if value is None else str(value)
@@ -121,7 +130,7 @@ class DomHelper:
     def get_select_value(self, locator, name=None,by="text", required=True, timeout=2):
         """获取 select 当前选中值。"""
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return ""
         if by == 'value':
             return element.value
@@ -133,7 +142,7 @@ class DomHelper:
     def get_select_text(self, locator, name=None, required=True, timeout=2):
         """获取 select 当前选中展示文本。"""
         element = self._find(locator, name, required, timeout)
-        if self._is_missing_element(element):
+        if not element:
             return ""
 
         if element.select.is_multi:
@@ -150,6 +159,6 @@ class DomHelper:
     def in_frame(self, locator, name=None, required=True, timeout=2):
         """切换到 iframe。"""
         iframe = self._find(locator, name, required, timeout)
-        if self._is_missing_element(iframe):
+        if not iframe:
             return None
         return DomHelper(iframe)

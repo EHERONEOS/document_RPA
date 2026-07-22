@@ -64,7 +64,7 @@ class BaseRpaTask:
         record_url = ""
         success = False
         code = 0
-        screenshot_url= ""
+        screenshot_img= ""
         remark = ""
         try:
             if self.context.enable_notify:
@@ -91,7 +91,7 @@ class BaseRpaTask:
                 
                 file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
                 file_info = self.oss_client.oss_upload(file_path)
-                screenshot_url = file_info.get("url") or ""
+                screenshot_img = file_info.get("objectName") or ""
             success = False
             code = getattr(exc, "code", 0)  
             remark = str(exc)  
@@ -102,21 +102,25 @@ class BaseRpaTask:
             if self.context.enable_result_publish:
                 if success or len(self.attachments) > 0:
                     attachments = self.get_attachments()
-
+                # try:
+                
                 result = TaskResult(
                     task_id =self.context.task_id or "",
                     success=success,
                     code=code,
                     rpaMessageId = self.context.rpa_message_id,
-                    img=screenshot_url or "",
+                    img=screenshot_img or "",
                     executeRecordFiles="",
                     remark=remark,
                     attachments=attachments or None
                 )
+                # except Exception as exc:
+                #     print(exc)
+                #     pass
                 
                 self.publisher.publish_result(result)
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
-            return True
+            return success
 
     def should_record(self):
         """判断当前任务是否录屏。"""
@@ -178,7 +182,7 @@ class BaseRpaTask:
         source = self.remain_content if source is None else source
         source = source or {}
         source_value = source.get(field_name, "")
-        if source_value is None and null_check:
+        if not source_value and null_check:
             return
         frame = frame or self.dom
         if field_type == "input":
