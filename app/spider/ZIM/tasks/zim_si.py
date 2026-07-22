@@ -41,11 +41,11 @@ class ZimSiTask(ZimBaseTask):
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
         file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=False)
         self.attachments.append(file_path)
-        self.http.wait_api_finished(
-            selectors.SAVE_SI_API,
-            trigger=lambda: self.dom.click(selectors.SI_SAVE_BTN),
-            timeout=20
-        )
+        # self.http.wait_api_finished(
+        #     selectors.SAVE_SI_API,
+        #     trigger=lambda: self.dom.click(selectors.SI_SAVE_BTN),
+        #     timeout=20
+        # )
         pass
 
     def fill_base_fields(self):
