@@ -21,10 +21,12 @@ launch.json
 
 # AI Rules
 .trae/rules/*.json
-tests/
+tests/*
+# !tests/test_browser_session_lock.py
 message_list/
 .idea/
 nacos-data/*
+debug-result-dlx.md
 
 # System files
 .DS_Store

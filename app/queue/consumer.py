@@ -2,15 +2,17 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from app.core.browser.session_lock import BrowserProfileLock
 from app.core.task.dispatcher import dispatch_context
 from app.queue.message import build_task_context
-from app.queue.booster import RpaBoosterParams
 
 
 def handle_message(task):
     """处理单条队列消息。"""
     context = build_task_context(task)
-    return dispatch_context(context)
+    # 不同队列可能复用同一个账号和 Chromium profile，需串行执行整个任务生命周期。
+    with BrowserProfileLock(context):
+        return dispatch_context(context)
 
 
 # def build_raw_message(task=None):
@@ -36,6 +38,8 @@ def start_consumers(queue_names):
     """启动 funboost 消费者。"""
     try:
         from funboost import boost
+        # 仅在启动消费者时加载，避免调用 handle_message 时初始化 Funboost。
+        from app.queue.booster import RpaBoosterParams
     except Exception as exc:
         raise RuntimeError(f"funboost 未安装或不可用：{exc}") from exc
 

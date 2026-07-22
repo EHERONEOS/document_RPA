@@ -581,6 +581,7 @@ FL_ZIM_VGM
 - 同一账号和船司会复用固定浏览器用户目录。
 - 浏览器端口由 `BrowserPortRegistry` 按 profile 固定分配。
 - 下载目录按队列名隔离。
+- 不同队列若复用同一账号和船司，会在启动或接管浏览器前取得同一个 profile 锁；后到任务会等待前一任务回传结果后再执行，避免同时操作同一 Chromium 进程。
 
 ### 8.13 `app/core/browser/options.py`
 

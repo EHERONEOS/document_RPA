@@ -15,6 +15,7 @@ DEFAULT_NACOS_GROUP = "DEFAULT_GROUP"
 def load_nacos_environment() -> dict[str, str]:
     nacos_client = nacos.NacosClient(server_addresses=os.getenv('nacos_ip', DEFAULT_NACOS_IP), namespace=os.getenv('nacos_namespace', DEFAULT_NACOS_NAMESPACE))
     SPIDER_CONFIG = yaml.load(nacos_client.get_config(data_id='spider-config', group='DEFAULT_GROUP'), yaml.FullLoader)
+    DATA_SOURCE_CONFIG = yaml.load(nacos_client.get_config(data_id='shared-datasource', group='DEFAULT_GROUP'), yaml.FullLoader)
     # 图鉴验证码
     TTSHITU_USER = SPIDER_CONFIG.get("ttshitu").get('username', '')
     TTSHITU_PWD = SPIDER_CONFIG.get("ttshitu").get('password', '')
@@ -27,12 +28,17 @@ def load_nacos_environment() -> dict[str, str]:
     API_PREFIX = SPIDER_CONFIG["api_prefix"]
     API_HEADERS = SPIDER_CONFIG["api_headers"]
 
+    # 云码token
+    YUNMA_TOKEN = DATA_SOURCE_CONFIG.get("yunma").get("token", "")
+
     os.environ["TTSHITU_USER"] = TTSHITU_USER
     os.environ["TTSHITU_PWD"] = TTSHITU_PWD
     os.environ["DINGTALK_ROBOT_API"] = DINGTALK_ROBOT_API
     os.environ["DINGTALK_CCAM_API"] = DINGTALK_CCAM_API
     os.environ["API_PREFIX"] = API_PREFIX
     os.environ["API_HEADERS"] = json.dumps(API_HEADERS, ensure_ascii=False)
+    os.environ["YUNMA_TOKEN"] = YUNMA_TOKEN
+
     return {
         "TTSHITU_USER": TTSHITU_USER,
         "TTSHITU_PWD": TTSHITU_PWD,
@@ -40,4 +46,5 @@ def load_nacos_environment() -> dict[str, str]:
         "DINGTALK_CCAM_API": DINGTALK_CCAM_API,
         "API_PREFIX": API_PREFIX,
         "API_HEADERS": os.environ["API_HEADERS"],
+        "YUNMA_TOKEN": YUNMA_TOKEN,
     }

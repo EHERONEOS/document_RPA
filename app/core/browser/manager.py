@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from app.core.browser.launcher import enable_detached_chromium_launch
+from app.core.browser.session_lock import build_browser_profile_name
 from app.config.settings import Settings
 from app.core.browser.options import BrowserOptions
 from app.core.browser.port import BrowserPortRegistry
@@ -33,8 +34,8 @@ class BrowserManager:
 
     def build_profile_name(self, context):
         """按用户名和船司生成固定浏览器标识。"""
-        username = context.website_info.get("websiteUserName") or context.website_info.get("websiteAccount") or "default"
-        return f"{username}_{context.carrier_code}"
+        # 与任务执行锁使用同一 profile，确保锁和浏览器一一对应。
+        return build_browser_profile_name(context)
 
     def build_options(self, context, task):
         """构建浏览器启动参数。"""

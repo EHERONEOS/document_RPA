@@ -55,7 +55,7 @@ def get_ym_verify_code(img, type,  extra=None):
     with open(img, 'rb') as f:
         base64_data = base64.b64encode(f.read())
         b64 = base64_data.decode()
-    token = os.getenv("ymtoken", "FseOxevDVnNP7TGuKCYO-NIRQW4R_8KkTnkRo1IPy3Y")
+    token = os.getenv("YUNMA_TOKEN", "FseOxevDVnNP7TGuKCYO-NIRQW4R_8KkTnkRo1IPy3Y")
     error_msg = ""
     for i in range(2):
         data = {"image": b64,"token":token,"type":type};
