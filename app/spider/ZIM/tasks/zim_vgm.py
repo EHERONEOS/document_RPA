@@ -27,7 +27,6 @@ class ZimVGMTask(ZimBaseTask):
 
         # img_path = self.screenshot.page_shot(self.booking_no,"SI",is_error=False)
         bo_row = self.query_booking(self.booking_no)
-        raise LoginError("ZIM VGM 业务流程未实现")
         iframe_dom: DomHelper = self.dom.in_frame(selectors.DC_LIST_FRAME) 
         iframe_dom.click(selectors.ROW_VGM_A)
         self.alert_iframe = iframe_dom.in_frame(selectors.VGM_ALERT_FRAME)
