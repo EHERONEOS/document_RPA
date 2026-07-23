@@ -22,6 +22,7 @@ launch.json
 # AI Rules
 .trae/rules/*.json
 tests/*
+!tests/test_element_names.py
 # !tests/test_browser_session_lock.py
 message_list/
 .idea/

@@ -70,6 +70,7 @@ class ZimBaseTask(BaseRpaTask):
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")
         self.page.get(self.index_url ,show_errmsg=True)
+        raise LoginError("登录失败")
         self.sys_exception_refresh()
         time.sleep(3)
         if self.is_login():
@@ -109,12 +110,12 @@ class ZimBaseTask(BaseRpaTask):
     def sys_exception_refresh(self):
         """系统异常刷新页面"""
         for _ in range(3):
-            sys_exception_p = self.dom._find(selectors.SYS_EXCEPTION_P, required=False)
+            sys_exception_p = self.dom._find(*selectors.SYS_EXCEPTION_P, required=False)
             if not sys_exception_p:
                 return
             self.logger.error("系统异常刷新页面")
             self.page.refresh()
-            time.sleep(2)
+            time.sleep(4)
         raise BusinessError("系统异常，刷新3次后仍未恢复")
 
     def is_login(self):
@@ -126,14 +127,18 @@ class ZimBaseTask(BaseRpaTask):
         # 点击订舱导航菜单并等待订舱列表接口完成
         self.http.wait_api_finished(
             selectors.BOOKING_GET_LIST_API,
-            trigger=lambda: self.dom.click(selectors.DC_MENU)
+            trigger=lambda: self.dom.click(*selectors.DC_MENU)
         )
-        iframe_dom: DomHelper = self.dom.in_frame(selectors.DC_LIST_FRAME) 
-        iframe_dom.input_text(selectors.SEARCH_BOOK_NO, blNo)
+        iframe_dom: DomHelper = self.dom.in_frame(*selectors.DC_LIST_FRAME)
+        iframe_dom.input_text(
+            selectors.SEARCH_BOOK_NO[0],
+            blNo,
+            name=selectors.SEARCH_BOOK_NO[1],
+        )
         # 点击搜索按钮并等待订舱列表接口完成
         res = self.http.wait_api_finished(
             selectors.BOOKING_GET_LIST_API,
-            trigger=lambda: iframe_dom.click(selectors.SEARCH_BTN)
+            trigger=lambda: iframe_dom.click(*selectors.SEARCH_BTN)
         )
         if not res or res.get("total") !=1:
             raise BusinessError("查询订舱单据失败")

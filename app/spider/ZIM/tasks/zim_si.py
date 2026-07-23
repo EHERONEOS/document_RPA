@@ -43,7 +43,7 @@ class ZimSiTask(ZimBaseTask):
         self.attachments.append(file_path)
         # self.http.wait_api_finished(
         #     selectors.SAVE_SI_API,
-        #     trigger=lambda: self.dom.click(selectors.SI_SAVE_BTN),
+        #     trigger=lambda: self.dom.click(*selectors.SI_SAVE_BTN),
         #     timeout=20
         # )
         pass
@@ -51,36 +51,55 @@ class ZimSiTask(ZimBaseTask):
     def fill_base_fields(self):
         """填写基础提单信息。"""
         for item in selectors.SI_BASE_FILL_FIELDS:
-            field_type, locator, field_name = item[:3]
-            o_selector = item[4] if len(item) > 4 else None
-            self._fill_or_select_if_present(field_type, locator, field_name,o_selector=o_selector)
+            field_type, locator, field_name, name = item[:4]
+            o_selector = item[5] if len(item) > 5 else None
+            self._fill_or_select_if_present(
+                field_type,
+                locator,
+                field_name,
+                o_selector=o_selector,
+                name=name,
+            )
 
     def fill_containers(self):
         """填写箱货信息。"""
         contain_list = self.content.get("containers") or []
-        self.dom.click_all(selectors.DELETE_CON_BTN, required=False, timeout=2)
+        self.dom.click_all(*selectors.DELETE_CON_BTN, required=False, timeout=2)
         for index, contain in enumerate(contain_list, start=1):
-            row_selector = f"{selectors.CON_BODY_ROW}:nth-child({index})"
-            self.dom.click(selectors.ADD_CON_BTN, timeout=2)
-            for field_type, locator, field_name in selectors.SI_CONTAINER_FILL_FIELDS:
+            row_selector = f"{selectors.CON_BODY_ROW[0]}:nth-child({index})"
+            self.dom.click(*selectors.ADD_CON_BTN, timeout=2)
+            for field_type, locator, field_name, name in selectors.SI_CONTAINER_FILL_FIELDS:
                 self._fill_or_select_if_present(
                     field_type,
                     f"{row_selector} {locator}",
                     field_name,
-                    contain
+                    contain,
+                    name=f"第 {index} 个箱货-{name}",
                 )
 
 
     def verify_from(self):
         """验证表单值。"""
         for item in selectors.SI_VERIFY_FIELDS:
-            field_type, locator, field_name = item[:3]
-            null_check = item[3] if len(item) > 3 else None
-            self.verify_from_value(field_type, locator, field_name,null_check=null_check)
+            field_type, locator, field_name, name = item[:4]
+            null_check = item[4] if len(item) > 4 else False
+            self.verify_from_value(
+                field_type,
+                locator,
+                field_name,
+                null_check=null_check,
+                name=name,
+            )
         contain_list = self.remain_content.get("containers") or []
         for index, contain in enumerate(contain_list, start=1):
-            row_selector = f"{selectors.CON_BODY_ROW}:nth-child({index})"
-            for field_type, locator, field_name in selectors.SI_CONTAINER_FILL_FIELDS:
-                self.verify_from_value(field_type, f"{row_selector} {locator}", field_name, contain)
+            row_selector = f"{selectors.CON_BODY_ROW[0]}:nth-child({index})"
+            for field_type, locator, field_name, name in selectors.SI_CONTAINER_FILL_FIELDS:
+                self.verify_from_value(
+                    field_type,
+                    f"{row_selector} {locator}",
+                    field_name,
+                    contain,
+                    name=f"第 {index} 个箱货-{name}",
+                )
         self.mark_field_done("containers")
             

@@ -18,7 +18,7 @@ class DomHelper:
         return element is None or isinstance(element, NoneElement)
 
     def _find(self, locator, name=None, required=True, timeout=2):
-        name = locator if name is None else name
+        name = name or locator
         element = self.page.ele(locator, timeout=timeout)
         if self._is_missing_element(element):
             if required:
@@ -28,50 +28,51 @@ class DomHelper:
 
     def click(self, locator, name=None, required=True, timeout=2):
         """点击元素。"""
-        name = locator if name is None else name
+        name = name or locator
         element = self._find(locator, name, required, timeout)
         if not element:
             return False
-        element.click()
         log(f"点击{name}")
+        element.click()
         return True
 
     def click_all(self, locator, name=None, required=True, timeout=2):
         """点击所有匹配元素。"""
-        name = locator if name is None else name
+        name = name or locator
         elements = self.page.eles(locator, timeout=timeout)
         if not elements:
             if required:
                 raise ElementNotFoundError(f"{name}元素不存在：{locator}")
             return False
+        log(f"点击全部{name}")
         for element in elements:
             element.click()
-        log(f"点击全部{name}")
         return True
 
     def input_text(self, locator, value, name=None, required=True, timeout=2):
         """输入文本。"""
-        name = locator if name is None else name
+        name = name or locator
         element = self._find(locator, name, required, timeout)
         if not element:
             return False
         original_value = element.value
         if original_value == value:
             return True
+        log(f"输入{name}")
         element.click()
         element.input(value, clear=True)
         self.page.run_js("arguments[0].blur();", element)
-        log(f"输入{name}")
         return True
 
     def select(self, locator, value, name=None, by="text", required=True, timeout=2):
         """选择 select 选项。"""
-        name = locator if name is None else name
+        name = name or locator
         element = self._find(locator, name, required, timeout)
         if not element:
             return False
 
         try:
+            log(f"选择{name}")
             if by == "text":
                 element.select.by_text(value, timeout=timeout)
             elif by == "value":
@@ -83,12 +84,11 @@ class DomHelper:
         except RuntimeError as exc:
             raise ElementNotFoundError(f"{name}选项不存在：{value}") from exc
         self.page.run_js("arguments[0].blur();", element)
-        log(f"选择{name}")
         return True
 
     def search_select(self, locator, value,child_locator, name=None, required=True, timeout=2):
         """搜索并选择"""
-        name = locator if name is None else name
+        name = name or locator
         element = self._find(locator, name, required, timeout)
         if not element:
             return False
@@ -96,6 +96,7 @@ class DomHelper:
         original_value = element.value
         if original_value == value:
             return True
+        log(f"搜索并选择{name}")
         element.click()
         element.input(value, clear=True)
         time.sleep(1)
@@ -104,7 +105,6 @@ class DomHelper:
         for child_element in child_elements:
             if value in (getattr(child_element, "text", "") or ""):
                 child_element.click()
-                log(f"搜索并选择{name}")
                 return True
 
         if required:
@@ -161,6 +161,7 @@ class DomHelper:
         iframe = self._find(locator, name, required, timeout)
         if not iframe:
             return None
+        log(f"切换到{name or locator}")
         return DomHelper(iframe)
 
     # def wait_eles_loaded(self, locator,any_one=False, required=True, timeout=10):

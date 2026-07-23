@@ -157,7 +157,7 @@ class BaseRpaTask:
 
 
 
-    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None,o_selector=None,frame=None, timeout=2):
+    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None, o_selector=None, frame=None, timeout=2, name=None):
         """按字段类型填写。"""
         source = self.content if source is None else source
         source = source or {}
@@ -166,18 +166,18 @@ class BaseRpaTask:
         if value in (None, ""):
             return
         if field_type == "input":
-            frame.input_text(locator, value, timeout=timeout)
+            frame.input_text(locator, value, name=name, timeout=timeout)
         elif field_type == "select":
-            frame.select(locator, value, timeout=timeout)
+            frame.select(locator, value, name=name, timeout=timeout)
         elif field_type == "s_select":
-            frame.search_select(locator, value,o_selector, timeout=timeout)
+            frame.search_select(locator, value, o_selector, name=name, timeout=timeout)
         else:
             raise ValueError(f"不支持的字段类型：{field_type}")
         # self.mark_field_done(field_name,source)
 
 
 
-    def verify_from_value(self, field_type, locator, field_name,source=None,frame=None,null_check=False):
+    def verify_from_value(self, field_type, locator, field_name, source=None, frame=None, null_check=False, name=None):
         """校验单个字段值。"""
         source = self.remain_content if source is None else source
         source = source or {}
@@ -186,13 +186,15 @@ class BaseRpaTask:
             return
         frame = frame or self.dom
         if field_type == "input":
-            field_value = frame.get_value(locator)
+            field_value = frame.get_value(locator, name=name)
         elif field_type == "select":
-            field_value = frame.get_select_value(locator)
+            field_value = frame.get_select_value(locator, name=name)
         elif field_type == "s_select":
-            field_value = frame.get_value(locator)
+            field_value = frame.get_value(locator, name=name)
         if field_value != source_value:
-            raise FormValidationError(f"{field_name} 值不匹配：输入值 {field_value} != 期望值 {source_value}")
+            raise FormValidationError(
+                f"{name or locator} 值不匹配：输入值 {field_value} != 期望值 {source_value}"
+            )
         self.mark_field_done(field_name,source)
 
 

@@ -1,28 +1,31 @@
 {
-  "task": {
     "rpaMessageId": "2054390608361074688",
     "rpaMessageTime": 1778639864422,
-    "rpaTaskTopic": "FL_ZIM_VGM",
+    "rpaTaskTopic": "QTCT_ZIM_VGM",
     "rpaMessageKey": "2054390607375400960-CLOSING",
     "transformSuccess": true,
     "websiteInfo": {
-      "id": 71,
-      "enterpriseId": "2ecc059346f04c2aaa438d2c1c0549dc",
-      "websiteType": "ZIM",
-      "backfillUrl": "",
-      "websiteAccount": "qiantang",
-      "websitePassword": "Qt*123456",
-      "websiteUserName": "Qiantang",
-      "emailAccount": "demo@example.com",
-      "emailPassword": "EMAIL_DEMO_PASSWORD",
-      "createdTime": 1751979443403,
-      "createdUser": "GCP_NAV89i8",
-      "modifiedTime": 1775032365959,
-      "modifiedUser": "GCP_k8zEJLY",
-      "version": 1,
-      "remark": "",
-      "deleted": 0
-    },
+    "id": 401,
+    "enterpriseId": "4fb63068320491a9b215b9a382738c9a",
+    "websiteType": "ZIM",
+    "backfillUrl": "",
+    "accountTag": "",
+    "websiteUserName": "",
+    "websiteAccount": "test",
+    "websitePassword": "test",
+    "websitePasswordMore": "",
+    "backfillAccount": "",
+    "backfillPassword": "",
+    "emailAccount": "",
+    "emailPassword": "",
+    "createdTime": 1784519972709,
+    "createdUser": "GCP_A7i2zCQ",
+    "modifiedTime": 1784519972709,
+    "modifiedUser": "GCP_A7i2zCQ",
+    "version": 1,
+    "remark": "",
+    "deleted": 0
+  },
     "commonContent": {
       "etd": "2026/5/7",
       "pod": "NHAVA SHEVA",
@@ -96,49 +99,51 @@
     "filename": "WZ790V50175 提单样本.docx",
     "fileObjectName": "original/WZ790V50175 提单样本_3OKIjDK2457wQibcAr8Ql.docx",
     "content": {
-      "jobNo": "GOSUSNH8263963",
-      "contacts": "联系人",
-      "tel": "联系电话",
-      "email": "邮箱",
-      "address": "地址",
+      "tel": "1234567",
+      "email": "BBB@163.COM",
+      "address": "CCCCCCCCCCC",
+      "carrier": "ZIM",
+      "contacts": "AAA",
+      "bookingNo": "GOSUSNH21295206",
       "containers": [
-          {
-            "containerNo": "箱号1",
-            "sealNo": "封号1",
-            "containerSize": "LCL",
-            "splitContainerType": "GP",
-            "packages": "件数1",
-            "grossWeight": "毛重1",
-            "volume": "体积1",
-            "packageUnit": "BAGS",
-            "method":"SM2",
-            "weight":"12"
-          },
-          {
-            "containerNo": "箱号2",
-            "sealNo": "封号2",
-            "containerSize": "45'",
-            "splitContainerType": "HQ",
-            "packages": "件数2",
-            "grossWeight": "毛重2",
-            "volume": "体积2",
-            "packageUnit": "COILS",
-            "method":"SM1",
-            "weight":"11"
-          },
-          {
-            "containerNo": "箱号3",
-            "sealNo": "封号3",
-            "containerSize": "40'",
-            "splitContainerType": "TK",
-            "packages": "件数3",
-            "grossWeight": "毛重3",
-            "volume": "体积3",
-            "packageUnit": "JARS",
-            "method":"SM4",
-            "weight":"13"
-          }
-        ]
+        {
+          "method": "SM1",
+          "sealNo": "1111111",
+          "volume": "1",
+          "weight": "1",
+          "packages": "1",
+          "containerNo": "111",
+          "grossWeight": "1",
+          "packageUnit": "BAGS",
+          "containerSize": "20'",
+          "splitContainerType": "FH"
+        },
+        {
+          "method": "SM2",
+          "sealNo": "222222",
+          "volume": "2",
+          "weight": "2",
+          "packages": "2",
+          "containerNo": "222",
+          "grossWeight": "2",
+          "packageUnit": "BALES",
+          "containerSize": "20'",
+          "splitContainerType": "FR"
+        },
+        {
+          "method": "SM2",
+          "sealNo": "333333",
+          "volume": "3",
+          "weight": "3",
+          "packages": "3",
+          "containerNo": "333",
+          "grossWeight": "3",
+          "packageUnit": "BARRELS",
+          "containerSize": "20'",
+          "splitContainerType": "GP"
+        }
+      ],
+      "isUserSave": true
     },
     "bookingNo": "WZ790V50175",
     "blNo": "WZ790V50175",
@@ -175,4 +180,3 @@
     "userMetadataInfoId": 71,
     "sendEmailFlag": 1
   }
-}

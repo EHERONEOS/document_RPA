@@ -27,53 +27,72 @@ class ZimVGMTask(ZimBaseTask):
 
         # img_path = self.screenshot.page_shot(self.booking_no,"SI",is_error=False)
         bo_row = self.query_booking(self.booking_no)
-        iframe_dom: DomHelper = self.dom.in_frame(selectors.DC_LIST_FRAME) 
-        iframe_dom.click(selectors.ROW_VGM_A)
+        iframe_dom: DomHelper = self.dom.in_frame(*selectors.DC_LIST_FRAME)
+        iframe_dom.click(*selectors.ROW_VGM_A)
         time.sleep(1)
-        self.alert_iframe = iframe_dom.in_frame(selectors.VGM_ALERT_FRAME)
+        self.alert_iframe = iframe_dom.in_frame(*selectors.VGM_ALERT_FRAME)
         self.fill_containers()
         self.fill_base_fields()
         self.verify_from()
         self.raise_if_unfilled_fields(stage="ZIM VGM 填单流程")
-        # iframe_dom.click(selectors.VGM_SUBMIT_BTN) #提交
+        # iframe_dom.click(*selectors.VGM_SUBMIT_BTN)
         pass
 
 
     def fill_base_fields(self):
         """填写基础提单信息。"""
-        for field_type, locator, field_name in selectors.VGM_BASE_FILL_FIELDS:
-            self._fill_or_select_if_present(field_type, locator, field_name,frame=self.alert_iframe)
+        for field_type, locator, field_name, name in selectors.VGM_BASE_FILL_FIELDS:
+            self._fill_or_select_if_present(
+                field_type,
+                locator,
+                field_name,
+                frame=self.alert_iframe,
+                name=name,
+            )
 
     def fill_containers(self):
         """填写箱货信息。"""
         contain_list = self.content.get("containers") or []
         time.sleep(1)
-        self.alert_iframe.click_all(selectors.VGM_DELETE_BTN, required=False, timeout=2)
+        self.alert_iframe.click_all(*selectors.VGM_DELETE_BTN, required=False, timeout=2)
         
         for index, contain in enumerate(contain_list, start=1):
-            row_selector = f"{selectors.VGM_CON_BODY_ROW}:nth-child({index})"
-            self.alert_iframe.click(selectors.VGM_ADD_BTN, timeout=2)
+            row_selector = f"{selectors.VGM_CON_BODY_ROW[0]}:nth-child({index})"
+            self.alert_iframe.click(*selectors.VGM_ADD_BTN, timeout=2)
 
-            for field_type, locator, field_name in selectors.VGM_CONTAINER_FILL_FIELDS:
+            for field_type, locator, field_name, name in selectors.VGM_CONTAINER_FILL_FIELDS:
                 self._fill_or_select_if_present(
                     field_type,
                     f"{row_selector} {locator}",
                     field_name,
                     contain,
-                    frame=self.alert_iframe
+                    frame=self.alert_iframe,
+                    name=f"第 {index} 个箱货-{name}",
                 )
 
 
     def verify_from(self):
         """验证表单值。"""
         for item in selectors.VGM_BASE_FILL_FIELDS:
-            field_type, locator, field_name = item[:3]
-            null_check = item[3] if len(item) > 3 else None
-            self.verify_from_value(field_type, locator, field_name,null_check=null_check)
+            field_type, locator, field_name, name = item[:4]
+            null_check = item[4] if len(item) > 4 else False
+            self.verify_from_value(
+                field_type,
+                locator,
+                field_name,
+                null_check=null_check,
+                name=name,
+            )
         contain_list = self.remain_content.get("containers") or []
         for index, contain in enumerate(contain_list, start=1):
-            row_selector = f"{selectors.VGM_CON_BODY_ROW}:nth-child({index})"
-            for field_type, locator, field_name in selectors.VGM_CONTAINER_FILL_FIELDS:
-                self.verify_from_value(field_type, f"{row_selector} {locator}", field_name, contain)
+            row_selector = f"{selectors.VGM_CON_BODY_ROW[0]}:nth-child({index})"
+            for field_type, locator, field_name, name in selectors.VGM_CONTAINER_FILL_FIELDS:
+                self.verify_from_value(
+                    field_type,
+                    f"{row_selector} {locator}",
+                    field_name,
+                    contain,
+                    name=f"第 {index} 个箱货-{name}",
+                )
         self.mark_field_done("containers")
             
