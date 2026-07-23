@@ -9,6 +9,8 @@ from DrissionPage._elements.none_element import NoneElement
 from DrissionPage._elements.chromium_element import ChromiumElement
 from DrissionPage._pages.chromium_base import ChromiumBase
 
+from app.core.task.errors import RpaError
+
 
 
 class Screenshot:
@@ -27,25 +29,29 @@ class Screenshot:
         self.screenshot_dir = Path(screenshot_dir)
 
 
-    def page_shot(self, jobno: str, job_type: str,error: bool = True):
+    def page_shot(self, jobno: str, job_type: str, error: bool = True, retry: int = 3):
         """页面截图。"""
-        try:
-            file_name = self.build_file_name(jobno, job_type, error)
-            file_path = self.page.get_screenshot(path=self.screenshot_dir, name=file_name, full_page=True)
-            return file_path
-        except Exception as e:
-            self.logger.error(f"截图失败: {e}")
-            pass
+        for attempt in range(1, retry + 1):
+            try:
+                file_name = self.build_file_name(jobno, job_type, error)
+                file_path = self.page.get_screenshot(path=self.screenshot_dir, name=file_name, full_page=True)
+                return file_path
+            except Exception as e:
+                self.logger.error(f"截图失败，第{attempt}/{retry}次: {e}")
+        raise RpaError("页面截图失败")
 
-    def element_shot(self, element: ChromiumElement, jobno: str, job_type: str,error: bool = True):
+
+
+    def element_shot(self, element: ChromiumElement, jobno: str, job_type: str, error: bool = True, retry: int = 3):
         """元素截图。"""
-        try:
-            file_name = self.build_file_name(jobno, job_type, error)
-            file_path = element.get_screenshot(path=self.screenshot_dir, name=file_name)
-            return file_path
-        except Exception as e:
-            self.logger.error(f"截图失败: {e}")
-            pass
+        for attempt in range(1, retry + 1):
+            try:
+                file_name = self.build_file_name(jobno, job_type, error)
+                file_path = element.get_screenshot(path=self.screenshot_dir, name=file_name)
+                return file_path
+            except Exception as e:
+                self.logger.error(f"截图失败，第{attempt}/{retry}次: {e}")
+        raise RpaError("元素截图失败")
 
     def build_file_name(self, jobno: str, job_type: str, error: bool):
         """按业务命名规则生成截图文件名。"""

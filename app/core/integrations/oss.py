@@ -2,6 +2,7 @@ import os
 import requests
 from pathlib import Path
 from app.core.logging.logger import Logger
+from app.core.task.errors import RpaError
 
 
 
@@ -20,7 +21,7 @@ class OssClient:
             try:
                 if not isinstance(file_path, (str, bytes, os.PathLike)) or not os.path.isfile(file_path):
                     self.logger.error(f"文件路径 {file_path} 不存在")
-                    return None
+                    raise RpaError(f"文件路径 {file_path} 不存在")
                 with open(file_path, 'rb') as file:  # 自动管理文件关闭
                     response = requests.post(self.url, files={'file': file}, timeout=60)
                 if response.status_code == 200:
@@ -35,3 +36,4 @@ class OssClient:
             except Exception as e:
                 self.logger.error(f"上传文件到OSS 失败: 重试{i+1}/{retry}")
                 pass
+        raise RpaError("上传文件到OSS 失败，重试次数超过最大重试次数")
