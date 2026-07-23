@@ -62,7 +62,7 @@ class BrowserManager:
             log(f"浏览器开关关闭，使用本地空页面 port={options.port} profile={options.user_data_path}")
             return self.page
         try:
-            # 新创建的浏览器脱离队列 Worker 的终端进程组，退出 Worker 时不随之关闭。
+            # 新创建的浏览器脱离队列 Worker 的终端进程组和进程树，退出 Worker 时不随之关闭。
             enable_detached_chromium_launch()
             from DrissionPage import ChromiumOptions, Chromium
 

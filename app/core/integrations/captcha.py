@@ -5,6 +5,7 @@ import time
 import requests
 
 from app.core.integrations.notifier import send_msg_to_dingtalk
+from app.core.task.errors import LoginError, RpaError
 
 
 
@@ -15,7 +16,7 @@ def get_verify_code( image_path, typeid=7):
     username = os.getenv("TTSHITU_USER", "a1072842511")
     password = os.getenv("TTSHITU_PWD", "wolegequ")
     if not username or not password:
-        raise RuntimeError("缺少图鉴账号配置：TTSHITU_USER/TTSHITU_PWD")
+        raise RpaError("缺少图鉴账号配置：TTSHITU_USER/TTSHITU_PWD")
     error_msg = ""
     for _ in range(2):
         data = {
@@ -34,7 +35,7 @@ def get_verify_code( image_path, typeid=7):
         if error_msg == "PredictProviderException: 不是有效的图片!":
             return ""
     send_msg_to_dingtalk(title="打码平台报警", msg=error_msg)
-    raise RuntimeError(f"图鉴识别失败：{error_msg}")
+    raise RpaError(f"图鉴识别失败：{error_msg}")
 
 """
     云码验证码平台
@@ -73,7 +74,7 @@ def get_ym_verify_code(img, type,  extra=None):
             continue
     else:
         send_msg_to_dingtalk(title="打码平台报警", msg=error_msg)
-        raise RuntimeError(f"云码验证码识别失败：{error_msg}")
+        raise RpaError(f"云码验证码识别失败：{error_msg}")
 
 # 云码特殊方法hcaptcha
 """
@@ -99,7 +100,8 @@ def get_ym_hcaptcha_code( sitekey,pageurl):
             result = requests.post(submit_url, data=data, timeout=30).json()
             print(result)
         except:
-            result = {"code": -1, "msg": "请求超时", "data": {}}
+            error_msg = "请求超时"
+            continue
 
         if result.get('code') == 10000:
             captcha_data = result.get("data", {})
@@ -126,13 +128,14 @@ def get_ym_hcaptcha_code( sitekey,pageurl):
                         time.sleep(10)
                     continue
                 else:
-                    send_msg_to_dingtalk(title="打码平台报警", msg=error_msg)
-                    raise RuntimeError(f"云码验证码识别失败：{error_msg}")
+                    error_msg = poll_result.get('msg') or poll_result.get('message') or error_msg or "验证码轮询失败"
+                    time.sleep(10)
+                    continue
             error_msg = error_msg or "hcaptcha轮询超时"
             break
         else:
             error_msg = result.get('msg') or result.get('message') or ""
             continue
     send_msg_to_dingtalk(title="打码平台报警", msg=error_msg)
-    raise RuntimeError(f"云码验证码识别失败：{error_msg}")
+    raise RpaError(f"云码验证码识别失败：{error_msg}")
 

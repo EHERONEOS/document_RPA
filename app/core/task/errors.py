@@ -37,6 +37,11 @@ class LoginError(RpaError):
 
     code = 403
 
+class LoginErrHandleError(RpaError):
+    """登录失败，需要手动操作。"""
+
+    code = 4031
+
 
 class ElementNotFoundError(RpaError):
     """页面元素不存在。"""
@@ -60,3 +65,4 @@ class UnfilledFieldError(RpaError):
     """存在未处理字段。"""
 
     code = 402
+

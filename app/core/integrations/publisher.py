@@ -1,8 +1,10 @@
+from email.errors import MessageParseError
 import os
 
 from funboost import BrokerEnum, PriorityConsumingControlConfig, PublisherParams, get_publisher
 
 from app.core.logging.logger import log
+from app.core.task.errors import RpaError
 
 
 class ResultPublisher:
@@ -24,7 +26,7 @@ class ResultPublisher:
         """将任务结果转换为文档更新队列需要的消息结构。"""
         task_id = str(result.task_id or "").strip()
         if not task_id:
-            raise ValueError("任务结果回传缺少 task_id")
+            raise MessageParseError("任务结果回传缺少 task_id")
 
         payload = {
             "id": task_id,
@@ -83,7 +85,7 @@ class ResultPublisher:
                     publisher.close()
 
         if last_exc is not None:
-            raise last_exc
+            raise RpaError(last_exc)
         return False
 
     def _resolve_code(self, result):

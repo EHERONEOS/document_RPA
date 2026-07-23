@@ -5,7 +5,7 @@ from app.core.page.recorder import Recorder
 from app.core.page.http import HttpHelper
 from app.core.page.dom import DomHelper
 from app.core.page.screenshot import Screenshot
-from app.core.task.errors import FormValidationError
+from app.core.task.errors import BusinessError, ElementNotFoundError, FormValidationError, LoginError
 from app.core.task.errors import UnfilledFieldError
 from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
@@ -93,7 +93,7 @@ class BaseRpaTask:
                 file_info = self.oss_client.oss_upload(file_path)
                 screenshot_img = file_info.get("objectName") or ""
             success = False
-            code = getattr(exc, "code", 0)  
+            code = getattr(exc, "code", 500)  
             remark = str(exc)  
         finally:
             # if record_started:
@@ -131,11 +131,11 @@ class BaseRpaTask:
     def login(self):
         """船司登录，由船司基类实现。"""
         print(f"执行 {self.carrier_code} 登录入口")
-        raise NotImplementedError("子类必须实现 login 方法")
+        raise LoginError("子类必须实现 login 方法")
 
     def execute_business(self):
         """执行业务填单，由具体业务类实现。"""
-        raise NotImplementedError("子类必须实现 execute_business 方法")
+        raise BusinessError("子类必须实现 execute_business 方法")
 
     def mark_field_done(self, field_name,source=None):
         """字段填入成功后，从 remain_content 删除。"""
@@ -172,7 +172,7 @@ class BaseRpaTask:
         elif field_type == "s_select":
             frame.search_select(locator, value, o_selector, name=name, timeout=timeout)
         else:
-            raise ValueError(f"不支持的字段类型：{field_type}")
+            raise ElementNotFoundError(f"不支持的字段类型：{field_type}")
         # self.mark_field_done(field_name,source)
 
 

@@ -80,7 +80,7 @@ class DomHelper:
             elif by == "index":
                 element.select.by_index(value, timeout=timeout)
             else:
-                raise ValueError(f"不支持的 select 选择方式：{by}")
+                raise ElementNotFoundError(f"不支持的 select 选择方式：{by}")
         except RuntimeError as exc:
             raise ElementNotFoundError(f"{name}选项不存在：{value}") from exc
         self.page.run_js("arguments[0].blur();", element)
