@@ -39,6 +39,10 @@ class ZimSiTask(ZimBaseTask):
         self.fill_containers()
         self.verify_from()
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
+        # self.dom.click(*selectors.SI_SAVE_BTN) #点击保存
+        err_tip = self.dom.get_text(*selectors.ERR_TIP_INFO,required=False, timeout=2)
+        if err_tip:
+            raise BusinessError(f"ZIM SI 填单失败，官网提示：{err_tip}")
         file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=False)
         self.attachments.append(file_path)
         # self.http.wait_api_finished(

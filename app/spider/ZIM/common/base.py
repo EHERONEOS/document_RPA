@@ -71,10 +71,10 @@ class ZimBaseTask(BaseRpaTask):
         self.logger.info("执行 ZIM 登录入口")
         self.page.get(self.index_url ,show_errmsg=True)
         self.sys_exception_refresh()
-        # time.sleep(3)
-        # if self.is_login():
-        #     self.logger.info("已登录")
-        #     return
+        time.sleep(3)
+        if self.is_login():
+            self.logger.info("已登录")
+            return
         self.logger.info("登录信息失效,开始登录")
         self.logger.info("开始获取验证码")
         recapture_token = get_ym_hcaptcha_code(self.siteKey,self.login_url)

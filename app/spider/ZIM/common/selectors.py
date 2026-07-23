@@ -66,6 +66,8 @@ SI_VERIFY_FIELDS = (
     # ("input", "#wgt_hbl", "totalGrossWeight", "KGS 总毛重"),
     # ("input", "#pcs_hbl", "totalAmount", "Qty 总件数"),
 )
+ERR_TIP_INFO = ('c:.layui-layer-content', '错误提示信息')
+
 
 
 ROW_VGM_A = ("c:.detail>div:nth-child(2) .grid-selected .edit_vgm", "打开 VGM 弹窗按钮")
