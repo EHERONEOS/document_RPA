@@ -37,7 +37,8 @@ def _build_browser_command(port, path, args):
     browser_path = Path(path)
     executable = str(browser_path / "chrome") if browser_path.is_dir() else str(browser_path)
     if not Path(executable).is_file():
-        raise BrowserStartError(executable)
+        # DrissionPage 仅捕获 FileNotFoundError 后才会自动查找系统 Chrome。
+        raise FileNotFoundError(executable)
     return [executable, f"--remote-debugging-port={port}", *args]
 
 

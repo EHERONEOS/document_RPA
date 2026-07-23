@@ -113,7 +113,7 @@ class ZimBaseTask(BaseRpaTask):
             if not sys_exception_p:
                 return
             self.logger.error("系统异常刷新页面")
-            self.page.refresh()
+            self.page.get(self.index_url,show_errmsg=True)
             time.sleep(4)
         raise BusinessError("系统异常，刷新3次后仍未恢复")
 

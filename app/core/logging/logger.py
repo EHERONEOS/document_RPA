@@ -1,6 +1,7 @@
 from datetime import datetime
 from inspect import currentframe
 from pathlib import Path
+import os
 import sys
 
 
@@ -41,8 +42,14 @@ def _caller():
         del frame
 
 
+def _supports_color():
+    if getattr(sys.stdout, "isatty", lambda: False)():
+        return True
+    return "PYCHARM_HOSTED" in os.environ
+
+
 def _colorize(level):
-    if not getattr(sys.stdout, "isatty", lambda: False)():
+    if not _supports_color():
         return level
     return f"{_LEVEL_COLORS.get(level, _RESET)}{level}{_RESET}"
 
