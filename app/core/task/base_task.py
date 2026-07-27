@@ -101,10 +101,10 @@ class BaseRpaTask:
             client = CaptureSDKClient()
             browser_pid = browser_pid_from_drissionpage(self.page)
             hwnd = client.wait_for_browser_hwnd(browser_pid, allow_first=True)
+            output_path = Path("runtime/records") / f"测试录屏.mp4"
             recorder =client.start(
                 hwnd=hwnd,
-                output=Path("runtime/records") / f"测试录屏.mp4",
-                session_id="drissionpage-example",
+                output=str(output_path),
                 fps=10,
                 width=1920,
                 height=1080,
