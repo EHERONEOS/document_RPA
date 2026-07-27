@@ -66,3 +66,8 @@ class UnfilledFieldError(RpaError):
 
     code = 402
 
+
+class ResultPublishError(RpaError):
+    """任务结果未能回传到结果队列。"""
+
+    code = 502

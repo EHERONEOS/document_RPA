@@ -6,7 +6,7 @@ from app.core.page.http import HttpHelper
 from app.core.page.dom import DomHelper
 from app.core.page.screenshot import Screenshot
 from app.core.task.errors import BusinessError, ElementNotFoundError, FormValidationError, LoginError
-from app.core.task.errors import UnfilledFieldError
+from app.core.task.errors import ResultPublishError, UnfilledFieldError
 from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
 from app.core.logging.logger import Logger
@@ -44,6 +44,8 @@ class BaseRpaTask:
         self.http = None
         self.screenshot = None
         self.recorder = None
+        # 附件属于单次任务，不能与同一进程中的其他任务共享。
+        self.attachments = []
         self.logger = Logger()
         if browser_manager is None:
             from app.core.browser.manager import BrowserManager
@@ -58,11 +60,9 @@ class BaseRpaTask:
 
     def run(self):
         """执行完整任务生命周期。"""
-        record_started = False
-        record_url = ""
         success = False
         code = 0
-        screenshot_img= ""
+        screenshot_img = ""
         remark = ""
         try:
             if self.context.enable_notify:
@@ -72,7 +72,6 @@ class BaseRpaTask:
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
-            self.oss_client = OssClient()
             
             # self.recorder = Recorder(self.page)
 
@@ -85,40 +84,65 @@ class BaseRpaTask:
             code = 200
         except Exception as exc:
             self.logger.error(f"任务执行失败 queue={self.context.queue_name} error={exc}")
-            if self.context.enable_result_publish:
-                
-                file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=True)
-                file_info = self.oss_client.oss_upload(file_path)
-                screenshot_img = file_info.get("objectName") or ""
             success = False
-            code = getattr(exc, "code", 500)  
-            remark = str(exc)  
+            code = getattr(exc, "code", 500)
+            remark = str(exc)
+            if self.context.enable_result_publish:
+                screenshot_img = self._upload_error_screenshot()
         finally:
             # if record_started:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
             attachments = None
             if self.context.enable_result_publish:
                 if success or len(self.attachments) > 0:
-                    attachments = self.get_attachments()
-                # try:
-                
+                    attachments = self._get_attachments_safely()
+
                 result = TaskResult(
-                    task_id =self.context.task_id or "",
+                    task_id=self.context.task_id or "",
                     success=success,
                     code=code,
-                    rpaMessageId = self.context.rpa_message_id,
+                    rpaMessageId=self.context.rpa_message_id,
                     img=screenshot_img or "",
                     executeRecordFiles="",
                     remark=remark,
-                    attachments=attachments or None
+                    attachments=attachments or None,
                 )
-                # except Exception as exc:
-                #     print(exc)
-                #     pass
-                
-                self.publisher.publish_result(result)
+                try:
+                    self.publisher.publish_result(result)
+                except Exception as exc:
+                    self.logger.error(
+                        f"任务结果回传失败 task_id={result.task_id} "
+                        f"rpaMessageId={result.rpaMessageId} error={exc}"
+                    )
+                    raise ResultPublishError("任务结果回传失败") from exc
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
             return success
+
+    def _upload_error_screenshot(self):
+        """尽力上传失败截图，不覆盖触发任务失败的原始异常。"""
+        if self.screenshot is None:
+            self.logger.warn("截图工具未初始化，跳过失败截图")
+            return ""
+
+        try:
+            file_path = self.screenshot.page_shot(
+                self.booking_no,
+                getattr(self, "carrier_code", ""),
+                error=True,
+            )
+            file_info = self.oss_client.oss_upload(file_path)
+            return file_info.get("objectName") or ""
+        except Exception as exc:
+            self.logger.error(f"失败截图或 OSS 上传失败：{exc}")
+            return ""
+
+    def _get_attachments_safely(self):
+        """尽力上传附件，不让附件上传错误覆盖任务执行结果。"""
+        try:
+            return self.get_attachments()
+        except Exception as exc:
+            self.logger.error(f"任务附件上传失败：{exc}")
+            return None
 
     def should_record(self):
         """判断当前任务是否录屏。"""
