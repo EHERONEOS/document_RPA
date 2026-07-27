@@ -130,8 +130,12 @@ class BaseRpaTask:
         finally:
             # if record_started:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
-            result = recorder.stop()
-            print(f"Video created: {result.output_path}")
+
+            try:
+                result = recorder.stop()
+                print(f"Video created: {result.output_path}")
+            except Exception as exc:
+                self.logger.error(f"视频录制停止失败: {exc}")
             attachments = None
             if self.context.enable_result_publish:
                 if success or len(self.attachments) > 0:
