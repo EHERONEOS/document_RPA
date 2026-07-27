@@ -44,9 +44,7 @@ class BaseRpaTask:
         self.http = None
         self.screenshot = None
         self.recorder = None
-        
         self.logger = Logger()
-        self.events = []
         if browser_manager is None:
             from app.core.browser.manager import BrowserManager
 
