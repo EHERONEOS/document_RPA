@@ -68,7 +68,7 @@ class BaseRpaTask:
         self.dom = None
         self.http = None
         self.screenshot = None
-        self.recorder = None
+        self.recorder:CaptureSDKClient = None
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
         self.attachments = []
         self.logger = Logger()
