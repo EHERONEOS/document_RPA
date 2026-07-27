@@ -1,3 +1,13 @@
+
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from DrissionPage import ChromiumOptions, ChromiumPage
+
+from capturesdk import CaptureSDKClient, CaptureSDKError
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
@@ -11,6 +21,21 @@ from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
 from app.core.logging.logger import Logger
 
+
+def browser_pid_from_drissionpage(page: ChromiumPage) -> int:
+    """Read the Chrome PID from DrissionPage's Chromium driver/process object."""
+    candidates = [
+        getattr(page, "process_id", None),
+        getattr(getattr(page, "browser", None), "process_id", None),
+        getattr(getattr(page, "browser", None), "_process_id", None),
+    ]
+    for value in candidates:
+        if isinstance(value, int) and value > 0:
+            return value
+    raise CaptureSDKError(
+        "DrissionPage did not expose a browser PID in this installed version. "
+        "Launch Chrome with a known debugger port and resolve the PID in your project launcher."
+    )
 
 
 class BaseRpaTask:
@@ -73,6 +98,19 @@ class BaseRpaTask:
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
             
+            client = CaptureSDKClient()
+            browser_pid = browser_pid_from_drissionpage(self.page)
+            hwnd = client.wait_for_browser_hwnd(browser_pid, allow_first=True)
+            recorder =client.start(
+                hwnd=hwnd,
+                output=Path("runtime/records") / f"测试录屏.mp4",
+                session_id="drissionpage-example",
+                fps=10,
+                width=1920,
+                height=1080,
+                bitrate_kbps=2500,
+                encoder="auto",
+            )
             # self.recorder = Recorder(self.page)
 
             self.login()
@@ -92,6 +130,8 @@ class BaseRpaTask:
         finally:
             # if record_started:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
+            result = recorder.stop()
+            print(f"Video created: {result.output_path}")
             attachments = None
             if self.context.enable_result_publish:
                 if success or len(self.attachments) > 0:
