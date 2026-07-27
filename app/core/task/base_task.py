@@ -101,15 +101,15 @@ class BaseRpaTask:
             client = CaptureSDKClient()
             browser_pid = browser_pid_from_drissionpage(self.page)
             hwnd = client.wait_for_browser_hwnd(browser_pid, allow_first=True)
-            output_path = Path("runtime/records") / f"测试录屏.mp4"
-            recorder =client.start(
+            output_path = Path("runtime/records") / f"1234.mp4"
+            self.recorder =client.start(
                 hwnd=hwnd,
                 output=str(output_path),
                 fps=10,
                 width=1920,
                 height=1080,
                 bitrate_kbps=2500,
-                encoder="auto",
+                encoder="libx264",
             )
             # self.recorder = Recorder(self.page)
 
@@ -132,7 +132,7 @@ class BaseRpaTask:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
 
             try:
-                result = recorder.stop()
+                result = self.recorder.stop()
                 print(f"Video created: {result.output_path}")
             except Exception as exc:
                 self.logger.error(f"视频录制停止失败: {exc}")
