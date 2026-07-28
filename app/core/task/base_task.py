@@ -98,7 +98,9 @@ class BaseRpaTask:
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
-            self.recorder = Recorder(self.page,).start()
+            self.recorder = Recorder(self.page)
+            if self.context.enable_result_publish:
+                self.recorder.start()
             
 
             self.login()
@@ -124,8 +126,7 @@ class BaseRpaTask:
             #     self.logger.error(f"视频录制停止失败: {exc}")
             attachments = None
             if self.context.enable_result_publish:
-                if self.recorder.is_running():
-                    self.recorder.stop()
+                self.recorder.stop()
                 if success or len(self.attachments) > 0:
                     attachments = self._get_attachments_safely()
 
