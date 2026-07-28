@@ -80,7 +80,6 @@ class BrowserManager:
                 co.set_load_mode("none")
             self.browser = Chromium(co)
             self.page = self.browser.latest_tab
-            self.page.set.window.show()
             log(f"浏览器启动或接管成功 port={options.port} profile={options.user_data_path}")
             return self.page
         except Exception as exc:

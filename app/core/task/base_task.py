@@ -101,8 +101,6 @@ class BaseRpaTask:
             self.recorder = Recorder(self.page)
             if self.context.enable_result_publish:
                 self.recorder.start()
-            
-
             self.login()
             # if self.should_record():
             #     record_started = True
@@ -126,10 +124,10 @@ class BaseRpaTask:
             #     self.logger.error(f"视频录制停止失败: {exc}")
             attachments = None
             if self.context.enable_result_publish:
-                self.recorder.stop()
+                record_file_path = self.recorder.stop()
+                record_file_info = self._upload_execute_video(record_file_path)
                 if success or len(self.attachments) > 0:
                     attachments = self._get_attachments_safely()
-
                 result = TaskResult(
                     task_id=self.context.task_id or "",
                     success=success,
@@ -150,6 +148,19 @@ class BaseRpaTask:
                     raise ResultPublishError("任务结果回传失败") from exc
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
             return success
+
+
+    def _upload_execute_video(self,record_file_path):
+        if self.screenshot is None:
+            self.logger.warn("截图工具未初始化，跳过失败截图")
+            return ""
+
+        try:
+            file_info = self.oss_client.oss_upload(file_path)
+            return file_info
+        except Exception as exc:
+            self.logger.error(f"上传流程视频OSS失败：{exc}")
+            return ""
 
     def _upload_error_screenshot(self):
         """尽力上传失败截图，不覆盖触发任务失败的原始异常。"""

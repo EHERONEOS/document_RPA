@@ -67,7 +67,7 @@ class Recorder:
             return None
         result = self.session.stop()
         log(f"录屏已停止: {result.output_path}")
-        return result
+        return result.output_path
 
     def is_running(self) -> bool:
         """录屏是否正在运行。"""
