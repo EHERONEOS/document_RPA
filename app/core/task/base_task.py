@@ -94,6 +94,8 @@ class BaseRpaTask:
             if self.context.enable_notify:
                 self.notifier.notify_processing(self.context)
 
+
+
             self.page = self.browser_manager.start(self.context, self)
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
@@ -116,16 +118,10 @@ class BaseRpaTask:
             if self.context.enable_result_publish:
                 screenshot_img = self._upload_error_screenshot()
         finally:
-            # if record_started:
-            #     self.recorder.stop(self.context.queue_name, self.booking_no)
-
-            # try:
-            # except Exception as exc:
-            #     self.logger.error(f"视频录制停止失败: {exc}")
             attachments = None
             if self.context.enable_result_publish:
-                record_file_path = self.recorder.stop()
-                record_file_info = self._upload_execute_video(record_file_path)
+                
+                executeRecordFiles = self.getexecuteRecordFiles()
                 if success or len(self.attachments) > 0:
                     attachments = self._get_attachments_safely()
                 result = TaskResult(
@@ -134,7 +130,7 @@ class BaseRpaTask:
                     code=code,
                     rpaMessageId=self.context.rpa_message_id,
                     img=screenshot_img or "",
-                    executeRecordFiles="",
+                    executeRecordFiles=executeRecordFiles,
                     remark=remark,
                     attachments=attachments or None,
                 )
@@ -149,14 +145,24 @@ class BaseRpaTask:
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
             return success
 
+    def getexecuteRecordFiles(self):
+        """获取执行记录文件列表。"""
+        executeRecordFiles = []
+        record_file_path = self.recorder.stop()
+        record_file_info = self._upload_execute_video(record_file_path)
+        executeRecordFiles.append({
+             "type": "SCREEN_RECORDING_FILE",
+             "files": [{'fileObjectName': record_file_info['objectName'], 'fileName': record_file_info['filename']}]
+        })
+        return executeRecordFiles
+
+
 
     def _upload_execute_video(self,record_file_path):
-        if self.screenshot is None:
-            self.logger.warn("截图工具未初始化，跳过失败截图")
-            return ""
+        # 
 
         try:
-            file_info = self.oss_client.oss_upload(file_path)
+            file_info = self.oss_client.oss_upload(str(record_file_path),is_remove=False)
             return file_info
         except Exception as exc:
             self.logger.error(f"上传流程视频OSS失败：{exc}")
