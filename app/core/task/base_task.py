@@ -98,21 +98,8 @@ class BaseRpaTask:
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
+            self.recorder = Recorder(self.page,).start()
             
-            client = CaptureSDKClient()
-            browser_pid = browser_pid_from_drissionpage(self.page)
-            hwnd = client.wait_for_browser_hwnd(browser_pid, allow_first=True)
-            output_path = Path("runtime/records") / f"1234.mp4"
-            self.recorder = client.start(
-                hwnd=hwnd,
-                output=str(output_path),
-                fps=10,
-                width=1920,
-                height=1080,
-                bitrate_kbps=2500,
-                encoder="libx264",
-            )
-            # self.recorder = Recorder(self.page)
 
             self.login()
             # if self.should_record():
@@ -133,12 +120,12 @@ class BaseRpaTask:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
 
             # try:
-            self.recorder.stop()
-            print(f"Video created: {result.output_path}")
             # except Exception as exc:
             #     self.logger.error(f"视频录制停止失败: {exc}")
             attachments = None
             if self.context.enable_result_publish:
+                if self.recorder.is_running():
+                    self.recorder.stop()
                 if success or len(self.attachments) > 0:
                     attachments = self._get_attachments_safely()
 
