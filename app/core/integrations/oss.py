@@ -12,10 +12,11 @@ class OssClient:
     def __init__(self):
         self.logger = Logger()
 
-    def oss_upload(self, file_path,is_remove= True):
+    def oss_upload(self, file_path, is_remove=True):
         """上传文件到OSS。"""
-        retry = 3   
-        if "mp4" in file_path or "zip" in file_path:
+        file_path = os.fspath(file_path)
+        retry = 3
+        if Path(file_path).suffix.lower() in {".mp4", ".zip"}:
             retry = 1
         for i in range(retry):
             try:

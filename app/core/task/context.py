@@ -1,7 +1,5 @@
 import copy
 from dataclasses import dataclass
-from typing import Any
-
 from app.core.task.errors import QueueNameError
 
 
@@ -21,7 +19,6 @@ class TaskContext:
     runtime_mode: str = "queue"
     enable_notify: bool = True
     enable_result_publish: bool = True
-    enable_record: Any = None
 
 
 def parse_queue_name(queue_name):

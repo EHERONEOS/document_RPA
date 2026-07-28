@@ -1,13 +1,5 @@
 
 
-from __future__ import annotations
-
-import os
-from pathlib import Path
-
-from DrissionPage import ChromiumOptions, ChromiumPage
-
-from capturesdk import CaptureSDKClient, CaptureSDKError
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
@@ -20,22 +12,6 @@ from app.core.task.errors import ResultPublishError, UnfilledFieldError
 from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
 from app.core.logging.logger import Logger
-
-
-def browser_pid_from_drissionpage(page: ChromiumPage) -> int:
-    """Read the Chrome PID from DrissionPage's Chromium driver/process object."""
-    candidates = [
-        getattr(page, "process_id", None),
-        getattr(getattr(page, "browser", None), "process_id", None),
-        getattr(getattr(page, "browser", None), "_process_id", None),
-    ]
-    for value in candidates:
-        if isinstance(value, int) and value > 0:
-            return value
-    raise CaptureSDKError(
-        "DrissionPage did not expose a browser PID in this installed version. "
-        "Launch Chrome with a known debugger port and resolve the PID in your project launcher."
-    )
 
 
 class BaseRpaTask:
@@ -60,7 +36,6 @@ class BaseRpaTask:
         browser_manager=None,
         notifier=None,
         publisher=None,
-        # recorder=None,
         oss_client=None,
     ):
         self.context = context or TaskContext()
@@ -81,7 +56,6 @@ class BaseRpaTask:
         self.notifier = notifier or ProcessingNotifier()
         self.publisher = publisher or ResultPublisher()
         self.oss_client = oss_client or OssClient()
-        # self.recorder = recorder or Recorder()
 
 
     def run(self):
@@ -100,12 +74,8 @@ class BaseRpaTask:
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
-            self.recorder = Recorder(self.page)
-            if self.context.enable_result_publish:
-                self.recorder.start()
             self.login()
-            # if self.should_record():
-            #     record_started = True
+            self._try_start_recording()
             self.execute_business()
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
             success = True
@@ -118,10 +88,9 @@ class BaseRpaTask:
             if self.context.enable_result_publish:
                 screenshot_img = self._upload_error_screenshot()
         finally:
+            execute_record_files = self._collect_record_files()
             attachments = None
             if self.context.enable_result_publish:
-                
-                executeRecordFiles = self.getexecuteRecordFiles()
                 if success or len(self.attachments) > 0:
                     attachments = self._get_attachments_safely()
                 result = TaskResult(
@@ -130,7 +99,7 @@ class BaseRpaTask:
                     code=code,
                     rpaMessageId=self.context.rpa_message_id,
                     img=screenshot_img or "",
-                    executeRecordFiles=executeRecordFiles,
+                    executeRecordFiles=execute_record_files,
                     remark=remark,
                     attachments=attachments or None,
                 )
@@ -145,28 +114,48 @@ class BaseRpaTask:
             self.logger.info("任务结束，保留浏览器进程以便后续接管")
             return success
 
-    def getexecuteRecordFiles(self):
-        """获取执行记录文件列表。"""
-        executeRecordFiles = []
-        record_file_path = self.recorder.stop()
-        record_file_info = self._upload_execute_video(record_file_path)
-        executeRecordFiles.append({
-             "type": "SCREEN_RECORDING_FILE",
-             "files": [{'fileObjectName': record_file_info['objectName'], 'fileName': record_file_info['filename']}]
-        })
-        return executeRecordFiles
-
-
-
-    def _upload_execute_video(self,record_file_path):
-        # 
-
+    def _try_start_recording(self):
+        """尽力启动录屏，失败时不影响业务执行。"""
+        if not self.should_record():
+            return
         try:
-            file_info = self.oss_client.oss_upload(str(record_file_path),is_remove=False)
-            return file_info
+            self.recorder = Recorder(
+                self.page,
+                queue_name=self.context.queue_name,
+            )
+            self.recorder.start()
         except Exception as exc:
-            self.logger.error(f"上传流程视频OSS失败：{exc}")
-            return ""
+            self.recorder = None
+            self.logger.error(f"录屏启动失败，继续执行业务：{exc}")
+
+    def _collect_record_files(self):
+        """尽力停止、上传录屏，不影响业务结果回传。"""
+        if self.recorder is None:
+            return []
+        try:
+            record_file_path = self.recorder.stop()
+            if record_file_path is None:
+                return []
+            file_info = self._upload_execute_video(record_file_path)
+            if not isinstance(file_info, dict) or not file_info.get("objectName"):
+                return []
+            return [{
+                "type": "SCREEN_RECORDING_FILE",
+                "files": [{
+                    "fileObjectName": file_info["objectName"],
+                    "fileName": file_info.get("filename") or record_file_path.name,
+                }],
+            }]
+        except Exception as exc:
+            self.logger.error(f"录屏停止或上传失败，继续回传业务结果：{exc}")
+            return []
+
+    def _upload_execute_video(self, record_file_path):
+        try:
+            return self.oss_client.oss_upload(record_file_path, is_remove=True)
+        except Exception as exc:
+            self.logger.error(f"上传流程视频 OSS 失败：{exc}")
+            return None
 
     def _upload_error_screenshot(self):
         """尽力上传失败截图，不覆盖触发任务失败的原始异常。"""
@@ -195,10 +184,8 @@ class BaseRpaTask:
             return None
 
     def should_record(self):
-        """判断当前任务是否录屏。"""
-        if self.context.enable_record is not None:
-            return self.context.enable_record
-        return self.enable_record
+        """仅在业务任务开启录屏且需要回传结果时录制。"""
+        return bool(self.enable_record and self.context.enable_result_publish)
 
     def login(self):
         """船司登录，由船司基类实现。"""

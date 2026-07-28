@@ -14,7 +14,6 @@ def build_task_context(
     runtime_mode="queue",
     enable_notify=True,
     enable_result_publish=True,
-    enable_record=None,
 ):
     """从原始队列 task 消息构建任务上下文。"""
     # task = _require_dict(raw_message, "task")
@@ -45,5 +44,4 @@ def build_task_context(
         runtime_mode=runtime_mode,
         enable_notify=enable_notify,
         enable_result_publish=enable_result_publish,
-        enable_record=enable_record,
     )

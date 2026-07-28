@@ -23,6 +23,7 @@ launch.json
 .trae/rules/*.json
 tests/*
 !tests/test_element_names.py
+!tests/test_recording_lifecycle.py
 # !tests/test_browser_session_lock.py
 message_list/
 .idea/

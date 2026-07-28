@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Any
 
 from DrissionPage import ChromiumPage
-from capturesdk import CaptureSDKClient, CaptureSDKError, CaptureSession, RecordResult
+from capturesdk import CaptureSDKClient, CaptureSDKError, CaptureSession
 
 from app.core.logging.logger import log
 
@@ -32,11 +33,14 @@ class Recorder:
         page: Any | None = None,
         *,
         record_dir: str | Path = "runtime/records",
+        queue_name: str = "task",
     ) -> None:
         self.page = page
         self.record_dir = Path(record_dir)
         self.record_dir.mkdir(parents=True, exist_ok=True)
-        self.file_path = self.record_dir / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+        safe_queue_name = re.sub(r"[^A-Za-z0-9_-]+", "_", queue_name).strip("_") or "task"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        self.file_path = self.record_dir / f"{safe_queue_name}_{timestamp}.mp4"
         self.client = CaptureSDKClient()
         self.session: CaptureSession | None = None
 
@@ -48,7 +52,7 @@ class Recorder:
             raise CaptureSDKError("录屏启动失败：page 不能为空。")
 
         browser_pid = browser_pid_from_drissionpage(self.page)
-        hwnd = self.client.wait_for_browser_hwnd(browser_pid, allow_first=True)
+        hwnd = self.client.wait_for_browser_hwnd(browser_pid)
         self.session = self.client.start(
             hwnd=hwnd,
             output=self.file_path,
@@ -61,16 +65,16 @@ class Recorder:
         log(f"录屏已开始: {self.file_path}")
         return self
 
-    def stop(self) -> RecordResult | None:
+    def stop(self) -> Path | None:
         """停止录屏。"""
         if not self.session or not self.session.is_running:
             return None
         result = self.session.stop()
+        if not result.output_path.is_file() or result.output_path.stat().st_size == 0:
+            raise CaptureSDKError(f"录屏输出文件无效：{result.output_path}")
         log(f"录屏已停止: {result.output_path}")
         return result.output_path
 
     def is_running(self) -> bool:
         """录屏是否正在运行。"""
         return bool(self.session and self.session.is_running)
-
-

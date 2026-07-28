@@ -14,6 +14,7 @@ class ZimVGMTask(ZimBaseTask):
     business_code = "VGM"
     incognito = False
     wait_page_load = False
+    enable_record = True
     ignored_unfilled_fields = ["blNo","carrier","isUserSave"]# 忽略的未填字段列表
 
     def __init__(self, context: TaskContext):

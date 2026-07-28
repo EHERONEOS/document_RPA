@@ -11,7 +11,7 @@ class TaskResult:
     saveType: int = 1
     img: str = ""
     code: int | None = None
-    executeRecordFiles: str = ""
+    executeRecordFiles: list[dict] = field(default_factory=list)
     remark: str = ""
     attachments: str = ""
     content: str = ""

@@ -259,7 +259,6 @@ uv run python -m app.dev.local_runner --message mssage_list/msg_demo.json
 | `BROWSER_PORT_END` | `9200` | 浏览器调试端口结束值。 |
 | `DOWNLOAD_DIR` | `runtime/downloads` | 下载文件目录。 |
 | `BROWSER_USER_DATA_DIR` | `runtime/browser_profiles` | 浏览器用户数据目录。 |
-| `ENABLE_RECORD` | `false` | 是否默认启用录屏。 |
 | `ENABLE_BROWSER` | `true` | 是否启用真实浏览器；为 false 时使用空页面对象。 |
 | `ENABLE_REMOTE_KILL_TASK` | `false` | 是否启用 funboost 远程杀任务能力。 |
 
@@ -358,7 +357,6 @@ FL_ZIM_VGM
 - `browser_port_end`
 - `download_dir`
 - `browser_user_data_dir`
-- `enable_record`
 - `enable_browser`
 
 关键方法：
@@ -443,7 +441,7 @@ FL_ZIM_VGM
 - 账号信息：`website_info`
 - 填单内容：`content`
 - 未处理字段副本：`remain_content`
-- 运行模式和开关：`runtime_mode`、`enable_notify`、`enable_result_publish`、`enable_record`
+- 运行模式和开关：`runtime_mode`、`enable_notify`、`enable_result_publish`
 
 关键函数：
 
@@ -473,7 +471,7 @@ FL_ZIM_VGM
 
 类属性：
 
-- `enable_record`：是否默认录屏。
+- `enable_record`：业务任务类是否开启录屏，默认关闭。
 - `incognito`：是否无痕模式。
 - `wait_page_load`：是否等待页面完整加载。
 - `fail_on_unfilled_fields`：是否因未填字段失败。
@@ -483,7 +481,7 @@ FL_ZIM_VGM
 关键方法：
 
 - `run()`：任务生命周期主入口。
-- `should_record()`：判断是否录屏，优先使用 `context.enable_record`。
+- `should_record()`：仅当业务任务开启录屏且启用结果回传时录屏。
 - `login()`：船司登录抽象方法。
 - `execute_business()`：业务填单抽象方法。
 - `mark_field_done(field_name)`：字段处理成功后从 `remain_content` 删除。
