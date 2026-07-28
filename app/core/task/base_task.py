@@ -68,7 +68,7 @@ class BaseRpaTask:
         self.dom = None
         self.http = None
         self.screenshot = None
-        self.recorder:CaptureSDKClient = None
+        self.recorder = None
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
         self.attachments = []
         self.logger = Logger()
@@ -80,8 +80,9 @@ class BaseRpaTask:
             self.browser_manager = browser_manager
         self.notifier = notifier or ProcessingNotifier()
         self.publisher = publisher or ResultPublisher()
-        # self.recorder = recorder or Recorder()
         self.oss_client = oss_client or OssClient()
+        # self.recorder = recorder or Recorder()
+
 
     def run(self):
         """执行完整任务生命周期。"""
@@ -102,7 +103,7 @@ class BaseRpaTask:
             browser_pid = browser_pid_from_drissionpage(self.page)
             hwnd = client.wait_for_browser_hwnd(browser_pid, allow_first=True)
             output_path = Path("runtime/records") / f"1234.mp4"
-            self.recorder =client.start(
+            self.recorder = client.start(
                 hwnd=hwnd,
                 output=str(output_path),
                 fps=10,
@@ -131,11 +132,11 @@ class BaseRpaTask:
             # if record_started:
             #     self.recorder.stop(self.context.queue_name, self.booking_no)
 
-            try:
-                result = self.recorder.stop()
-                print(f"Video created: {result.output_path}")
-            except Exception as exc:
-                self.logger.error(f"视频录制停止失败: {exc}")
+            # try:
+            self.recorder.stop()
+            print(f"Video created: {result.output_path}")
+            # except Exception as exc:
+            #     self.logger.error(f"视频录制停止失败: {exc}")
             attachments = None
             if self.context.enable_result_publish:
                 if success or len(self.attachments) > 0:
