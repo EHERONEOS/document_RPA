@@ -58,7 +58,7 @@ class Recorder:
             bitrate_kbps=2500,
             encoder="cpu",
         )
-        log.info(f"录屏已开始: {self.file_path}")
+        log(f"录屏已开始: {self.file_path}")
         return self
 
     def stop(self) -> RecordResult | None:
@@ -66,7 +66,7 @@ class Recorder:
         if not self.session or not self.session.is_running:
             return None
         result = self.session.stop()
-        log.info(f"录屏已停止: {result.output_path}")
+        log(f"录屏已停止: {result.output_path}")
         return result
 
     def is_running(self) -> bool:
