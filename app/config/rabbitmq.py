@@ -1,7 +1,8 @@
 import os
 from dataclasses import dataclass
 from urllib.parse import quote_plus
-
+from app.config.nacos_config import nacos_client
+import yaml
 
 
 @dataclass(frozen=True)
@@ -25,12 +26,14 @@ class RabbitmqSettings:
 
     @classmethod
     def from_env(cls):
+        RABBIT_MQ_NACOS_CONFIG = yaml.load(nacos_client.get_config(data_id='rabbitmq.yml', group='DEFAULT_GROUP'), yaml.FullLoader)
+        CUR_ENV = os.getenv("APP_ENV", "test")
         return cls(
-            user=os.getenv("RABBITMQ_USER", "guest"),
-            password=os.getenv("RABBITMQ_PASSWORD", "guest"),
-            host=os.getenv("RABBITMQ_HOST", "192.168.60.106"),
-            port=int(os.getenv("RABBITMQ_PORT", "5672")),
-            virtual_host=os.getenv("RABBITMQ_VIRTUAL_HOST", "/"),
+            user=RABBIT_MQ_NACOS_CONFIG[CUR_ENV]["user"],
+            password=RABBIT_MQ_NACOS_CONFIG[CUR_ENV]["password"],
+            host=RABBIT_MQ_NACOS_CONFIG[CUR_ENV]["host"],
+            port=int(RABBIT_MQ_NACOS_CONFIG[CUR_ENV]["port"]),
+            virtual_host=RABBIT_MQ_NACOS_CONFIG[CUR_ENV]["virtual_host"],
             # dead_letter_exchange="dlx_exchange",
             # dead_letter_routing_key="dlx_routing_key",
             # queue_durable=True,

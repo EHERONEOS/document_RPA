@@ -11,9 +11,9 @@ import yaml
 DEFAULT_NACOS_IP = "106.14.95.61"
 DEFAULT_NACOS_NAMESPACE = "9835862f-b9f7-4f9d-aab1-6c63602d49a6"
 DEFAULT_NACOS_GROUP = "DEFAULT_GROUP"
+nacos_client = nacos.NacosClient(server_addresses=os.getenv('nacos_ip', DEFAULT_NACOS_IP), namespace=os.getenv('nacos_namespace', DEFAULT_NACOS_NAMESPACE))
 
 def load_nacos_environment() -> dict[str, str]:
-    nacos_client = nacos.NacosClient(server_addresses=os.getenv('nacos_ip', DEFAULT_NACOS_IP), namespace=os.getenv('nacos_namespace', DEFAULT_NACOS_NAMESPACE))
     SPIDER_CONFIG = yaml.load(nacos_client.get_config(data_id='spider-config', group='DEFAULT_GROUP'), yaml.FullLoader)
     DATA_SOURCE_CONFIG = yaml.load(nacos_client.get_config(data_id='shared-datasource', group='DEFAULT_GROUP'), yaml.FullLoader)
     # 图鉴验证码
@@ -46,5 +46,5 @@ def load_nacos_environment() -> dict[str, str]:
         "DINGTALK_CCAM_API": DINGTALK_CCAM_API,
         "API_PREFIX": API_PREFIX,
         "API_HEADERS": os.environ["API_HEADERS"],
-        "YUNMA_TOKEN": YUNMA_TOKEN,
+        "YUNMA_TOKEN": YUNMA_TOKEN
     }
