@@ -82,10 +82,10 @@ class ZimBaseTask(BaseRpaTask):
         login_headers = self._get_login_headers()
         self.page.change_mode(mode="s",copy_cookies=True)
         payload = {
-            # "UserName": website_info.get("websiteAccount"),
-            # "Password": website_info.get("websitePassword"),
-            "UserName": "qiantang",
-            "Password": "Qt*123456",
+            "UserName": website_info.get("websiteAccount"),
+            "Password": website_info.get("websitePassword"),
+            # "UserName": "qiantang",
+            # "Password": "Qt*123456",
             "OfficeCode": "",
             "recaptureToken": recapture_token,
         }

@@ -112,6 +112,7 @@ def get_ym_hcaptcha_code( sitekey,pageurl):
                 continue
 
             start_time = time.time()
+            retry_submit = False
             while time.time() - start_time < 300:
                 poll_data = {"token": token, "captchaId": captcha_id, "recordId": record_id}
                 try:
@@ -122,6 +123,10 @@ def get_ym_hcaptcha_code( sitekey,pageurl):
 
                 if poll_result.get('code') == 10000 or poll_result.get('code') == 10001:
                     return poll_result["data"]["data"]
+                elif poll_result.get('code') == 10010:
+                    error_msg = poll_result.get('msg') or poll_result.get('message') or error_msg or "验证码轮询失败"
+                    retry_submit = True
+                    break
                 elif poll_result.get('code') in polling_codes:
                     error_msg = poll_result.get('msg', '')
                     if time.time() - start_time < 300:
@@ -131,6 +136,8 @@ def get_ym_hcaptcha_code( sitekey,pageurl):
                     error_msg = poll_result.get('msg') or poll_result.get('message') or error_msg or "验证码轮询失败"
                     time.sleep(10)
                     continue
+            if retry_submit:
+                continue
             error_msg = error_msg or "hcaptcha轮询超时"
             break
         else:

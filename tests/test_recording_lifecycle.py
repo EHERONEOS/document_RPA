@@ -79,7 +79,10 @@ class RecordingLifecycleTests(unittest.TestCase):
             )
             recorder.start.side_effect = lambda: task.events.append("recording")
 
-            with patch("app.core.task.base_task.Recorder", return_value=recorder):
+            with (
+                patch("app.core.task.base_task.platform.system", return_value="Windows"),
+                patch("app.core.task.base_task.Recorder", return_value=recorder),
+            ):
                 self.assertTrue(task.run())
 
             recorder.start.assert_called_once_with()
@@ -109,7 +112,10 @@ class RecordingLifecycleTests(unittest.TestCase):
                 oss_client=oss_client,
             )
 
-            with patch("app.core.task.base_task.Recorder", return_value=recorder):
+            with (
+                patch("app.core.task.base_task.platform.system", return_value="Windows"),
+                patch("app.core.task.base_task.Recorder", return_value=recorder),
+            ):
                 self.assertTrue(task.run())
 
             result = publisher.publish_result.call_args.args[0]
@@ -134,6 +140,28 @@ class RecordingLifecycleTests(unittest.TestCase):
 
         recorder_class.assert_not_called()
         publisher.publish_result.assert_not_called()
+
+    def test_recording_is_skipped_outside_windows(self):
+        browser_manager = Mock()
+        browser_manager.start.return_value = object()
+        publisher = Mock()
+        task = SuccessfulTask(
+            build_context(),
+            browser_manager=browser_manager,
+            notifier=Mock(),
+            publisher=publisher,
+            oss_client=Mock(),
+        )
+
+        with (
+            patch("app.core.task.base_task.platform.system", return_value="Linux"),
+            patch("app.core.task.base_task.Recorder") as recorder_class,
+        ):
+            self.assertTrue(task.run())
+
+        recorder_class.assert_not_called()
+        result = publisher.publish_result.call_args.args[0]
+        self.assertEqual(result.executeRecordFiles, [])
 
 
 if __name__ == "__main__":

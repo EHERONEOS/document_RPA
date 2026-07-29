@@ -12,6 +12,7 @@ class ZimSiTask(ZimBaseTask):
     business_code = "SI"
     incognito = False # 是否使用无痕模式
     wait_page_load = False # 是否等待页面加载完成
+    enable_record = True # 是否记录操作
     ignored_unfilled_fields = ["jobNo","blNo","carrier","isUserSave"]# 忽略的未填字段列表
     
 
@@ -40,16 +41,19 @@ class ZimSiTask(ZimBaseTask):
         self.verify_from()
         self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
         # self.dom.click(*selectors.SI_SAVE_BTN) #点击保存
+        #点击保存
+        suc_status =  self.http.wait_api_finished(
+            selectors.SAVE_SI_API,
+            trigger=lambda: self.dom.click(*selectors.SI_SAVE_BTN),
+            timeout=8,
+            required=False,
+        )
         err_tip = self.dom.get_text(*selectors.ERR_TIP_INFO,required=False, timeout=2)
         if err_tip:
             raise BusinessError(f"ZIM SI 填单失败，官网提示：{err_tip}")
         file_path = self.screenshot.page_shot(self.booking_no,self.carrier_code,error=False)
         self.attachments.append(file_path)
-        # self.http.wait_api_finished(
-        #     selectors.SAVE_SI_API,
-        #     trigger=lambda: self.dom.click(*selectors.SI_SAVE_BTN),
-        #     timeout=20
-        # )
+        
         pass
 
     def fill_base_fields(self):
@@ -87,12 +91,14 @@ class ZimSiTask(ZimBaseTask):
         for item in selectors.SI_VERIFY_FIELDS:
             field_type, locator, field_name, name = item[:4]
             null_check = item[4] if len(item) > 4 else False
+            partial_match = item[5] if len(item) > 5 else False
             self.verify_from_value(
                 field_type,
                 locator,
                 field_name,
                 null_check=null_check,
                 name=name,
+                partial_match=partial_match,
             )
         contain_list = self.remain_content.get("containers") or []
         for index, contain in enumerate(contain_list, start=1):

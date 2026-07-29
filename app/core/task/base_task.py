@@ -1,4 +1,4 @@
-
+import platform
 
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
@@ -24,10 +24,6 @@ class BaseRpaTask:
     booking_no = ""
     ignored_unfilled_fields=[]# 忽略的未填字段列表
     attachments = [] #草稿件
-    FILL_HANDLERS = {
-        "input": "_fill_if_present",
-        "select": "_select_if_present",
-    }
 
     def __init__(
         self,
@@ -184,8 +180,12 @@ class BaseRpaTask:
             return None
 
     def should_record(self):
-        """仅在业务任务开启录屏且需要回传结果时录制。"""
-        return bool(self.enable_record and self.context.enable_result_publish)
+        """仅在 Windows 上按业务开关录制并回传视频。"""
+        return bool(
+            self.enable_record
+            and self.context.enable_result_publish
+            and platform.system() == "Windows"
+        )
 
     def login(self):
         """船司登录，由船司基类实现。"""
@@ -236,12 +236,13 @@ class BaseRpaTask:
 
 
 
-    def verify_from_value(self, field_type, locator, field_name, source=None, frame=None, null_check=False, name=None):
+    def verify_from_value(self, field_type, locator, field_name, source=None, frame=None, null_check=False, name=None, partial_match=False):
         """校验单个字段值。"""
         source = self.remain_content if source is None else source
         source = source or {}
         source_value = source.get(field_name, "")
         if not source_value and null_check:
+            self.mark_field_done(field_name,source)
             return
         frame = frame or self.dom
         if field_type == "input":
@@ -250,7 +251,12 @@ class BaseRpaTask:
             field_value = frame.get_select_value(locator, name=name)
         elif field_type == "s_select":
             field_value = frame.get_value(locator, name=name)
-        if field_value != source_value:
+        value_matched = field_value == source_value
+        if partial_match:
+            field_value_str = str(field_value)
+            source_value_str = str(source_value)
+            value_matched = value_matched or source_value_str in field_value_str or field_value_str in source_value_str
+        if not value_matched:
             raise FormValidationError(
                 f"{name or locator} 值不匹配：输入值 {field_value} != 期望值 {source_value}"
             )
