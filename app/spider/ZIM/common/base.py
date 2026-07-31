@@ -25,7 +25,7 @@ class ZimBaseTask(BaseRpaTask):
         if missing_methods:
             raise BrowserStartError(
                 f"ZIM 登录依赖真实浏览器页面，当前 page={self.page.__class__.__name__}，"
-                f"缺少方法: {', '.join(missing_methods)}。请先开启 ENABLE_BROWSER=true"
+                f"缺少方法: {', '.join(missing_methods)}"
             )
 
     def _get_login_headers(self):

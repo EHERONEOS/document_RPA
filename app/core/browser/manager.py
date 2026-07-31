@@ -9,16 +9,6 @@ from app.core.logging.logger import log
 from app.core.task.errors import BrowserStartError
 
 
-class LocalPage:
-    """本地骨架运行使用的空页面对象。"""
-
-    def ele(self, locator, timeout=0):
-        return None
-
-    def eles(self, locator, timeout=0):
-        return []
-
-
 class BrowserManager:
     """DrissionPage 浏览器管理器。"""
 
@@ -56,11 +46,6 @@ class BrowserManager:
         options = self.build_options(context, task)
         Path(options.user_data_path).mkdir(parents=True, exist_ok=True)
         Path(options.download_path).mkdir(parents=True, exist_ok=True)
-        if not getattr(self.settings, "enable_browser", False):
-            self.page = LocalPage()
-            self.browser = None
-            log(f"浏览器开关关闭，使用本地空页面 port={options.port} profile={options.user_data_path}")
-            return self.page
         try:
             # 新创建的浏览器脱离队列 Worker 的终端进程组和进程树，退出 Worker 时不随之关闭。
             enable_detached_chromium_launch()

@@ -17,7 +17,6 @@ class Settings:
     browser_port_end: int
     download_dir: str
     browser_user_data_dir: str
-    enable_browser: bool
 
     @classmethod
     def from_env(cls):
@@ -30,5 +29,4 @@ class Settings:
             browser_port_end=int(os.getenv("BROWSER_PORT_END", "9200")),
             download_dir=os.getenv("DOWNLOAD_DIR", "runtime/downloads"),
             browser_user_data_dir=os.getenv("BROWSER_USER_DATA_DIR", "runtime/browser_profiles"),
-            enable_browser=str_to_bool(os.getenv("ENABLE_BROWSER", "true")),
         )
