@@ -55,6 +55,24 @@ class RecordingLifecycleTests(unittest.TestCase):
 
         client.wait_for_browser_hwnd.assert_called_once_with(123)
 
+    def test_recorder_restores_browser_window_before_starting_capture(self):
+        page = Mock()
+        page.process_id = 123
+        client = Mock()
+        client.wait_for_browser_hwnd.return_value = 456
+        client.start.return_value = Mock(is_running=True)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch("app.core.page.recorder.CaptureSDKClient", return_value=client),
+                patch("app.core.page.recorder.ensure_browser_window_ready") as restore_window,
+            ):
+                recorder = Recorder(page, record_dir=temp_dir, queue_name="QTCT_ZIM_SI")
+                recorder.start()
+
+        restore_window.assert_called_once_with(hwnd=456)
+        client.start.assert_called_once()
+
     def test_recording_starts_after_login_and_is_returned_with_result(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             video_path = Path(temp_dir) / "QTCT_ZIM_SI_20260728_160000_001.mp4"

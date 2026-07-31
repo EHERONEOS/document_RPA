@@ -9,6 +9,7 @@ from DrissionPage._elements.none_element import NoneElement
 from DrissionPage._elements.chromium_element import ChromiumElement
 from DrissionPage._pages.chromium_base import ChromiumBase
 
+from app.core.browser.window import ensure_browser_window_ready
 from app.core.task.errors import RpaError
 
 
@@ -33,6 +34,7 @@ class Screenshot:
         """页面截图。"""
         for attempt in range(1, retry + 1):
             try:
+                ensure_browser_window_ready(self.page)
                 file_name = self.build_file_name(jobno, job_type, error)
                 file_path = self.page.get_screenshot(path=self.screenshot_dir, name=file_name, full_page=True)
                 return file_path
@@ -46,6 +48,7 @@ class Screenshot:
         """元素截图。"""
         for attempt in range(1, retry + 1):
             try:
+                ensure_browser_window_ready(self.page)
                 file_name = self.build_file_name(jobno, job_type, error)
                 file_path = element.get_screenshot(path=self.screenshot_dir, name=file_name)
                 return file_path

@@ -91,7 +91,7 @@ class ZimSiTask(ZimBaseTask):
         for item in selectors.SI_VERIFY_FIELDS:
             field_type, locator, field_name, name = item[:4]
             null_check = item[4] if len(item) > 4 else False
-            partial_match = item[5] if len(item) > 5 else False
+            partial_match = item[5] if len(item) > 5 and isinstance(item[5], bool) else False
             self.verify_from_value(
                 field_type,
                 locator,

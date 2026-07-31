@@ -8,18 +8,14 @@ from typing import Any
 from DrissionPage import ChromiumPage
 from capturesdk import CaptureSDKClient, CaptureSDKError, CaptureSession
 
+from app.core.browser.window import browser_pid_from_page, ensure_browser_window_ready
 from app.core.logging.logger import log
 
 def browser_pid_from_drissionpage(page: ChromiumPage) -> int:
     """Read the Chrome PID from DrissionPage's Chromium driver/process object."""
-    candidates = [
-        getattr(page, "process_id", None),
-        getattr(getattr(page, "browser", None), "process_id", None),
-        getattr(getattr(page, "browser", None), "_process_id", None),
-    ]
-    for value in candidates:
-        if isinstance(value, int) and value > 0:
-            return value
+    value = browser_pid_from_page(page)
+    if value:
+        return value
     raise CaptureSDKError(
         "DrissionPage did not expose a browser PID in this installed version. "
         "Launch Chrome with a known debugger port and resolve the PID in your project launcher."
@@ -53,6 +49,7 @@ class Recorder:
 
         browser_pid = browser_pid_from_drissionpage(self.page)
         hwnd = self.client.wait_for_browser_hwnd(browser_pid)
+        ensure_browser_window_ready(hwnd=hwnd)
         self.session = self.client.start(
             hwnd=hwnd,
             output=self.file_path,

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.core.browser.launcher import enable_detached_chromium_launch
 from app.core.browser.session_lock import build_browser_profile_name
+from app.core.browser.window import ensure_browser_window_ready
 from app.config.settings import Settings
 from app.core.browser.options import BrowserOptions
 from app.core.browser.port import BrowserPortRegistry
@@ -65,6 +66,7 @@ class BrowserManager:
                 co.set_load_mode("none")
             self.browser = Chromium(co)
             self.page = self.browser.latest_tab
+            ensure_browser_window_ready(self.page)
             log(f"浏览器启动或接管成功 port={options.port} profile={options.user_data_path}")
             return self.page
         except Exception as exc:
