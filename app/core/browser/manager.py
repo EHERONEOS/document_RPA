@@ -24,7 +24,7 @@ class BrowserManager:
         self.browser = None
 
     def build_profile_name(self, context):
-        """按用户名和船司生成固定浏览器标识。"""
+        """按网站信息 ID 和船司生成固定浏览器标识。"""
         # 与任务执行锁使用同一 profile，确保锁和浏览器一一对应。
         return build_browser_profile_name(context)
 

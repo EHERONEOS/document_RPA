@@ -123,6 +123,8 @@ MySQL 数据和 Redis AOF 都由 Docker volume 持久化。开发环境默认地
 uv run python -m queue_control_platform.server.main
 ```
 
+该入口通过 Uvicorn 启动 FastAPI 服务，并在服务生命周期内启动和停止 Redis 事件处理器。
+
 浏览器访问 `http://127.0.0.1:8766`，新增设备 ID。页面会显示一次性注册令牌；将该令牌
 以及设备 ID 填入待执行机器的 `.env`：
 
@@ -132,18 +134,18 @@ QUEUE_CONTROL_DEVICE_TOKEN=页面生成的注册令牌
 QUEUE_CONTROL_REDIS_URL=redis://127.0.0.1:6379/0
 ```
 
-### 2.9 启动设备侧队列 Agent
+### 2.9 启动设备侧队列控制客户端
 
 ```bash
 uv run python -m app.main
 ```
 
-Agent 上线后，在维护页面把队列分配给该设备。每个队列仍使用独立 Worker 进程；
+队列控制客户端上线后，在维护页面把队列分配给该设备。每个队列仍使用独立 Worker 进程；
 页面的暂停、恢复、重启命令会先写入 MySQL，再通过 Redis Streams 发送给对应设备。
-状态事件由 Agent 回传，经中心服务写入 MySQL。暂停会停止 RabbitMQ 拉取并等待已接收
+状态事件由队列控制客户端回传，经中心 FastAPI 服务写入 MySQL。暂停会停止 RabbitMQ 拉取并等待已接收
 任务完成；恢复和重启会启动新的 Python Worker 进程，因此会加载磁盘上的最新代码。
 
-`RPA_QUEUES` 不再用于启动 Agent。RabbitMQ 仍默认从 Nacos 的 `rabbitmq.yml` 按
+`RPA_QUEUES` 不再用于启动队列控制客户端。RabbitMQ 仍默认从 Nacos 的 `rabbitmq.yml` 按
 `APP_ENV` 获取。
 
 ## 3. Windows 启动方式

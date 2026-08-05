@@ -20,9 +20,11 @@ def build_browser_profile_name(context) -> str:
     """返回 Chromium 和执行锁共用的用户目录标识。"""
     # 必须与 BrowserManager 使用同一标识，才能锁住同一个浏览器进程。
     website_info = getattr(context, "website_info", {}) or {}
-    username = website_info.get("websiteUserName") or website_info.get("websiteAccount") or "default"
+    website_id = website_info.get("id")
+    if website_id is None or str(website_id).strip() == "":
+        website_id = "default"
     carrier_code = getattr(context, "carrier_code", "") or "default"
-    return f"{username}_{carrier_code}"
+    return f"{website_id}_{carrier_code}"
 
 
 def _local_lock(lock_key: str) -> threading.Lock:

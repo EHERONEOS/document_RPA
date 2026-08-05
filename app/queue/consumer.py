@@ -11,7 +11,7 @@ from app.queue.message import build_task_context
 def handle_message(task):
     """处理单条队列消息。"""
     context = build_task_context(task)
-    # 不同队列可能复用同一个账号和 Chromium profile，需串行执行整个任务生命周期。
+    # 不同队列可能复用同一个网站信息和 Chromium profile，需串行执行整个任务生命周期。
     with BrowserProfileLock(context):
         return dispatch_context(context)
 
