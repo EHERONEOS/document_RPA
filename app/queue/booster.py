@@ -1,8 +1,4 @@
-import os
-
-from funboost import BrokerEnum, BoosterParams
-
-from app.config.types import str_to_bool
+from funboost import BrokerEnum, BoosterParams, FunctionResultStatusPersistanceConfig
 
 
 class RpaBoosterParams(BoosterParams):
@@ -37,4 +33,17 @@ class RpaBoosterParams(BoosterParams):
     # 日志前缀，用于区分不同消费者日志。
     logger_prefix: str = ""
     # 是否支持远程杀死正在执行的任务，默认通过环境变量关闭。
-    is_support_remote_kill_task: bool = str_to_bool(os.getenv("ENABLE_REMOTE_KILL_TASK", "false"))
+    # funboost 的远程 kill 实现依赖 Redis，本项目的本地控制台不启用该功能。
+    is_support_remote_kill_task: bool = False
+    # 以下功能会分别使用 Redis 或 Mongo；显式关闭以免 funboost 默认值变动引入依赖。
+    do_task_filtering: bool = False
+    is_send_consumer_hearbeat_to_redis: bool = False
+    is_using_distributed_frequency_control: bool = False
+    is_using_rpc_mode: bool = False
+    function_result_status_persistance_conf: FunctionResultStatusPersistanceConfig = (
+        FunctionResultStatusPersistanceConfig(
+            is_save_result=False,
+            is_save_status=False,
+            is_use_bulk_insert=False,
+        )
+    )

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>队列控制平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='control.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>队列控制平台</h1>
+      <p id="updated-at">等待状态上报</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar-section" aria-labelledby="device-heading">
+      <h2 id="device-heading">新增设备</h2>
+      <form id="device-form" class="inline-form">
+        <label>设备 ID<input name="deviceId" required maxlength="128" autocomplete="off"></label>
+        <label>设备名称<input name="displayName" required maxlength="255" autocomplete="off"></label>
+        <button type="submit">新增设备</button>
+      </form>
+      <div id="enrollment-result" class="enrollment-result" hidden>
+        <span>注册令牌</span><code id="enrollment-token"></code>
+      </div>
+    </section>
+
+    <section class="table-section" aria-labelledby="devices-heading">
+      <div class="section-heading">
+        <h2 id="devices-heading">设备</h2>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>设备 ID</th><th>名称</th><th>连接状态</th><th>最后心跳</th><th>操作</th></tr></thead>
+          <tbody id="device-list"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="toolbar-section" aria-labelledby="assignment-heading">
+      <h2 id="assignment-heading">分配队列</h2>
+      <form id="assignment-form" class="inline-form">
+        <label>设备<select id="assignment-device" name="deviceId" required></select></label>
+        <label>队列名称<input name="queueName" required maxlength="255" autocomplete="off"></label>
+        <button type="submit">分配队列</button>
+      </form>
+    </section>
+
+    <section class="table-section" aria-labelledby="queues-heading">
+      <div class="section-heading">
+        <h2 id="queues-heading">队列状态</h2>
+        <span>状态由设备 Agent 经 Redis 写入 MySQL</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>设备</th><th>队列</th><th>状态</th><th>PID</th><th>代码变更</th><th>错误</th><th>操作</th></tr></thead>
+          <tbody id="queue-list"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <output id="notice" role="status"></output>
+  <script src="{{ url_for('static', filename='control.js') }}"></script>
+</body>
+</html>

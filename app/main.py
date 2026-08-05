@@ -1,11 +1,9 @@
-from app.config.settings import Settings
-from app.queue.consumer import start_consumers
+from app.control.queue_client.main import main as run_queue_client
 
 
 def main():
-    """队列 Worker 入口。"""
-    settings = Settings.from_env()
-    start_consumers(settings.rpa_queues)
+    """作为指定设备的队列控制客户端启动。"""
+    run_queue_client()
 
 
 if __name__ == "__main__":

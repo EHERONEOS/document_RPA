@@ -1,50 +1,57 @@
 
-import json
+"""可选的 Nacos 环境配置加载逻辑。
+
+控制面不依赖 Nacos，因此仅在显式要求加载 Nacos 配置文档时才创建客户端。
+"""
 import os
+
 import nacos
-import yaml
-# from v2.nacos.common.client_config import ClientConfig
-# from v2.nacos.config.model.config_param import ConfigParam
-# from v2.nacos.config.nacos_config_service import NacosConfigService
 
 
 DEFAULT_NACOS_IP = "106.14.95.61"
 DEFAULT_NACOS_NAMESPACE = "9835862f-b9f7-4f9d-aab1-6c63602d49a6"
 DEFAULT_NACOS_GROUP = "DEFAULT_GROUP"
-nacos_client = nacos.NacosClient(server_addresses=os.getenv('nacos_ip', DEFAULT_NACOS_IP), namespace=os.getenv('nacos_namespace', DEFAULT_NACOS_NAMESPACE))
+
+
+def parse_nacos_env_content(content: str | None) -> dict[str, str]:
+    """解析 ``KEY=value`` 或 ``KEY: value`` 格式的 Nacos 配置文本。"""
+    values = {}
+    for raw_line in (content or "").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        separator = "=" if "=" in line else ":" if ":" in line else None
+        if separator is None:
+            continue
+        key, value = line.split(separator, 1)
+        key = key.strip()
+        if key:
+            values[key] = value.strip()
+    return values
+
+
+def _as_bool(value: str | None, default: bool = True) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 
 def load_nacos_environment() -> dict[str, str]:
-    SPIDER_CONFIG = yaml.load(nacos_client.get_config(data_id='spider-config', group='DEFAULT_GROUP'), yaml.FullLoader)
-    DATA_SOURCE_CONFIG = yaml.load(nacos_client.get_config(data_id='shared-datasource', group='DEFAULT_GROUP'), yaml.FullLoader)
-    # 图鉴验证码
-    TTSHITU_USER = SPIDER_CONFIG.get("ttshitu").get('username', '')
-    TTSHITU_PWD = SPIDER_CONFIG.get("ttshitu").get('password', '')
-    # 钉钉预警api
-    DINGTALK_ROBOT_API = SPIDER_CONFIG['dingtalk_api']["spider_warning"]
-    # CCAM预警群api
-    DINGTALK_CCAM_API = SPIDER_CONFIG['dingtalk_api']["ccam"]
+    """将配置文档加载到 ``os.environ``。
 
-    # 接口前缀
-    API_PREFIX = SPIDER_CONFIG["api_prefix"]
-    API_HEADERS = SPIDER_CONFIG["api_headers"]
-
-    # 云码token
-    YUNMA_TOKEN = DATA_SOURCE_CONFIG.get("yunma").get("token", "")
-
-    os.environ["TTSHITU_USER"] = TTSHITU_USER
-    os.environ["TTSHITU_PWD"] = TTSHITU_PWD
-    os.environ["DINGTALK_ROBOT_API"] = DINGTALK_ROBOT_API
-    os.environ["DINGTALK_CCAM_API"] = DINGTALK_CCAM_API
-    os.environ["API_PREFIX"] = API_PREFIX
-    os.environ["API_HEADERS"] = json.dumps(API_HEADERS, ensure_ascii=False)
-    os.environ["YUNMA_TOKEN"] = YUNMA_TOKEN
-
-    return {
-        "TTSHITU_USER": TTSHITU_USER,
-        "TTSHITU_PWD": TTSHITU_PWD,
-        "DINGTALK_ROBOT_API": DINGTALK_ROBOT_API,
-        "DINGTALK_CCAM_API": DINGTALK_CCAM_API,
-        "API_PREFIX": API_PREFIX,
-        "API_HEADERS": os.environ["API_HEADERS"],
-        "YUNMA_TOKEN": YUNMA_TOKEN
-    }
+    ``NACOS_OVERRIDE_ENV=false`` 时保留本地环境中已有的值。本函数不会在导入时
+    自动调用。
+    """
+    server_addresses = os.getenv(
+        "NACOS_SERVER_ADDRESSES", os.getenv("NACOS_IP", DEFAULT_NACOS_IP)
+    )
+    namespace = os.getenv("NACOS_NAMESPACE", DEFAULT_NACOS_NAMESPACE)
+    group = os.getenv("NACOS_GROUP", DEFAULT_NACOS_GROUP)
+    data_id = os.getenv("NACOS_ENV_DATA_ID", "wise-rpa.properties")
+    client = nacos.NacosClient(server_addresses=server_addresses, namespace=namespace)
+    values = parse_nacos_env_content(client.get_config(data_id=data_id, group=group))
+    override = _as_bool(os.getenv("NACOS_OVERRIDE_ENV"), default=True)
+    for key, value in values.items():
+        if override or key not in os.environ:
+            os.environ[key] = value
+    return values

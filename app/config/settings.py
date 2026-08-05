@@ -1,18 +1,14 @@
 import os
 from dataclasses import dataclass
 
-from app.config.rabbitmq import RabbitmqSettings
 from app.config.queue_config import parse_queue_names
-from app.config.types import str_to_bool
 
 
 @dataclass(frozen=True)
 class Settings:
     """应用运行配置。"""
 
-    # app_env: str
     rpa_queues: list
-    # rabbitmq: RabbitmqSettings
     browser_port_start: int
     browser_port_end: int
     download_dir: str
@@ -22,9 +18,7 @@ class Settings:
     def from_env(cls):
         """从环境变量读取配置。"""
         return cls(
-            # app_env=os.getenv("APP_ENV", "local"),
             rpa_queues=parse_queue_names(os.getenv("RPA_QUEUES", "")),
-            # rabbitmq=RabbitmqSettings.from_env(),
             browser_port_start=int(os.getenv("BROWSER_PORT_START", "9000")),
             browser_port_end=int(os.getenv("BROWSER_PORT_END", "9200")),
             download_dir=os.getenv("DOWNLOAD_DIR", "runtime/downloads"),

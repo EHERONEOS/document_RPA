@@ -66,6 +66,8 @@ class ZimBaseTask(BaseRpaTask):
 
     def login(self):
         """执行 ZIM 登录。"""
+        time.sleep(15)
+        raise LoginError("登录失败")
         self._ensure_browser_ready()
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")
