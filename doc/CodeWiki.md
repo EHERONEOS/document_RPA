@@ -264,30 +264,14 @@ uv run python -m app.dev.local_runner --message mssage_list/msg_demo.json
 
 ## 7. 队列命名与消息协议
 
-### 7.1 队列命名规则
+### 7.1 队列路由规则
 
-队列名格式：
+队列名由统一入口在各 `app/spider/<船司>/router.py` 的 `ROUTES` 中按完整值查找，名称
+不需要遵循 `客户_船司_业务` 格式。路由项显式定义客户、业务和处理函数；统一入口从
+船司目录名确定船司后，加载该目录的 `router.py` 完成业务分发。
 
-```text
-客户代码_船司代码_业务代码
-```
-
-示例：
-
-```text
-FL_WHL_SI
-FL_WHL_VGM
-FL_ZIM_SI
-FL_ZIM_VGM
-```
-
-解析逻辑位于 `app/core/task/context.py`：
-
-- `customer_code`：客户代码，如 `FL`。
-- `carrier_code`：船司代码，如 `WHL`、`ZIM`。
-- `business_code`：业务代码，如 `SI`、`VGM`。
-
-如果队列名不是三段式，会抛出 `QueueNameError`。
+新增队列只需在目标船司的 `router.py` 的 `ROUTES` 中登记完整队列名、客户、业务和处理
+函数。
 
 ### 7.2 消息结构
 
@@ -445,7 +429,7 @@ FL_ZIM_VGM
 
 关键函数：
 
-- `parse_queue_name(queue_name)`：解析三段式队列名。
+- `parse_queue_name(queue_name)`：从船司路由文件解析完整队列名的元数据。
 - `copy_content(content)`：深拷贝填单内容。
 
 ### 8.8 `app/core/task/dispatcher.py`
@@ -1057,7 +1041,7 @@ Spider
 ### 11.1 已具备的基础能力
 
 - 多队列消费者启动。
-- 三段式队列名解析。
+- 完整队列名路由发现。
 - 消息协议校验。
 - 动态船司路由加载。
 - 基础任务生命周期。

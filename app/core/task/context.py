@@ -1,6 +1,7 @@
 import copy
 from dataclasses import dataclass
-from app.core.task.errors import QueueNameError
+
+from app.core.task.router import resolve_queue_route
 
 
 @dataclass
@@ -22,11 +23,9 @@ class TaskContext:
 
 
 def parse_queue_name(queue_name):
-    """解析客户_船司_业务格式的队列名。"""
-    parts = [part.strip().upper() for part in queue_name.split("_") if part.strip()]
-    if len(parts) != 3:
-        raise QueueNameError(f"队列名格式错误：{queue_name}")
-    return parts[0], parts[1], parts[2]
+    """返回完整队列名注册的客户、船司和业务信息。"""
+    route = resolve_queue_route(queue_name)
+    return route.customer_code, route.carrier_code, route.business_code
 
 
 def copy_content(content):

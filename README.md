@@ -104,7 +104,7 @@ uv run python -m app.dev.local_runner --message /Users/wangchao/weisi_code/docum
 
 - 读取 `mssage_list/msg_demo.json`
 - 构建 `TaskContext`
-- 解析队列名 `FL_WHL_SI`
+- 根据完整队列名在各船司 `router.py` 中查询统一路由入口
 - 路由到 `app/Spider/WHL/FL_WHL.py` 中的 `fl_whl_si`
 - 本地模式跳过处理中通知、录屏和结果回传
 

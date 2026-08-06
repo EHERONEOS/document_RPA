@@ -1,4 +1,5 @@
 from app.core.task.context import TaskContext, copy_content, parse_queue_name
+from app.core.task.router import normalize_queue_name
 from app.core.task.errors import MessageParseError
 
 
@@ -17,7 +18,7 @@ def build_task_context(
 ):
     """从原始队列 task 消息构建任务上下文。"""
     # task = _require_dict(raw_message, "task")
-    queue_name = str(task.get("rpaTaskTopic") or "").strip().upper()
+    queue_name = normalize_queue_name(task.get("rpaTaskTopic"))
     if not queue_name:
         raise MessageParseError("task.rpaTaskTopic 不能为空")
 

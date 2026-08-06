@@ -4,6 +4,9 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from app.core.task.errors import RouteNotFoundError
+from app.core.task.router import resolve_queue_route
+
 
 PROJECT_FILE_NAMES = (
     "funboost_config.py",
@@ -37,13 +40,16 @@ def _add_python_files(files: set[Path], directory: Path) -> None:
 def queue_manifest(queue_name: str, project_root: Path) -> dict[str, str]:
     """返回可能影响指定队列执行流程的文件。
 
-    船司流程模块可能包含多个业务入口，因此任务模块由队列名第三段选择，而非递归
-    跟踪流程模块中的全部导入。共享代码仍会加入每个受影响队列的清单。
+    业务归属由统一路由入口按完整队列名决定。共享代码仍会加入每个受影响队列的
+    清单。
     """
-    parts = [part.strip() for part in queue_name.upper().split("_") if part.strip()]
-    customer = parts[0] if len(parts) >= 1 else ""
-    carrier = parts[1] if len(parts) >= 2 else ""
-    business = parts[2] if len(parts) >= 3 else ""
+    try:
+        route = resolve_queue_route(queue_name)
+    except RouteNotFoundError:
+        route = None
+    customer = route.customer_code if route else ""
+    carrier = route.carrier_code if route else ""
+    business = route.business_code if route else ""
 
     files: set[Path] = set()
     for name in PROJECT_FILE_NAMES:
