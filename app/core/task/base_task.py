@@ -1,8 +1,10 @@
+import json
 import platform
 
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
+from app.core.integrations.redis_client import RedisClient
 from app.core.page.recorder import Recorder
 from app.core.page.http import HttpHelper
 from app.core.page.dom import DomHelper
@@ -24,6 +26,7 @@ class BaseRpaTask:
     booking_no = ""
     ignored_unfilled_fields=[]# 忽略的未填字段列表
     attachments = [] #草稿件
+    REDIS_MAIN= 15 # redis 索引(默认15)
 
     def __init__(
         self,
@@ -52,6 +55,7 @@ class BaseRpaTask:
         self.notifier = notifier or ProcessingNotifier()
         self.publisher = publisher or ResultPublisher()
         self.oss_client = oss_client or OssClient()
+        self.util_redis = RedisClient(self.REDIS_MAIN) # 配置cookieredis
 
 
     def run(self):
@@ -277,3 +281,16 @@ class BaseRpaTask:
         # if self.attachments:
             # self.publisher.publish_attachments(self.attachments)
             # self.attachments = {}
+
+    def save_cookies(self, cookies_redis_key):
+        """保存浏览器 cookies。"""
+        cookies = self.page.cookies()
+        self.util_redis.set_redis_key(cookies_redis_key, json.dumps(cookies, ensure_ascii=False))
+
+    def set_page_cookies(self, cookies_redis_key):
+        """设置浏览器 cookies。"""
+        cookies_str = self.util_redis.get_redis_key(cookies_redis_key)
+        if not cookies_str:
+            return
+        cookies = json.loads(cookies_str)
+        self.page.set.cookies(cookies)

@@ -1,57 +1,78 @@
 
-"""可选的 Nacos 环境配置加载逻辑。
-
-控制面不依赖 Nacos，因此仅在显式要求加载 Nacos 配置文档时才创建客户端。
-"""
+"""Nacos 环境配置加载逻辑。"""
+import json
 import os
+from pathlib import Path
 
 import nacos
+import yaml
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 
 DEFAULT_NACOS_IP = "106.14.95.61"
 DEFAULT_NACOS_NAMESPACE = "9835862f-b9f7-4f9d-aab1-6c63602d49a6"
 DEFAULT_NACOS_GROUP = "DEFAULT_GROUP"
 
-
-def parse_nacos_env_content(content: str | None) -> dict[str, str]:
-    """解析 ``KEY=value`` 或 ``KEY: value`` 格式的 Nacos 配置文本。"""
-    values = {}
-    for raw_line in (content or "").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        separator = "=" if "=" in line else ":" if ":" in line else None
-        if separator is None:
-            continue
-        key, value = line.split(separator, 1)
-        key = key.strip()
-        if key:
-            values[key] = value.strip()
-    return values
+nacos_client = nacos.NacosClient(
+    server_addresses=os.getenv("nacos_ip", DEFAULT_NACOS_IP),
+    namespace=os.getenv("nacos_namespace", DEFAULT_NACOS_NAMESPACE),
+)
 
 
-def _as_bool(value: str | None, default: bool = True) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+def _load_yaml_config(data_id: str) -> dict:
+    return yaml.load(
+        nacos_client.get_config(data_id=data_id, group=DEFAULT_NACOS_GROUP),
+        yaml.FullLoader,
+    ) or {}
+
+
+__DATA_SOURCE_CONFIG = _load_yaml_config("shared-datasource")
+__DATA_RABBITMQ_CONFIG = _load_yaml_config("rabbitmq.yml")
+
+
+REDIS_CONFIG = {
+    "host": __DATA_SOURCE_CONFIG["redis"]["host"],
+    "port": __DATA_SOURCE_CONFIG["redis"]["port"],
+    "password": __DATA_SOURCE_CONFIG["redis"]["password"],
+    "db": "15",
+}
+__RABBITMQ_ENV_CONFIG = __DATA_RABBITMQ_CONFIG[os.getenv("APP_ENV", "test")]
+
+RABBITMQ_CONFIG = {
+    "user": __RABBITMQ_ENV_CONFIG["user"],
+    "password": __RABBITMQ_ENV_CONFIG["password"],
+    "host": __RABBITMQ_ENV_CONFIG["host"],
+    "port": __RABBITMQ_ENV_CONFIG["port"],
+    "virtual_host": __RABBITMQ_ENV_CONFIG["virtual_host"],
+}
 
 
 def load_nacos_environment() -> dict[str, str]:
-    """将配置文档加载到 ``os.environ``。
+    spider_config = _load_yaml_config("spider-config")
+    data_source_config = __DATA_SOURCE_CONFIG
 
-    ``NACOS_OVERRIDE_ENV=false`` 时保留本地环境中已有的值。本函数不会在导入时
-    自动调用。
-    """
-    server_addresses = os.getenv(
-        "NACOS_SERVER_ADDRESSES", os.getenv("NACOS_IP", DEFAULT_NACOS_IP)
+    ttshitu_user = spider_config.get("ttshitu", {}).get("username", "")
+    ttshitu_pwd = spider_config.get("ttshitu", {}).get("password", "")
+    dingtalk_robot_api = spider_config.get("dingtalk_api", {}).get(
+        "spider_warning", ""
     )
-    namespace = os.getenv("NACOS_NAMESPACE", DEFAULT_NACOS_NAMESPACE)
-    group = os.getenv("NACOS_GROUP", DEFAULT_NACOS_GROUP)
-    data_id = os.getenv("NACOS_ENV_DATA_ID", "wise-rpa.properties")
-    client = nacos.NacosClient(server_addresses=server_addresses, namespace=namespace)
-    values = parse_nacos_env_content(client.get_config(data_id=data_id, group=group))
-    override = _as_bool(os.getenv("NACOS_OVERRIDE_ENV"), default=True)
-    for key, value in values.items():
-        if override or key not in os.environ:
-            os.environ[key] = value
-    return values
+    dingtalk_ccam_api = spider_config.get("dingtalk_api", {}).get("ccam", "")
+    yunma_token = data_source_config.get("yunma", {}).get("token", "")
+
+    os.environ["TTSHITU_USER"] = ttshitu_user
+    os.environ["TTSHITU_PWD"] = ttshitu_pwd
+    os.environ["DINGTALK_ROBOT_API"] = dingtalk_robot_api
+    os.environ["DINGTALK_CCAM_API"] = dingtalk_ccam_api
+    os.environ["YUNMA_TOKEN"] = yunma_token
+
+    return {
+        "TTSHITU_USER": ttshitu_user,
+        "TTSHITU_PWD": ttshitu_pwd,
+        "DINGTALK_ROBOT_API": dingtalk_robot_api,
+        "DINGTALK_CCAM_API": dingtalk_ccam_api,
+        "YUNMA_TOKEN": yunma_token,
+    }
+
+

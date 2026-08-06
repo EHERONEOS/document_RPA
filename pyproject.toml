@@ -19,6 +19,8 @@ dependencies = [
     "PyMySQL==1.1.2",
     "redis==7.1.0",
     "uvicorn==0.35.0",
+    "wise-utils>=1.1.3",
+    "dbutils>=3.1.2",
 ]
 
 [tool.uv]

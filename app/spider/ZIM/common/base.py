@@ -18,6 +18,11 @@ class ZimBaseTask(BaseRpaTask):
     index_url = "https://cis.zim-logistics.com.cn/"
     siteKey = "87004f4a-40ba-4b16-ad22-a8d034b6c6b8"  # 站点可以用于验证码解析使用
 
+    def __init__(self, task_id: str):
+        super().__init__(task_id)
+        website_info = self.context.website_info
+        self.cookies_redis_key = f"cookies:zim_{website_info['websiteAccount']}"
+
     def _ensure_browser_ready(self):
         """ZIM 登录依赖真实浏览器页面和 Session 能力。"""
         required_methods = ("get", "post", "change_mode", "run_js")
@@ -66,14 +71,19 @@ class ZimBaseTask(BaseRpaTask):
 
     def login(self):
         """执行 ZIM 登录。"""
-        time.sleep(15)
-        raise LoginError("登录失败")
         self._ensure_browser_ready()
         website_info = self.context.website_info
         self.logger.info("执行 ZIM 登录入口")
         self.page.get(self.index_url ,show_errmsg=True)
         self.sys_exception_refresh()
-        time.sleep(3)
+        time.sleep(2)
+        if self.is_login():
+            self.logger.info("已登录")
+            return
+            
+        self.set_page_cookies(self.cookies_redis_key)
+        self.page.get(self.index_url ,show_errmsg=True)
+        time.sleep(2)
         if self.is_login():
             self.logger.info("已登录")
             return
@@ -106,6 +116,7 @@ class ZimBaseTask(BaseRpaTask):
         time.sleep(3)
         if not self.is_login():
             raise LoginError("登录失败")
+        pass
 
 
     def sys_exception_refresh(self):
@@ -121,7 +132,10 @@ class ZimBaseTask(BaseRpaTask):
 
     def is_login(self):
         """判断是否登录"""
-        return self.login_url not in self.page.url
+        if self.login_url not in self.page.url:
+            self.save_cookies(self.cookies_redis_key)
+            return True
+        return False
 
     def query_booking(self,blNo:str):
         """查询订舱单据"""
