@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 DEFAULT_BROWSER_ARGS = [
     "--start-maximized",  # 启动后最大化浏览器窗口。
+    "--remote-debugging-address=127.0.0.1",  # 调试端口仅允许本机 Worker 接入。
     "--ignore-certificate-errors",  # 忽略 HTTPS 证书错误。
     "--ignore-certificate-errors-spki-list",  # 忽略指定 SPKI 证书错误。
     "--hide-crash-restore-bubble",  # 隐藏崩溃后恢复页面提示。

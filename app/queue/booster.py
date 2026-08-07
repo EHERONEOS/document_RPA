@@ -8,8 +8,8 @@ class RpaBoosterParams(BoosterParams):
     broker_kind: str = BrokerEnum.RABBITMQ_AMQPSTORM
     # 队列名称，默认空字符串，通常由具体消费者覆盖。
     queue_name: str = ""
-    # 每秒消费速率限制，默认每秒最多处理 1 个任务。
-    qps: float = 1
+    # 每秒消费速率限制，默认与队列并发数一致。
+    qps: float = 3
     # RabbitMQ 专属配置，包括队列持久化、死信交换机、死信路由键等。
     broker_exclusive_config: dict = {
         # RabbitMQ 优先级队列最大优先级，None 表示不启用优先级队列。
@@ -27,7 +27,7 @@ class RpaBoosterParams(BoosterParams):
     # 任务重试达到最大次数后，是否推送到死信队列。
     is_push_to_dlx_queue_when_retry_max_times: bool = True
     # 并发消费数量，默认只开 1 个并发 worker。
-    concurrent_num: int = 1
+    concurrent_num: int = 3
     # 最大重试次数，当前注释掉不生效。
     max_retry_times: int = 0
     # 日志前缀，用于区分不同消费者日志。

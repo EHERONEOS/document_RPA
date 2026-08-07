@@ -2,7 +2,7 @@ from pathlib import Path
 
 from app.core.browser.launcher import enable_detached_chromium_launch
 from app.core.browser.session_lock import build_browser_profile_name
-from app.core.browser.window import ensure_browser_window_ready
+from app.core.browser.window import browser_pid_from_page, ensure_browser_window_ready
 from app.config.settings import Settings
 from app.core.browser.options import BrowserOptions
 from app.core.browser.port import BrowserPortRegistry
@@ -13,7 +13,7 @@ from app.core.task.errors import BrowserStartError
 class BrowserManager:
     """DrissionPage 浏览器管理器。"""
 
-    def __init__(self, settings=None, registry=None):
+    def __init__(self, settings=None, registry=None, browser_lease=None, account_session_coordinator=None):
         self.settings = settings or Settings.from_env()
         self.registry = registry or BrowserPortRegistry(
             Path(self.settings.browser_user_data_dir) / "port_registry.json",
@@ -22,6 +22,8 @@ class BrowserManager:
         )
         self.page = None
         self.browser = None
+        self.browser_lease = browser_lease
+        self.account_session_coordinator = account_session_coordinator
 
     def build_profile_name(self, context):
         """按网站信息 ID 和船司生成固定浏览器标识。"""
@@ -30,10 +32,18 @@ class BrowserManager:
 
     def build_options(self, context, task):
         """构建浏览器启动参数。"""
-        profile_name = self.build_profile_name(context)
-        port = self.registry.resolve_port(profile_name)
-        user_data_path = str(Path(self.settings.browser_user_data_dir) / profile_name)
-        download_path = str(Path(self.settings.download_dir) / context.queue_name)
+        if self.browser_lease:
+            port = int(self.browser_lease["port"])
+            user_data_path = self.browser_lease["user_data_path"]
+        else:
+            profile_name = self.build_profile_name(context)
+            port = self.registry.resolve_port(profile_name)
+            user_data_path = str(Path(self.settings.browser_user_data_dir) / profile_name)
+        download_path = str(
+            Path(self.settings.download_dir)
+            / context.queue_name
+            / (context.rpa_message_id or "unknown-message")
+        )
         return BrowserOptions(
             port=port,
             user_data_path=user_data_path,
@@ -67,6 +77,7 @@ class BrowserManager:
             self.browser = Chromium(co)
             self.page = self.browser.latest_tab
             ensure_browser_window_ready(self.page) # 确保浏览器窗口可见(防止截屏 录屏失败)
+            self._register_started_browser()
             log(f"浏览器启动或接管成功 port={options.port} profile={options.user_data_path}")
             return self.page
         except Exception as exc:
@@ -75,3 +86,15 @@ class BrowserManager:
     def close(self):
         """保留浏览器进程，不主动关闭。"""
         log("任务结束后保留浏览器进程")
+
+    def _register_started_browser(self):
+        if not self.browser_lease or self.account_session_coordinator is None:
+            return
+        try:
+            self.account_session_coordinator.register_browser_started(
+                self.browser_lease["account_key"],
+                self.browser_lease["lease_id"],
+                browser_pid_from_page(self.page),
+            )
+        except Exception as exc:
+            log(f"登记浏览器进程失败：{exc}", level="ERROR")

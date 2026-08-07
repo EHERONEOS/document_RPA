@@ -25,6 +25,7 @@ tests/*
 !tests/test_browser_profile_name.py
 !tests/test_element_names.py
 !tests/test_recording_lifecycle.py
+!tests/test_account_session_coordinator.py
 # !tests/test_browser_session_lock.py
 message_list/
 .idea/

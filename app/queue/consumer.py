@@ -1,19 +1,46 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from time import sleep
 
-from app.core.browser.session_lock import BrowserProfileLock
+from app.core.browser.session_lock import build_account_session_key, build_browser_profile_name
 from app.core.task.dispatcher import dispatch_context
 from app.queue.message import build_task_context
 
 
-def handle_message(task):
+_LOCAL_ACCOUNT_COORDINATOR = None
+
+
+def _get_local_account_coordinator():
+    """Provide the legacy in-process consumer entry with the same slot rules."""
+    global _LOCAL_ACCOUNT_COORDINATOR
+    if _LOCAL_ACCOUNT_COORDINATOR is None:
+        from app.config.settings import Settings
+        from app.core.scheduler.account_session import AccountSessionCoordinator, AccountSessionSettings
+
+        _LOCAL_ACCOUNT_COORDINATOR = AccountSessionCoordinator(
+            AccountSessionSettings.from_app_settings(Settings.from_env())
+        )
+    return _LOCAL_ACCOUNT_COORDINATOR
+
+
+def handle_message(task, account_session_coordinator=None):
     """处理单条队列消息。"""
     context = build_task_context(task)
-    # 不同队列可能复用同一个网站信息和 Chromium profile，需串行执行整个任务生命周期。
-    with BrowserProfileLock(context):
+    coordinator = account_session_coordinator or _get_local_account_coordinator()
+    account_key = build_account_session_key(context)
+    lease = coordinator.acquire_slot(
+        account_key,
+        build_browser_profile_name(context),
+        owner_pid=os.getpid(),
+    )
+    context.browser_lease = lease
+    context.account_session_coordinator = coordinator
+    try:
         return dispatch_context(context)
+    finally:
+        coordinator.release_slot(account_key, lease["lease_id"])
 
 
 def save_task_message(task, queue_name):
@@ -30,7 +57,7 @@ def save_task_message(task, queue_name):
     output_path.write_text(json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def create_queue_consumer(queue_name):
+def create_queue_consumer(queue_name, account_session_coordinator=None):
     """为单个 RabbitMQ 队列创建可由本地控制台管理的消费者。"""
     try:
         from app.queue.booster import RpaBoosterParams
@@ -41,13 +68,19 @@ def create_queue_consumer(queue_name):
         raise RuntimeError(f"funboost 未安装或不可用：{exc}") from exc
 
     def consume(task=None):
-        return handle_message(task or {})
+        return handle_message(task or {}, account_session_coordinator)
+
+    from app.config.settings import Settings
+
+    settings = Settings.from_env()
 
     return PausableRabbitmqConsumer(
         RpaBoosterParams(
             queue_name=queue_name,
             logger_prefix=queue_name,
             consuming_function=consume,
+            concurrent_num=settings.queue_concurrent_num,
+            qps=settings.queue_qps,
         )
     )
 

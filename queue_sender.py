@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+from copy import deepcopy
 import json
 from pathlib import Path
 from threading import RLock
@@ -57,6 +58,31 @@ def send_queue_message(
             priority_control_config=priority_control_config,
         )
     return True
+
+
+def send_queue_messages_for_job_numbers(
+    queue_name: str,
+    task: dict[str, Any],
+    job_numbers: list[str],
+    *,
+    delay: int = 0,
+    passive: bool = True,
+) -> None:
+    """将指定单号依次写入 blNo、jobNo 后发送到队列。"""
+    for job_number in job_numbers:
+        message_task = deepcopy(task)
+        content = message_task.setdefault("content", {})
+        if not isinstance(content, dict):
+            raise TypeError("task.content 必须是 dict")
+        content["blNo"] = job_number
+        content["jobNo"] = job_number
+        send_queue_message(
+            queue_name,
+            message_task,
+            delay=delay,
+            passive=passive,
+        )
+        print(f"sent queue={queue_name.strip().upper()} job_no={job_number}")
 
 
 def close_publishers() -> None:
@@ -143,13 +169,19 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    send_queue_message(
+    send_queue_messages_for_job_numbers(
         args.queue,
         _load_task(args.message),
+        [
+            "GOSUSNH8263993",
+            "GOSUSNH8263992",
+            "GOSUSNH8263991",
+            "GOSUSNH8263990",
+            "GOSUSNH8263989",
+        ],
         delay=args.delay,
         passive=not args.declare,
     )
-    print(f"sent queue={args.queue.strip().upper()} message={args.message}")
 
 
 if __name__ == "__main__":

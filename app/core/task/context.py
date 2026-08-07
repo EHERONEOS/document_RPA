@@ -1,5 +1,6 @@
 import copy
 from dataclasses import dataclass
+from typing import Any
 
 from app.core.task.router import resolve_queue_route
 
@@ -20,6 +21,8 @@ class TaskContext:
     runtime_mode: str = "queue"
     enable_notify: bool = True
     enable_result_publish: bool = True
+    browser_lease: dict[str, Any] | None = None
+    account_session_coordinator: Any = None
 
 
 def parse_queue_name(queue_name):

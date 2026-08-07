@@ -46,10 +46,17 @@ class BaseRpaTask:
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
         self.attachments = []
         self.logger = Logger()
+        self.browser_lease = getattr(self.context, "browser_lease", None)
+        self.account_session_coordinator = getattr(
+            self.context, "account_session_coordinator", None
+        )
         if browser_manager is None:
             from app.core.browser.manager import BrowserManager
 
-            self.browser_manager = BrowserManager()
+            self.browser_manager = BrowserManager(
+                browser_lease=self.browser_lease,
+                account_session_coordinator=self.account_session_coordinator,
+            )
         else:
             self.browser_manager = browser_manager
         self.notifier = notifier or ProcessingNotifier()
@@ -74,7 +81,12 @@ class BaseRpaTask:
             self.dom = DomHelper(self.page)
             self.http = HttpHelper(self.page)
             self.screenshot = Screenshot(self.page)
-            self.login()
+            login_success = False
+            try:
+                self.login()
+                login_success = True
+            finally:
+                self._notify_login_finished(login_success)
             self._try_start_recording()
             self.execute_business()
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
@@ -195,6 +207,30 @@ class BaseRpaTask:
         """船司登录，由船司基类实现。"""
         print(f"执行 {self.carrier_code} 登录入口")
         raise LoginError("子类必须实现 login 方法")
+
+    def claim_credential_login(self) -> bool:
+        """Allow only one task for an account to submit credentials at a time."""
+        if not self.browser_lease or self.account_session_coordinator is None:
+            return True
+        result = self.account_session_coordinator.claim_credential_login(
+            self.browser_lease["account_key"],
+            self.browser_lease["lease_id"],
+            int(self.browser_lease.get("login_generation", 0)),
+        )
+        self.browser_lease["login_generation"] = result["login_generation"]
+        return bool(result["is_leader"])
+
+    def _notify_login_finished(self, success: bool) -> None:
+        if not self.browser_lease or self.account_session_coordinator is None:
+            return
+        try:
+            self.account_session_coordinator.login_finished(
+                self.browser_lease["account_key"],
+                self.browser_lease["lease_id"],
+                success,
+            )
+        except Exception as exc:
+            self.logger.error(f"上报登录状态失败：{exc}")
 
     def execute_business(self):
         """执行业务填单，由具体业务类实现。"""

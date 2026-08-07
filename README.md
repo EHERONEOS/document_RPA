@@ -79,10 +79,14 @@ QUEUE_CONTROL_HOST=127.0.0.1
 QUEUE_CONTROL_PORT=8766
 QUEUE_CONTROL_DEVICE_ID=
 QUEUE_CONTROL_DEVICE_TOKEN=
-BROWSER_PORT_START=9000
-BROWSER_PORT_END=9200
+BROWSER_PORT_START=10000
+BROWSER_PORT_END=48000
 DOWNLOAD_DIR=runtime/downloads
 BROWSER_USER_DATA_DIR=runtime/browser_profiles
+QUEUE_CONCURRENT_NUM=3
+QUEUE_QPS=3
+ACCOUNT_MAX_CONCURRENT=3
+ACCOUNT_IDLE_SECONDS=60
 ENABLE_BROWSER=false
 ```
 
@@ -148,6 +152,12 @@ uv run python -m app.main
 `RPA_QUEUES` 不再用于启动队列控制客户端。RabbitMQ 仍默认从 Nacos 的 `rabbitmq.yml` 按
 `APP_ENV` 获取。
 
+每个队列默认同时处理 3 条消息。同一 `websiteInfo.id + 船司` 即使来自不同队列，在同一设备上也
+最多占用 3 个浏览器槽位：第一条任务使用维护用户目录，后两条使用独立临时目录。首条任务的
+`login()` 返回后才会放行后续任务；若凭据登录失败，仅一条等待任务会被选为下一次登录尝试。
+账号 60 秒无新消息时会关闭临时浏览器并删除临时目录，主浏览器保留。浏览器调试端口由设备级
+协调器统一分配并只监听 `127.0.0.1`；端口范围决定可管理浏览器的理论数量。
+
 ## 3. Windows 启动方式
 
 以下命令建议在 PowerShell 中执行。
@@ -211,7 +221,7 @@ ENABLE_BROWSER=true
 ### 3.6 本地模板调试启动
 
 ```powershell
-uv run python -m app.dev.local_runner --message .\mssage_list\msg_demo.json
+uv run python -m app.dev.local_runner --message .\message_list\msg_demo.json
 ```
 
 ### 3.7 队列 Agent 启动

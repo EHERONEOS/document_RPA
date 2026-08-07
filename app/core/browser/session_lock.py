@@ -27,6 +27,11 @@ def build_browser_profile_name(context) -> str:
     return f"{website_id}_{carrier_code}"
 
 
+def build_account_session_key(context) -> str:
+    """Return the device-wide account key used by the browser slot coordinator."""
+    return build_browser_profile_name(context)
+
+
 def _local_lock(lock_key: str) -> threading.Lock:
     with _LOCAL_LOCKS_GUARD:
         return _LOCAL_LOCKS.setdefault(lock_key, threading.Lock())

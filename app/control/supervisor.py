@@ -54,6 +54,7 @@ class QueueSupervisor:
         worker_target=run_queue_worker,
         persist_state: bool = True,
         status_observer: Callable[[list[dict[str, Any]]], None] | None = None,
+        account_session_coordinator=None,
     ):
         self.project_root = project_root or Path(__file__).resolve().parents[2]
         self.drain_timeout_seconds = drain_timeout_seconds
@@ -61,6 +62,7 @@ class QueueSupervisor:
         self.worker_target = worker_target
         self.persist_state = persist_state
         self.status_observer = status_observer
+        self.account_session_coordinator = account_session_coordinator
         self._context = multiprocessing.get_context("spawn")
         self._events = self._context.Queue()
         self._lock = threading.RLock()
@@ -80,6 +82,13 @@ class QueueSupervisor:
             target=self._monitor_workers, name="queue-control-monitor", daemon=True
         )
         atexit.register(self.stop)
+
+    def set_account_session_coordinator(self, coordinator) -> None:
+        """Attach the device-wide coordinator before Queue Workers are started."""
+        with self._lock:
+            if self._started:
+                raise RuntimeError("队列监管器已启动，不能替换账号会话协调器")
+            self.account_session_coordinator = coordinator
 
     # 启动后台事件处理和监控线程，并拉起应运行的队列 Worker。
     def start(self) -> None:
@@ -101,10 +110,7 @@ class QueueSupervisor:
         self._stop_event.set()
         with self._lock:
             for runtime in self._runtimes.values():
-                process = runtime.process
-                if process is not None and process.is_alive():
-                    process.terminate()
-                    process.join(timeout=3)
+                self._terminate_worker(runtime)
 
     # 返回所有队列的运行状态及待同步源码变更。
     def queue_statuses(self) -> list[dict[str, Any]]:
@@ -230,10 +236,7 @@ class QueueSupervisor:
                 self._start_worker(runtime)
             elif runtime.state in RUNNING_STATES:
                 if force:
-                    process = runtime.process
-                    if process is not None and process.is_alive():
-                        process.terminate()
-                        process.join(timeout=3)
+                    self._terminate_worker(runtime)
                     runtime.restart_requested = False
                     self._start_worker(runtime)
                 else:
@@ -287,9 +290,12 @@ class QueueSupervisor:
             return
         runtime.manifest = queue_manifest(runtime.name, self.project_root)
         runtime.commands = self._context.Queue()
+        worker_args = (runtime.name, runtime.commands, self._events)
+        if self.account_session_coordinator is not None:
+            worker_args += (self.account_session_coordinator,)
         runtime.process = self._context.Process(
             target=self.worker_target,
-            args=(runtime.name, runtime.commands, self._events),
+            args=worker_args,
             name=f"queue-worker-{runtime.name.lower()}",
         )
         runtime.state = "STARTING"
@@ -301,14 +307,24 @@ class QueueSupervisor:
         runtime.pid = runtime.process.pid
         runtime.restart_requested = False
 
-    @staticmethod
     # 终止并回收指定 Worker 进程。
-    def _terminate_worker(runtime: QueueRuntime) -> None:
+    def _terminate_worker(self, runtime: QueueRuntime) -> None:
         process = runtime.process
+        worker_pid = runtime.pid or (process.pid if process is not None else None)
         if process is not None and process.is_alive():
             process.terminate()
             process.join(timeout=3)
+        self._release_worker_slots(worker_pid)
         runtime.pid = None
+
+    def _release_worker_slots(self, worker_pid: int | None) -> None:
+        if worker_pid is None or self.account_session_coordinator is None:
+            return
+        try:
+            self.account_session_coordinator.release_worker_slots(worker_pid)
+        except Exception:
+            # Worker recovery must continue even if the local manager is unavailable.
+            return
 
     # 向存活 Worker 发送协作式排空指令。
     def _request_drain(self, runtime: QueueRuntime) -> None:
@@ -365,6 +381,7 @@ class QueueSupervisor:
                     process = runtime.process
                     if process is None or process.is_alive():
                         continue
+                    self._release_worker_slots(runtime.pid or process.pid)
                     runtime.pid = None
                     if runtime.restart_requested and runtime.desired_state == "RUNNING":
                         self._start_worker(runtime)

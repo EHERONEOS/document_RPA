@@ -87,6 +87,15 @@ class ZimBaseTask(BaseRpaTask):
         if self.is_login():
             self.logger.info("已登录")
             return
+        while not self.claim_credential_login():
+            # Another task refreshed this account after this browser first read
+            # Redis. Reload the newer cookies before deciding to submit again.
+            self.set_page_cookies(self.cookies_redis_key)
+            self.page.get(self.index_url, show_errmsg=True)
+            time.sleep(2)
+            if self.is_login():
+                self.logger.info("已复用其他任务刷新后的登录信息")
+                return
         self.logger.info("登录信息失效,开始登录")
         self.logger.info("开始获取验证码")
         recapture_token = get_ym_hcaptcha_code(self.siteKey,self.login_url)

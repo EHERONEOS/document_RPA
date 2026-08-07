@@ -9,6 +9,11 @@ from typing import Any
 from app.control.queue_client.config import QueueClientSettings
 from app.control.queue_client.redis_client import QueueControlRedisClient
 from app.control.supervisor import QueueSupervisor
+from app.config.settings import Settings
+from app.core.scheduler.account_session import (
+    AccountSessionSettings,
+    create_account_session_manager,
+)
 
 
 class QueueControlClient:
@@ -24,6 +29,8 @@ class QueueControlClient:
         self.redis_client = redis_client or QueueControlRedisClient(settings.redis_url)
         self._stop_event = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
+        self._account_session_manager = None
+        self._account_session_coordinator = None
         self.supervisor = QueueSupervisor(
             [],
             project_root=settings.project_root,
@@ -35,6 +42,7 @@ class QueueControlClient:
 
     # 启动本机监管器、发送初始心跳，并进入 Redis 命令消费循环。
     def run_forever(self) -> None:
+        self._start_account_session_coordinator()
         self.supervisor.start()
         self._publish_heartbeat()
         self._heartbeat_thread = threading.Thread(
@@ -59,6 +67,23 @@ class QueueControlClient:
             return
         self._stop_event.set()
         self.supervisor.stop()
+        if self._account_session_manager is not None:
+            try:
+                self._account_session_coordinator.close()
+            finally:
+                self._account_session_manager.shutdown()
+                self._account_session_manager = None
+                self._account_session_coordinator = None
+
+    def _start_account_session_coordinator(self) -> None:
+        if self._account_session_manager is not None:
+            return
+        manager, coordinator = create_account_session_manager(
+            AccountSessionSettings.from_app_settings(Settings.from_env())
+        )
+        self._account_session_manager = manager
+        self._account_session_coordinator = coordinator
+        self.supervisor.set_account_session_coordinator(coordinator)
 
     # 处理一条控制命令，回传结果后再确认 Redis Stream 消息。
     def _handle_message(self, message_id: str, command: dict[str, Any]) -> None:
