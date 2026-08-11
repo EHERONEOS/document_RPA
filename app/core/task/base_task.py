@@ -209,7 +209,7 @@ class BaseRpaTask:
         raise LoginError("子类必须实现 login 方法")
 
     def claim_credential_login(self) -> bool:
-        """Allow only one task for an account to submit credentials at a time."""
+        """同一账号同一时间只允许一个任务提交登录凭证。"""
         if not self.browser_lease or self.account_session_coordinator is None:
             return True
         result = self.account_session_coordinator.claim_credential_login(

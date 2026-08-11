@@ -28,6 +28,7 @@ class ZimSiTask(ZimBaseTask):
     def execute_business(self):
         """执行业务流程。"""
         bo_row = self.query_booking(self.content.get("blNo"))
+        raise BusinessError(f"测试异常")
         # self.mark_field_done("blNo")
         detail_url = (
             "https://cis.zim-logistics.com.cn/Ebooking/BookEdit/Hbl_Comfirm"

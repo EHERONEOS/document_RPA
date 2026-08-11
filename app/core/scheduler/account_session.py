@@ -1,4 +1,4 @@
-"""Coordinate per-account browser slots shared by queue Worker processes."""
+"""协调由队列 Worker 进程共享的各账号浏览器槽位。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from app.core.logging.logger import log
 
 @dataclass(frozen=True)
 class AccountSessionSettings:
-    """Settings required by the device-wide account session coordinator."""
+    """设备级账号会话协调器所需的配置。"""
 
     browser_user_data_dir: str
     browser_port_start: int
@@ -41,11 +41,10 @@ class AccountSessionSettings:
 
 
 class AccountSessionCoordinator:
-    """Own browser slot, login-gate and port state for one device.
+    """维护单台设备的浏览器槽位、登录闸门和端口状态。
 
-    Queue Workers run the actual RPA task. This object only grants one of the
-    account's three browser slots and is hosted by a multiprocessing manager so
-    independently spawned queue Workers use the same state.
+    队列 Worker 负责实际执行 RPA 任务。该对象只负责分配账号的三个浏览器
+    槽位之一，并由多进程管理器托管，使独立启动的队列 Worker 共享同一份状态。
     """
 
     def __init__(self, settings: AccountSessionSettings):
@@ -73,7 +72,7 @@ class AccountSessionCoordinator:
         primary_profile_name: str,
         owner_pid: int | None = None,
     ) -> dict[str, Any]:
-        """Block until this account can run a task in a dedicated browser slot."""
+        """阻塞等待，直到该账号获得可执行任务的专用浏览器槽位。"""
         with self._condition:
             pool = self._pools.get(account_key)
             if pool is None:
@@ -90,7 +89,7 @@ class AccountSessionCoordinator:
                 self._condition.wait(timeout=0.5)
 
     def release_slot(self, account_key: str, lease_id: str) -> None:
-        """Release a completed task's browser slot for the next waiting message."""
+        """释放已完成任务的浏览器槽位，供下一个等待的消息使用。"""
         with self._condition:
             pool = self._pools.get(account_key)
             if pool is None:
@@ -103,7 +102,7 @@ class AccountSessionCoordinator:
             self._condition.notify_all()
 
     def release_worker_slots(self, owner_pid: int | None) -> int:
-        """Release leases left behind by a crashed or force-stopped Worker."""
+        """释放崩溃或被强制停止的 Worker 遗留的租约。"""
         if owner_pid is None:
             return 0
         released = 0
@@ -119,11 +118,10 @@ class AccountSessionCoordinator:
         return released
 
     def login_finished(self, account_key: str, lease_id: str, success: bool) -> None:
-        """Report the completion of BaseRpaTask.login().
+        """上报 BaseRpaTask.login() 的完成结果。
 
-        A successful bootstrap opens the account's two temporary slots. A
-        failed login leaves the pool closed until exactly one later task is
-        elected as the next primary login leader.
+        引导登录成功后会开放该账号的两个临时槽位。登录失败时，槽位池保持
+        关闭，直到后续恰有一个任务被选举为下一任主登录任务。
         """
         with self._condition:
             pool = self._pools.get(account_key)
@@ -153,10 +151,10 @@ class AccountSessionCoordinator:
         lease_id: str,
         known_login_generation: int,
     ) -> dict[str, Any]:
-        """Elect one task to submit credentials after a cached session misses.
+        """在缓存会话失效后选举一个任务提交凭据。
 
-        A waiter observing a newer successful login is told to reload cookies
-        instead of submitting the account credentials a second time.
+        观察到更高版本登录成功结果的等待任务会被要求重新加载 Cookie，而
+        不会再次提交账号凭据。
         """
         with self._condition:
             pool = self._pools.get(account_key)
@@ -179,7 +177,7 @@ class AccountSessionCoordinator:
                 self._condition.wait(timeout=0.5)
 
     def register_browser_started(self, account_key: str, lease_id: str, pid: int | None) -> None:
-        """Remember the browser PID so the idle reaper can close temp slots."""
+        """记录浏览器 PID，以便空闲回收器关闭临时槽位。"""
         if pid is None:
             return
         with self._condition:
@@ -191,7 +189,7 @@ class AccountSessionCoordinator:
                 slot["pid"] = int(pid)
 
     def snapshot(self) -> dict[str, Any]:
-        """Return serializable state for diagnostics and tests."""
+        """返回用于诊断和测试的可序列化状态。"""
         with self._condition:
             return {
                 account_key: {
@@ -212,7 +210,7 @@ class AccountSessionCoordinator:
             }
 
     def close(self) -> None:
-        """Stop the reaper and discard temporary browsers owned by this Agent."""
+        """停止回收器并清理当前 Agent 所属的临时浏览器。"""
         if self._stop_event.is_set():
             return
         self._stop_event.set()
@@ -264,8 +262,8 @@ class AccountSessionCoordinator:
                 owner_pid=owner_pid,
             )
 
-        # The first message, and each retry after a failed login, must use the
-        # maintained primary browser. This keeps credential submits serialized.
+        # 第一条消息及每次登录失败后的重试都必须使用长期维护的主浏览器，
+        # 以串行化凭据提交操作。
         primary = pool["slots"][0]
         if primary["busy"]:
             return None
@@ -328,7 +326,7 @@ class AccountSessionCoordinator:
     @staticmethod
     def _release_slot_locked(pool: dict[str, Any], slot: dict[str, Any], lease_id: str) -> None:
         if pool["login_state"] == "BOOTSTRAPPING" and pool["bootstrap_lease_id"] == lease_id:
-            # Browser startup can fail before BaseRpaTask reaches login().
+            # 浏览器可能在执行登录前启动失败。
             pool["login_state"] = "FAILED"
             pool["bootstrap_lease_id"] = None
         if pool["credential_login_lease_id"] == lease_id:
@@ -368,7 +366,7 @@ class AccountSessionCoordinator:
             self.reap_expired_slots()
 
     def reap_expired_slots(self) -> int:
-        """Close idle temporary slots after the configured account quiet period."""
+        """账号达到配置的空闲时间后关闭闲置的临时槽位。"""
         now = time.monotonic()
         with self._condition:
             cleanup = []
@@ -425,14 +423,14 @@ class AccountSessionCoordinator:
 
 
 class AccountSessionManager(BaseManager):
-    """Manager host used to share a coordinator with spawned Queue Workers."""
+    """用于向已创建的队列 Worker 共享协调器的管理器宿主。"""
 
 
 AccountSessionManager.register("AccountSessionCoordinator", AccountSessionCoordinator)
 
 
 def create_account_session_manager(settings: AccountSessionSettings):
-    """Start the device-local manager and return it with its coordinator proxy."""
+    """启动设备本地管理器，并返回管理器及其协调器代理。"""
     manager = AccountSessionManager()
     manager.start()
     return manager, manager.AccountSessionCoordinator(settings)

@@ -88,8 +88,8 @@ class ZimBaseTask(BaseRpaTask):
             self.logger.info("已登录")
             return
         while not self.claim_credential_login():
-            # Another task refreshed this account after this browser first read
-            # Redis. Reload the newer cookies before deciding to submit again.
+            # 当前浏览器首次读取 Redis 后，可能已有其他任务刷新了该账号的登录状态。
+            # 决定是否再次提交登录信息前，先重新加载最新的 Cookie。
             self.set_page_cookies(self.cookies_redis_key)
             self.page.get(self.index_url, show_errmsg=True)
             time.sleep(2)

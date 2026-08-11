@@ -24,4 +24,4 @@ class RedisClient:
         return self.db_redis_client.get(name=key)
     
     def delete_redis_key(self, key):
-        self.db_redis_client.delete(name=key)
+        self.db_redis_client.delete(key)
