@@ -1,4 +1,5 @@
-from app.spider.ZIM.flows.qtct_zim import qtct_zim_si, qtct_zim_vgm
+from app.spider.ZIM.tasks.qtct_zim_si import qtct_zim_si
+from app.spider.ZIM.tasks.qtct_zim_vgm import qtct_zim_vgm
 from app.core.task.context import TaskContext
 from app.core.task.errors import RouteNotFoundError
 from app.core.task.router import CarrierRoute

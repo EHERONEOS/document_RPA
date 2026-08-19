@@ -40,7 +40,6 @@ def resolve_queue_route(queue_name: str) -> QueueRoute:
         raise RouteNotFoundError("队列名不能为空")
 
     import app.spider
-
     matches: list[QueueRoute] = []
     for carrier_package in iter_modules(app.spider.__path__):
         if not carrier_package.ispkg:

@@ -86,7 +86,7 @@ class DomHelper:
         self.page.run_js("arguments[0].blur();", element)
         return True
 
-    def search_select(self, locator, value,child_locator, name=None, required=True, timeout=2):
+    def search_select(self, locator, value, child_locator, name=None, required=True, timeout=2):
         """搜索并选择"""
         name = name or locator
         element = self._find(locator, name, required, timeout)

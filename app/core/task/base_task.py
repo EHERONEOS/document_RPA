@@ -1,6 +1,9 @@
 import json
 import platform
 
+from DrissionPage._elements.none_element import NoneElement
+from DrissionPage._pages.chromium_base import ChromiumBase 
+
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
@@ -14,55 +17,56 @@ from app.core.task.errors import ResultPublishError, UnfilledFieldError
 from app.core.task.result import TaskResult
 from app.core.task.context import TaskContext
 from app.core.logging.logger import Logger
+from app.core.browser.manager import BrowserManager
+
 
 
 class BaseRpaTask:
     """RPA 任务生命周期基类。"""
 
-    enable_record = False
-    incognito = False
-    wait_page_load = False
-    fail_on_unfilled_fields = False
-    booking_no = ""
-    ignored_unfilled_fields=[]# 忽略的未填字段列表
+    enable_record = False #是否开启录屏
+    incognito = False #是否开启无痕模式
+    wait_page_load = False #是否等待页面加载完成
+    # booking_no = ""
+    ignored_unfilled_fields=["carrier","isUserSave","blNo","jobNo"]# 忽略的未填字段列表
     attachments = [] #草稿件
     REDIS_MAIN= 15 # redis 索引(默认15)
 
+    page: ChromiumBase = None # 页面实例
+
+
+
     def __init__(
         self,
-        context,
-        *,
-        browser_manager=None,
-        notifier=None,
-        publisher=None,
-        oss_client=None,
+        context
     ):
         self.context = context or TaskContext()
+        self.job_no = context.content.get("jobNo") or context.content.get("blNo") or ""
+        self.website_info = self.context.website_info # 账号信息
         self.page = None
-        self.dom = None
-        self.http = None
         self.screenshot = None
         self.recorder = None
+        self.dom = None
+        self.http = None
+        
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
-        self.attachments = []
         self.logger = Logger()
+        self.notifier = ProcessingNotifier() #通知消息实例
+        self.publisher = ResultPublisher() #发布消息实例
+        self.oss_client =  OssClient() #oss客户端实例
+        self.util_redis = RedisClient(self.REDIS_MAIN) # 配置redis客户端实例
+
+
         self.browser_lease = getattr(self.context, "browser_lease", None)
         self.account_session_coordinator = getattr(
             self.context, "account_session_coordinator", None
         )
-        if browser_manager is None:
-            from app.core.browser.manager import BrowserManager
 
-            self.browser_manager = BrowserManager(
-                browser_lease=self.browser_lease,
-                account_session_coordinator=self.account_session_coordinator,
-            )
-        else:
-            self.browser_manager = browser_manager
-        self.notifier = notifier or ProcessingNotifier()
-        self.publisher = publisher or ResultPublisher()
-        self.oss_client = oss_client or OssClient()
-        self.util_redis = RedisClient(self.REDIS_MAIN) # 配置cookieredis
+        self.browser_manager = BrowserManager(
+            browser_lease=self.browser_lease,
+            account_session_coordinator=self.account_session_coordinator,
+        )
+        
 
 
     def run(self):
@@ -72,22 +76,29 @@ class BaseRpaTask:
         screenshot_img = ""
         remark = ""
         try:
+            # 任务开始通知消息
             if self.context.enable_notify:
                 self.notifier.notify_processing(self.context)
-
-
-
+            # 获取浏览器端口并获取初始化页面
             self.page = self.browser_manager.start(self.context, self)
+            # 初始化dom助手
             self.dom = DomHelper(self.page)
+            # 初始化http助手
             self.http = HttpHelper(self.page)
+            # 初始化截图助手
             self.screenshot = Screenshot(self.page)
+            # 执行登录 登录完成后释放登录锁
             login_success = False
             try:
                 self.login()
                 login_success = True
             finally:
+                # 通知登录完成放开登录锁
                 self._notify_login_finished(login_success)
+
+            # 开启录屏
             self._try_start_recording()
+            # 执行业务逻辑
             self.execute_business()
             self.logger.info(f"任务执行成功 queue={self.context.queue_name}")
             success = True
@@ -97,14 +108,18 @@ class BaseRpaTask:
             success = False
             code = getattr(exc, "code", 500)
             remark = str(exc)
+            # 上传错误截图
             if self.context.enable_result_publish:
                 screenshot_img = self._upload_error_screenshot()
         finally:
+            # 收集录屏文件
             execute_record_files = self._collect_record_files()
             attachments = None
             if self.context.enable_result_publish:
+                # 上传草稿件
                 if success or len(self.attachments) > 0:
                     attachments = self._get_attachments_safely()
+                # 发送任务结束结果
                 result = TaskResult(
                     task_id=self.context.task_id or "",
                     success=success,
@@ -177,8 +192,8 @@ class BaseRpaTask:
 
         try:
             file_path = self.screenshot.page_shot(
-                self.booking_no,
-                getattr(self, "carrier_code", ""),
+                self.job_no,
+                getattr(self, "job_type", ""),
                 error=True,
             )
             file_info = self.oss_client.oss_upload(file_path)
@@ -254,53 +269,6 @@ class BaseRpaTask:
             raise UnfilledFieldError(f"{stage}存在漏填字段：{unfilled_fields}")
         return unfilled_fields
 
-
-
-    def _fill_or_select_if_present(self, field_type, locator, field_name, source=None, o_selector=None, frame=None, timeout=2, name=None):
-        """按字段类型填写。"""
-        source = self.content if source is None else source
-        source = source or {}
-        value = source.get(field_name, "")
-        frame = frame or self.dom
-        if value in (None, ""):
-            return
-        if field_type == "input":
-            frame.input_text(locator, value, name=name, timeout=timeout)
-        elif field_type == "select":
-            frame.select(locator, value, name=name, timeout=timeout)
-        elif field_type == "s_select":
-            frame.search_select(locator, value, o_selector, name=name, timeout=timeout)
-        else:
-            raise ElementNotFoundError(f"不支持的字段类型：{field_type}")
-        # self.mark_field_done(field_name,source)
-
-
-
-    def verify_from_value(self, field_type, locator, field_name, source=None, frame=None, null_check=False, name=None, partial_match=False):
-        """校验单个字段值。"""
-        source = self.remain_content if source is None else source
-        source = source or {}
-        source_value = source.get(field_name, "")
-        if not source_value and null_check:
-            self.mark_field_done(field_name,source)
-            return
-        frame = frame or self.dom
-        if field_type == "input":
-            field_value = frame.get_value(locator, name=name)
-        elif field_type == "select":
-            field_value = frame.get_select_value(locator, name=name)
-        elif field_type == "s_select":
-            field_value = frame.get_value(locator, name=name)
-        value_matched = field_value == source_value
-        if partial_match:
-            field_value_str = str(field_value)
-            source_value_str = str(source_value)
-            value_matched = value_matched or source_value_str in field_value_str or field_value_str in source_value_str
-        if not value_matched:
-            raise FormValidationError(
-                f"{name or locator} 值不匹配：输入值 {field_value} != 期望值 {source_value}"
-            )
-        self.mark_field_done(field_name,source)
 
 
     def get_attachments(self):

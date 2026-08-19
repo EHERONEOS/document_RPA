@@ -25,11 +25,19 @@ class HttpHelper:
             if trigger is not None:
                 trigger()
             packet = listener.wait(timeout=timeout)
+            # print(packet.request.postData)
             if packet is False:
                 raise ElementNotFoundError(f"监听接口超时：{url}")
             
             log(f"监听到接口响应：{packet.url}")
-            return None if packet.is_failed else packet.response.body
+            if packet.is_failed:
+                raise ElementNotFoundError(f"监听接口失败：{packet.url}")
+            else:
+                return {
+                    "response":packet.response.body,
+                    "postData":packet.request.postData,
+                    "params":packet.request.params,
+                }           
         except RuntimeError as e:
             if required:
                 raise ElementNotFoundError(e)
