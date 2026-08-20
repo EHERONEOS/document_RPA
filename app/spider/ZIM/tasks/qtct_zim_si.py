@@ -33,23 +33,23 @@ class QtctZimSiTask(CarrierBase):
         )
         self.page.get(detail_url,show_errmsg=True)
         time.sleep(3)
-        # self.fill_base_fields()
-        # self.fill_containers()
-        # self.verify_from()
-        # self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
-        save_res =  self.http.wait_api_finished(
-            selectors.SAVE_SI_API,
-            trigger=lambda: self.dom.click(*selectors.SI_SAVE_BTN),
-            timeout=5,
-            required=False,
-        )
-        if not save_res:
-            err_tip = self.dom.get_text(*selectors.ERR_TIP_INFO,required=False, timeout=2) #查看提示文本if err_tip:
-            raise BusinessError(f"ZIM SI 填单失败，官网提示：{err_tip}" if err_tip else "ZIM SI 填单失败")
-        # postData = format_post_data(save_res.get("postData",""))
-        self.logger.info(f"ZIM SI 保存成功")
-        file_path = self.screenshot.page_shot(self.job_no,self.job_type,error=False)
-        self.attachments.append(file_path)
+        self.fill_base_fields()
+        self.fill_containers()
+        self.verify_from()
+        self.raise_if_unfilled_fields(stage="ZIM SI 填单流程")
+        # save_res =  self.http.wait_api_finished(
+        #     selectors.SAVE_SI_API,
+        #     trigger=lambda: self.dom.click(*selectors.SI_SAVE_BTN),
+        #     timeout=5,
+        #     required=False,
+        # )
+        # if not save_res:
+        #     err_tip = self.dom.get_text(*selectors.ERR_TIP_INFO,required=False, timeout=2) #查看提示文本if err_tip:
+        #     raise BusinessError(f"ZIM SI 填单失败，官网提示：{err_tip}" if err_tip else "ZIM SI 填单失败")
+        # # postData = format_post_data(save_res.get("postData",""))
+        # self.logger.info(f"ZIM SI 保存成功")
+        # file_path = self.screenshot.page_shot(self.job_no,self.job_type,error=False)
+        # self.attachments.append(file_path)
         pass
     
     def fill_base_fields(self):

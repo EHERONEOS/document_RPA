@@ -19,9 +19,10 @@ class CarrierBase(BaseRpaTask):
     index_url = "https://cis.zim-logistics.com.cn/" # 首页地址
     siteKey = "87004f4a-40ba-4b16-ad22-a8d034b6c6b8"  # 站点可以用于验证码解析使用
 
-    # def __init__(self):
-    #     super()
-    #     pass
+    def __init__(self, context: TaskContext):
+        super().__init__(context)
+        self.cookies_redis_key = f"cookies:{self.carrier_code}_{self.website_info.get('websiteAccount')}"
+        pass
         
 
     def login(self):
@@ -32,6 +33,27 @@ class CarrierBase(BaseRpaTask):
         if self.is_login():
             self.logger.info("已登录")
             return
+            
+        self.set_page_cookies(self.cookies_redis_key)
+        self.page.get(self.index_url ,show_errmsg=True)
+        time.sleep(2)
+        if self.is_login():
+            self.logger.info("已登录")
+            return
+
+        while not self.claim_credential_login():
+            # 当前浏览器首次读取 Redis 后，可能已有其他任务刷新了该账号的登录状态。
+            # 决定是否再次提交登录信息前，先重新加载最新的 Cookie。
+            self.set_page_cookies(self.cookies_redis_key)
+            self.page.get(self.index_url, show_errmsg=True)
+            time.sleep(2)
+            if self.is_login():
+                self.logger.info("已复用其他任务刷新后的登录信息")
+                return
+        self.logger.info("登录信息失效,开始登录")
+        self.logger.info("开始获取验证码")
+
+
         recapture_token = get_ym_hcaptcha_code(self.siteKey,self.login_url)
         self.page.change_mode(mode="s",copy_cookies=True)
         payload = {
@@ -72,7 +94,7 @@ class CarrierBase(BaseRpaTask):
     def is_login(self):
         """判断是否登录"""
         if self.login_url not in self.page.url:
-            # self.save_cookies(self.cookies_redis_key)
+            self.save_cookies(self.cookies_redis_key)
             return True
         return False
 
