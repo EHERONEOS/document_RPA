@@ -1,7 +1,7 @@
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.context import TaskContext
-from app.spider.common.login import LoginMixin
-from app.spider.common.booking import query_booking as _query_booking
+from app.spider.ZIM.common.login import LoginMixin
+from app.spider.ZIM.common.booking import query_booking as _query_booking
 
 
 class CarrierBase(LoginMixin, BaseRpaTask):

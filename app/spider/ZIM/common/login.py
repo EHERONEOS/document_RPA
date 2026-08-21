@@ -1,8 +1,12 @@
 import time
+from typing import TYPE_CHECKING
 
 from app.core.integrations.captcha import get_ym_hcaptcha_code
 from app.core.task.errors import BusinessError, LoginError
 from app.spider.ZIM import selectors
+
+if TYPE_CHECKING:
+    from app.spider.ZIM.base import CarrierBase
 
 
 class LoginMixin:
@@ -18,7 +22,7 @@ class LoginMixin:
     - self.set_page_cookies() / self.save_cookies()
     """
 
-    def login(self):
+    def login(self: "CarrierBase") -> None:
         """执行 ZIM 登录。"""
         self.page.get(self.index_url, show_errmsg=True)
         # self.sys_exception_refresh()
@@ -69,7 +73,7 @@ class LoginMixin:
         if not self.is_login():
             raise LoginError("登录失败")
 
-    def sys_exception_refresh(self):
+    def sys_exception_refresh(self: "CarrierBase") -> None:
         """系统异常刷新页面"""
         for _ in range(3):
             sys_exception_p = self.dom._find(*selectors.SYS_EXCEPTION_P, required=False)
@@ -80,7 +84,7 @@ class LoginMixin:
             time.sleep(4)
         raise BusinessError("系统异常，刷新3次后仍未恢复")
 
-    def is_login(self):
+    def is_login(self: "CarrierBase") -> bool:
         """判断是否登录"""
         if self.login_url not in self.page.url:
             self.save_cookies(self.cookies_redis_key)

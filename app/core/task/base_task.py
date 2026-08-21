@@ -7,7 +7,7 @@ from DrissionPage._pages.chromium_base import ChromiumBase
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
 from app.core.integrations.publisher import ResultPublisher
-from app.core.integrations.redis_client import RedisClient
+from app.core.integrations.redis_client import get_redis_db_client
 from app.core.page.recorder import Recorder
 from app.core.page.http import HttpHelper
 from app.core.page.dom import DomHelper
@@ -27,10 +27,11 @@ class BaseRpaTask:
     enable_record = False #是否开启录屏
     incognito = False #是否开启无痕模式
     wait_page_load = False #是否等待页面加载完成
+    use_proxy = False #是否使用代理
     # booking_no = ""
-    ignored_unfilled_fields=["carrier","isUserSave","blNo","jobNo"]# 忽略的未填字段列表
-    attachments = [] #草稿件
+    ignored_unfilled_fields = ["carrier", "isUserSave", "blNo", "jobNo"] # 忽略的未填字段列表
     REDIS_MAIN= 15 # redis 索引(默认15)
+    REDIS_HEART_BEAT = 8
 
     page: ChromiumBase = None # 页面实例
 
@@ -38,31 +39,41 @@ class BaseRpaTask:
 
     def __init__(
         self,
-        context
+        context,
+        *,
+        browser_manager=None,
+        notifier=None,
+        publisher=None,
+        oss_client=None,
     ):
         self.context = context or TaskContext()
-        self.job_no = context.content.get("jobNo") or context.content.get("blNo") or ""
+        self.job_no = self.context.content.get("jobNo") or self.context.content.get("blNo") or ""
         self.website_info = self.context.website_info # 账号信息
+        self.remain_content = self.context.remain_content
         self.page = None
         self.screenshot = None
         self.recorder = None
         self.dom = None
         self.http = None
+        # 这些集合必须是实例属性，避免复用 Worker 时串到下一条消息。
+        self.attachments = []
+        self.business_record_files = []
+        self.result_save_type = 1
         
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
         self.logger = Logger()
-        self.notifier = ProcessingNotifier() #通知消息实例
-        self.publisher = ResultPublisher() #发布消息实例
-        self.oss_client =  OssClient() #oss客户端实例
-        self.util_redis = RedisClient(self.REDIS_MAIN) # 配置redis客户端实例
-
+        self.notifier = notifier or ProcessingNotifier() #通知消息实例
+        self.publisher = publisher or ResultPublisher() #发布消息实例
+        self.oss_client = oss_client or OssClient() #oss客户端实例
+        self.util_redis = get_redis_db_client(self.REDIS_MAIN) # 配置cookies redis客户端实例
+        self.redis_client = get_redis_db_client(self.REDIS_HEART_BEAT) # 配置proxy redis客户端实例
 
         self.browser_lease = getattr(self.context, "browser_lease", None)
         self.account_session_coordinator = getattr(
             self.context, "account_session_coordinator", None
         )
 
-        self.browser_manager = BrowserManager(
+        self.browser_manager = browser_manager or BrowserManager(
             browser_lease=self.browser_lease,
             account_session_coordinator=self.account_session_coordinator,
         )
@@ -118,13 +129,14 @@ class BaseRpaTask:
             if self.context.enable_result_publish:
                 # 上传草稿件
                 if success or len(self.attachments) > 0:
-                    attachments = self._get_attachments_safely()
+                    attachments = self._get_attachments_safely(execute_record_files)
                 # 发送任务结束结果
                 result = TaskResult(
                     task_id=self.context.task_id or "",
                     success=success,
                     code=code,
                     rpaMessageId=self.context.rpa_message_id,
+                    saveType=self.get_result_save_type(),
                     img=screenshot_img or "",
                     executeRecordFiles=execute_record_files,
                     remark=remark,
@@ -156,26 +168,65 @@ class BaseRpaTask:
             self.logger.error(f"录屏启动失败，继续执行业务：{exc}")
 
     def _collect_record_files(self):
-        """尽力停止、上传录屏，不影响业务结果回传。"""
+        """汇总业务截图和录屏，单个文件上传失败不影响任务回传。"""
+        record_files = self._collect_business_record_files()
         if self.recorder is None:
-            return []
+            return record_files
         try:
             record_file_path = self.recorder.stop()
             if record_file_path is None:
-                return []
+                return record_files
             file_info = self._upload_execute_video(record_file_path)
             if not isinstance(file_info, dict) or not file_info.get("objectName"):
-                return []
-            return [{
+                return record_files
+            record_files.append({
                 "type": "SCREEN_RECORDING_FILE",
                 "files": [{
                     "fileObjectName": file_info["objectName"],
                     "fileName": file_info.get("filename") or record_file_path.name,
                 }],
-            }]
+            })
+            return record_files
         except Exception as exc:
             self.logger.error(f"录屏停止或上传失败，继续回传业务结果：{exc}")
-            return []
+            return record_files
+
+    def add_business_record_file(self, record_type, file_path):
+        """登记业务过程文件，任务结束时统一上传并写入执行记录。"""
+        self.business_record_files.append((record_type, file_path))
+
+    def capture_business_screenshot(self, record_type, suffix):
+        """截取业务过程页面并登记为指定类型的执行记录文件。"""
+        if not self.context.enable_result_publish:
+            return None
+        file_path = self.screenshot.page_shot(
+            self.job_no,
+            f"{getattr(self, 'job_type', '')}_{suffix}",
+            error=False,
+        )
+        self.add_business_record_file(record_type, file_path)
+        return file_path
+
+    def _collect_business_record_files(self):
+        """按记录类型上传业务过程文件，保持结果协议的 files 分组结构。"""
+        grouped_files = {}
+        for record_type, file_path in self.business_record_files:
+            try:
+                file_info = self.oss_client.oss_upload(file_path)
+            except Exception as exc:
+                self.logger.error(f"上传业务过程文件失败 type={record_type} error={exc}")
+                continue
+            if not isinstance(file_info, dict) or not file_info.get("objectName"):
+                continue
+            grouped_files.setdefault(record_type, []).append({
+                "fileObjectName": file_info["objectName"],
+                "fileName": file_info.get("filename") or str(file_path),
+            })
+        return [
+            {"type": record_type, "files": files}
+            for record_type, files in grouped_files.items()
+            if files
+        ]
 
     def _upload_execute_video(self, record_file_path):
         try:
@@ -202,13 +253,17 @@ class BaseRpaTask:
             self.logger.error(f"失败截图或 OSS 上传失败：{exc}")
             return ""
 
-    def _get_attachments_safely(self):
-        """尽力上传附件，不让附件上传错误覆盖任务执行结果。"""
+    def _get_attachments_safely(self, execute_record_files):
+        """尽力生成附件，不让附件上传错误覆盖任务执行结果。"""
         try:
-            return self.get_attachments()
+            return self.get_result_attachments(execute_record_files)
         except Exception as exc:
             self.logger.error(f"任务附件上传失败：{exc}")
             return None
+
+    def get_result_save_type(self):
+        """返回任务结果的保存类型，子类可在业务完成后按客户策略覆盖。"""
+        return self.result_save_type
 
     def should_record(self):
         """仅在 Windows 上按业务开关录制并回传视频。"""
@@ -271,8 +326,12 @@ class BaseRpaTask:
 
 
 
+    def get_result_attachments(self, execute_record_files):
+        """生成回传附件，子类可利用已上传的执行记录构造业务草稿件。"""
+        return self.get_attachments()
+
     def get_attachments(self):
-        """发送草稿件。"""
+        """上传本地草稿件并转换为结果附件格式。"""
         attachments = []
         for attachment in self.attachments:
             file_info = self.oss_client.oss_upload(attachment)
@@ -289,11 +348,11 @@ class BaseRpaTask:
     def save_cookies(self, cookies_redis_key):
         """保存浏览器 cookies。"""
         cookies = self.page.cookies()
-        self.util_redis.set_redis_key(cookies_redis_key, json.dumps(cookies, ensure_ascii=False))
+        self.util_redis.set(cookies_redis_key, json.dumps(cookies, ensure_ascii=False))
 
     def set_page_cookies(self, cookies_redis_key):
         """设置浏览器 cookies。"""
-        cookies_str = self.util_redis.get_redis_key(cookies_redis_key)
+        cookies_str = self.util_redis.get(cookies_redis_key)
         if not cookies_str:
             return
         cookies = json.loads(cookies_str)

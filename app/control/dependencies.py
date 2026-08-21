@@ -62,18 +62,9 @@ def queue_manifest(queue_name: str, project_root: Path) -> dict[str, str]:
 
     if carrier:
         carrier_root = project_root / "app" / "spider" / carrier
-        router = carrier_root / "router.py"
-        if router.is_file():
-            files.add(router)
-        _add_python_files(files, carrier_root / "common")
-
-        flow = carrier_root / "flows" / f"{customer.lower()}_{carrier.lower()}.py"
-        if flow.is_file():
-            files.add(flow)
-
-        task = carrier_root / "tasks" / f"{carrier.lower()}_{business.lower()}.py"
-        if task.is_file():
-            files.add(task)
+        # 船司内任务文件以客户、船司、业务等多种方式命名，递归跟踪可避免漏掉
+        # selectors、base 或客户级 task 更新后仍继续运行旧 Worker 的问题。
+        _add_python_files(files, carrier_root)
 
     return {
         str(path.relative_to(project_root)): file_digest(path)

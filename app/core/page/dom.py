@@ -2,6 +2,7 @@ import time
 
 from app.core.logging.logger import log
 from app.core.task.errors import ElementNotFoundError
+from DrissionPage.errors import CanNotClickError, NoRectError
 from DrissionPage._elements.none_element import NoneElement
 from DrissionPage._pages.chromium_base import ChromiumBase
 
@@ -35,6 +36,53 @@ class DomHelper:
         log(f"点击{name}")
         element.click()
         return True
+
+    def click_if_clickable(self, locator, name=None, timeout=2):
+        """仅在元素存在且可点击时点击，否则返回 False。"""
+        name = name or locator
+        element = self._find(locator, name, required=False, timeout=timeout)
+        if not element or not element.states.is_clickable:
+            return False
+        try:
+            log(f"点击{name}")
+            element.click()
+        except (CanNotClickError, NoRectError):
+            return False
+        return True
+
+    def count_clickable(self, locator, timeout=2):
+        """返回定位器匹配且当前处于可点击状态的元素数量。"""
+        return sum(element.states.is_clickable for element in self.page.eles(locator, timeout=timeout))
+
+    def click_first_clickable(self, locator, name=None, required=True, timeout=2):
+        """点击第一个可点击元素，跳过隐藏或失去尺寸的同类元素。"""
+        name = name or locator
+        for element in self.page.eles(locator, timeout=timeout):
+            if not element.states.is_clickable:
+                continue
+            try:
+                log(f"点击{name}")
+                element.click()
+                return True
+            except (CanNotClickError, NoRectError):
+                continue
+        if required:
+            raise ElementNotFoundError(f"{name}可点击元素不存在：{locator}")
+        return False
+
+    def search_select_element(self, element, value, option_locator, option_text, name=None, timeout=2):
+        """在已定位的可搜索下拉框中输入筛选值并选择精确匹配的候选项。"""
+        name = name or option_text
+        log(f"输入{name}")
+        element.click()
+        element.input(value, clear=True)
+        time.sleep(0.5)
+        for option in self.page.eles(option_locator, timeout=timeout):
+            if (option.text or "").strip() == option_text:
+                log(f"选择{name}")
+                option.click()
+                return True
+        raise ElementNotFoundError(f"{name}选项不存在：{option_text}")
 
     def click_all(self, locator, name=None, required=True, timeout=2):
         """点击所有匹配元素。"""

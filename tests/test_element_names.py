@@ -43,6 +43,81 @@ class ElementNameTests(unittest.TestCase):
 
         log.assert_called_once_with("点击搜索按钮")
 
+    def test_click_if_clickable_skips_element_without_clickable_state(self):
+        page = Mock()
+        element = Mock()
+        element.states.is_clickable = False
+        page.ele.return_value = element
+
+        with patch("app.core.page.dom.log") as log:
+            result = DomHelper(page).click_if_clickable("#cookie", name="Cookie 同意按钮")
+
+        self.assertFalse(result)
+        element.click.assert_not_called()
+        log.assert_not_called()
+
+    def test_click_if_clickable_clicks_available_element(self):
+        page = Mock()
+        element = Mock()
+        element.states.is_clickable = True
+        page.ele.return_value = element
+
+        with patch("app.core.page.dom.log") as log:
+            result = DomHelper(page).click_if_clickable("#cookie", name="Cookie 同意按钮")
+
+        self.assertTrue(result)
+        element.click.assert_called_once_with()
+        log.assert_called_once_with("点击Cookie 同意按钮")
+
+    def test_count_clickable_ignores_hidden_elements(self):
+        page = Mock()
+        hidden_element = Mock()
+        hidden_element.states.is_clickable = False
+        visible_element = Mock()
+        visible_element.states.is_clickable = True
+        page.eles.return_value = [hidden_element, visible_element]
+
+        result = DomHelper(page).count_clickable("//*[text()='Delete']")
+
+        self.assertEqual(result, 1)
+
+    def test_click_first_clickable_skips_hidden_element(self):
+        page = Mock()
+        hidden_element = Mock()
+        hidden_element.states.is_clickable = False
+        visible_element = Mock()
+        visible_element.states.is_clickable = True
+        page.eles.return_value = [hidden_element, visible_element]
+
+        result = DomHelper(page).click_first_clickable("//*[text()='Delete']", name="删除集装箱")
+
+        self.assertTrue(result)
+        hidden_element.click.assert_not_called()
+        visible_element.click.assert_called_once_with()
+
+    def test_search_select_element_selects_exact_option(self):
+        page = Mock()
+        element = Mock()
+        wrong_option = Mock()
+        wrong_option.text = "UN | UNSPECIFIED"
+        expected_option = Mock()
+        expected_option.text = "UN | UNPACKED"
+        page.eles.return_value = [wrong_option, expected_option]
+
+        with patch("app.core.page.dom.time.sleep"):
+            result = DomHelper(page).search_select_element(
+                element,
+                "UN",
+                ".option",
+                "UN | UNPACKED",
+                "包装单位",
+            )
+
+        self.assertTrue(result)
+        element.input.assert_called_once_with("UN", clear=True)
+        wrong_option.click.assert_not_called()
+        expected_option.click.assert_called_once_with()
+
     def test_validation_error_uses_configured_name(self):
         task = object.__new__(BaseRpaTask)
         task.remain_content = {"shipperTitle": "ACME"}

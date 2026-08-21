@@ -13,7 +13,7 @@ class TaskResult:
     code: int | None = None
     executeRecordFiles: list[dict] = field(default_factory=list)
     remark: str = ""
-    attachments: str = ""
+    attachments: list[dict[str, Any]] | None = None
     content: str = ""
 
     def to_payload(self):

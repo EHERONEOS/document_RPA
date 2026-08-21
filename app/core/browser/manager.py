@@ -67,6 +67,13 @@ class BrowserManager:
             co.set_user_data_path(options.user_data_path)
             for argument in options.arguments:
                 co.set_argument(argument)
+            if getattr(task, "use_proxy", False):
+                get_browser_proxy = getattr(task, "get_browser_proxy", None)
+                if not callable(get_browser_proxy):
+                    raise BrowserStartError("任务已启用代理但未提供 get_browser_proxy 方法")
+                proxy = get_browser_proxy()
+                if proxy:
+                    co.set_proxy(proxy)
             if options.incognito:
                 co.set_argument("--incognito")
             co.set_pref("download.default_directory", options.download_path)

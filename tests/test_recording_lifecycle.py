@@ -1,11 +1,17 @@
+import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from types import SimpleNamespace
+from unittest.mock import Mock, call, patch
 
+from app.core.browser.manager import BrowserManager
+from app.core.browser.options import BrowserOptions
 from app.core.page.recorder import Recorder
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.context import TaskContext
+from app.spider.HPL.base import HplBase
 from capturesdk import CaptureSDKError
 
 
@@ -41,6 +47,138 @@ class SuccessfulTask(BaseRpaTask):
 
 
 class RecordingLifecycleTests(unittest.TestCase):
+    def test_browser_manager_skips_proxy_when_proxy_is_disabled(self):
+        chromium_options = Mock()
+        chromium_options_class = Mock(return_value=chromium_options)
+        browser = Mock()
+        browser.latest_tab = Mock()
+        drission_page = SimpleNamespace(
+            ChromiumOptions=chromium_options_class,
+            Chromium=Mock(return_value=browser),
+        )
+        task = SimpleNamespace(
+            use_proxy=False,
+            get_browser_proxy=Mock(return_value="192.168.40.240:42150"),
+        )
+        context = SimpleNamespace(queue_name="FHT_HPL_SI", rpa_message_id="message-1")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = BrowserManager.__new__(BrowserManager)
+            manager.browser_lease = None
+            manager.account_session_coordinator = None
+            manager.build_options = Mock(
+                return_value=BrowserOptions(
+                    port=9222,
+                    user_data_path=f"{temp_dir}/hpl-profile",
+                    download_path=f"{temp_dir}/downloads",
+                )
+            )
+
+            with (
+                patch("app.core.browser.manager.enable_detached_chromium_launch"),
+                patch("app.core.browser.manager.ensure_browser_window_ready"),
+                patch.dict(sys.modules, {"DrissionPage": drission_page}),
+            ):
+                manager.start(context, task)
+
+        task.get_browser_proxy.assert_not_called()
+        chromium_options.set_proxy.assert_not_called()
+
+    def test_browser_manager_sets_proxy_directly_on_chromium_options(self):
+        chromium_options = Mock()
+        chromium_options_class = Mock(return_value=chromium_options)
+        browser = Mock()
+        browser.latest_tab = Mock()
+        chromium_class = Mock(return_value=browser)
+        drission_page = SimpleNamespace(
+            ChromiumOptions=chromium_options_class,
+            Chromium=chromium_class,
+        )
+        task = SimpleNamespace(
+            incognito=False,
+            wait_page_load=False,
+            use_proxy=True,
+            get_browser_proxy=Mock(return_value="192.168.40.240:42150"),
+        )
+        context = SimpleNamespace(queue_name="FHT_HPL_SI", rpa_message_id="message-1")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = BrowserManager.__new__(BrowserManager)
+            manager.browser_lease = {
+                "port": 9222,
+                "user_data_path": f"{temp_dir}/hpl-profile",
+            }
+            manager.settings = SimpleNamespace(download_dir=f"{temp_dir}/downloads")
+            manager.account_session_coordinator = None
+
+            with (
+                patch("app.core.browser.manager.enable_detached_chromium_launch"),
+                patch("app.core.browser.manager.ensure_browser_window_ready"),
+                patch.dict(sys.modules, {"DrissionPage": drission_page}),
+            ):
+                manager.start(context, task)
+
+        chromium_options.set_proxy.assert_called_once_with("192.168.40.240:42150")
+
+    def test_browser_manager_build_options_does_not_request_task_proxy(self):
+        manager = BrowserManager.__new__(BrowserManager)
+        manager.browser_lease = {"port": 9222, "user_data_path": "/tmp/hpl-profile"}
+        manager.settings = SimpleNamespace(download_dir="/tmp/downloads")
+        task = SimpleNamespace(
+            incognito=False,
+            wait_page_load=False,
+            use_proxy=True,
+            get_browser_proxy=Mock(return_value="192.168.40.240:42150"),
+        )
+        context = SimpleNamespace(queue_name="FHT_HPL_SI", rpa_message_id="message-1")
+
+        options = manager.build_options(context, task)
+
+        self.assertFalse(hasattr(options, "proxy"))
+        task.get_browser_proxy.assert_not_called()
+
+    def test_hpl_uses_first_proxy_data_for_browser_startup(self):
+        task = HplBase.__new__(HplBase)
+        task.getProxyData = Mock(return_value=[b"192.168.40.240:42150"])
+
+        self.assertEqual(task.get_browser_proxy(), "192.168.40.240:42150")
+
+    def test_cookie_storage_uses_native_redis_client_methods(self):
+        cookies_redis = Mock()
+        proxy_redis = Mock()
+
+        with patch(
+            "app.core.task.base_task.get_redis_db_client",
+            side_effect=[cookies_redis, proxy_redis],
+        ) as get_redis_db_client:
+            task = SuccessfulTask(
+                build_context(),
+                browser_manager=Mock(),
+                notifier=Mock(),
+                publisher=Mock(),
+                oss_client=Mock(),
+            )
+
+        self.assertIs(task.util_redis, cookies_redis)
+        self.assertIs(task.redis_client, proxy_redis)
+        self.assertEqual(
+            get_redis_db_client.call_args_list,
+            [call(BaseRpaTask.REDIS_MAIN), call(BaseRpaTask.REDIS_HEART_BEAT)],
+        )
+
+        task.page = Mock()
+        task.page.cookies.return_value = [{"name": "session", "value": "abc"}]
+        task.save_cookies("cookies:ZIM_account")
+        cookies_redis.set.assert_called_once_with(
+            "cookies:ZIM_account",
+            json.dumps(task.page.cookies.return_value, ensure_ascii=False),
+        )
+
+        cookies_redis.get.return_value = json.dumps(task.page.cookies.return_value)
+        task.set_page_cookies("cookies:ZIM_account")
+        cookies_redis.get.assert_called_once_with("cookies:ZIM_account")
+        task.page.set.cookies.assert_called_once_with(task.page.cookies.return_value)
+
     def test_recorder_rejects_ambiguous_browser_windows(self):
         page = Mock()
         page.process_id = 123
