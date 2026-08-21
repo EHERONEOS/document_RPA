@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.core.logging.logger import log
 from DrissionPage import ChromiumPage
 from DrissionPage._pages.chromium_base import ChromiumBase
@@ -12,7 +14,16 @@ class HttpHelper:
     def __init__(self, page:ChromiumBase):
         self.page = page
 
-    def wait_api_finished(self, url, trigger=None, timeout=30, method=("GET", "POST"), res_type=True, is_regex=False, required=True):
+    def wait_api_finished(
+        self,
+        url: str,
+        trigger: Any = None,
+        timeout: int = 30,
+        method: tuple[str, ...] = ("GET", "POST"),
+        res_type: bool = True,
+        is_regex: bool = False,
+        required: bool = True,
+    ) -> dict[str, Any]:
         """监听接口并在触发动作后返回监听结果。"""
         if not hasattr(self.page, "listen"):
             raise ElementNotFoundError("当前页面不支持接口监听")
