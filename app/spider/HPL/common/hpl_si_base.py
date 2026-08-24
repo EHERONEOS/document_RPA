@@ -22,7 +22,7 @@ class HplSiBaseTask(HplBase):
         """初始化消息内容和客户角色，供后续保存策略使用。"""
         super().__init__(context, **kwargs)
         self.content = context.content or {}
-        self.customer_role = str(context.task.get("customerRole") or "").upper()
+        self.customer_role = str(context.customer_role or "").upper()
 
     def execute_business(self):
         """按 HPL 页面区段依次完成查询、填单、校验和确认。"""
