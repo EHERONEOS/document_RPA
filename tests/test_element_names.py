@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from app.core.page.dom import DomHelper
 from app.core.task.base_task import BaseRpaTask
-from app.core.task.errors import ElementNotFoundError, FormValidationError
+from app.core.task.errors import ElementNotFoundError, ElementOperationError, FormValidationError
 
 
 class ElementNameTests(unittest.TestCase):
@@ -42,6 +42,37 @@ class ElementNameTests(unittest.TestCase):
             DomHelper(page).click("#search", name="搜索按钮")
 
         log.assert_called_once_with("点击搜索按钮")
+
+    def test_missing_element_error_includes_locator_timeout_and_page_url(self):
+        page = Mock()
+        page.url = "https://example.test/si"
+        page.ele.return_value = None
+
+        with self.assertRaisesRegex(
+            ElementNotFoundError,
+            r"订舱号元素不存在：#booking；等待=5s；页面地址=https://example\.test/si",
+        ):
+            DomHelper(page).click("#booking", name="订舱号", timeout=5)
+
+    def test_non_rect_click_error_includes_locator_and_element_status(self):
+        from DrissionPage.errors import NoRectError
+
+        page = Mock()
+        page.url = "https://example.test/si"
+        element = Mock()
+        element.click.side_effect = NoRectError
+        element.states.has_rect = False
+        element.states.is_displayed = False
+        element.states.is_enabled = True
+        element.states.is_clickable = False
+        page.ele.return_value = element
+
+        with self.assertRaisesRegex(
+            ElementOperationError,
+            r"(?s)点击卖方公司名称失败：定位器=#seq1_companyName0；页面地址=https://example\.test/si；"
+            r"原始异常=NoRectError.*有布局尺寸=False.*可见=False",
+        ):
+            DomHelper(page).click("#seq1_companyName0", name="卖方公司名称")
 
     def test_click_if_clickable_skips_element_without_clickable_state(self):
         page = Mock()

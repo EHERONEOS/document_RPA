@@ -49,6 +49,12 @@ class ElementNotFoundError(RpaError):
     code = 404
 
 
+class ElementOperationError(RpaError):
+    """页面元素已定位但无法完成操作。"""
+
+    code = 500
+
+
 class BusinessError(RpaError):
     """业务填单失败。"""
 
