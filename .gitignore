@@ -28,6 +28,7 @@ tests/*
 !tests/test_account_session_coordinator.py
 !tests/test_emc_routing.py
 !tests/test_email_otp.py
+!tests/test_msc_routing.py
 # !tests/test_browser_session_lock.py
 message_list/
 .idea/

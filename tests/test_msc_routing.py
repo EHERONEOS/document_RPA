@@ -1,0 +1,172 @@
+"""MSC 路由和登录骨架的离线测试。"""
+
+import json
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
+from app.control.dependencies import queue_manifest
+from app.core.page.dom import DomHelper
+from app.core.task.dispatcher import dispatch_context
+from app.core.task.errors import LoginError
+from app.core.task.router import CarrierRoute, resolve_queue_route
+from app.queue.message import build_task_context
+from app.spider.MSC import selectors
+from app.spider.MSC.base import MscBase
+from app.spider.MSC.common.login import LoginMixin
+from app.spider.MSC.router import ROUTES
+from app.spider.MSC.tasks.fht_msc_si import FhtMscSiTask
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_PATH = PROJECT_ROOT / "message_list" / "FHT_MSC_SI.json"
+
+
+class MscRoutingTests(unittest.TestCase):
+    def load_template(self):
+        return json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+
+    def test_template_context_uses_registered_msc_route(self):
+        context = build_task_context(self.load_template())
+
+        self.assertEqual("FHT_MSC_SI", context.queue_name)
+        self.assertEqual(("FHT", "MSC", "SI"), (
+            context.customer_code,
+            context.carrier_code,
+            context.business_code,
+        ))
+        route = resolve_queue_route(context.queue_name)
+        self.assertEqual("app.spider.MSC.router", route.router_module)
+
+    def test_dispatcher_calls_fht_msc_handler(self):
+        context = build_task_context(self.load_template())
+        handler = Mock(return_value=True)
+
+        with patch.dict(ROUTES, {"FHT_MSC_SI": CarrierRoute("FHT", "SI", handler)}):
+            self.assertTrue(dispatch_context(context))
+
+        handler.assert_called_once_with(context)
+
+    def test_manifest_tracks_msc_package(self):
+        manifest = queue_manifest("FHT_MSC_SI", PROJECT_ROOT)
+
+        self.assertIn("app/spider/MSC/base.py", manifest)
+        self.assertIn("app/spider/MSC/selectors.py", manifest)
+        self.assertIn("app/spider/MSC/tasks/fht_msc_si.py", manifest)
+
+    def test_msc_base_uses_login_mixin(self):
+        self.assertIs(MscBase.login, LoginMixin.login)
+
+    def test_fht_business_step_is_intentionally_empty(self):
+        task = object.__new__(FhtMscSiTask)
+
+        self.assertIsNone(task.execute_business())
+
+
+class MscLoginTests(unittest.TestCase):
+    def test_login_screen_is_not_mistaken_for_authenticated_session(self):
+        task = object.__new__(LoginMixin)
+        task.page = SimpleNamespace(
+            url=selectors.LOGIN_URL,
+            ele=Mock(return_value=Mock()),
+        )
+
+        self.assertFalse(task._is_logged_in())
+
+    def test_mymsc_page_without_authentication_controls_is_authenticated(self):
+        task = object.__new__(LoginMixin)
+        task.page = SimpleNamespace(
+            url="https://www.mymsc.com/myMSC/shipments",
+            ele=Mock(return_value=None),
+        )
+
+        self.assertTrue(task._is_logged_in())
+
+    def test_credentials_are_required_before_any_login_form_operation(self):
+        task = object.__new__(LoginMixin)
+        task.website_info = {}
+        task.dom = Mock()
+
+        with self.assertRaisesRegex(LoginError, "缺少网站账号或密码"):
+            task._login_with_credentials()
+
+        task.dom.input_text.assert_not_called()
+
+    def test_identity_password_uses_dom_helper_native_events_method(self):
+        task = object.__new__(LoginMixin)
+        task.website_info = {
+            "websiteAccount": "account@example.test",
+            "websitePassword": "test-password",
+        }
+        task.dom = Mock()
+        task._wait_for_password_page_or_success = Mock(return_value=False)
+        task._submit_identity_form = Mock()
+        task._wait_for_login_success = Mock()
+
+        task._login_with_credentials()
+
+        task.dom.input_text_with_native_events.assert_called_once_with(
+            selectors.IDENTITY_PASSWORD,
+            "test-password",
+            "MSC 登录密码",
+            timeout=10,
+        )
+
+    def test_native_event_dom_input_writes_and_verifies_value(self):
+        password_element = SimpleNamespace(value="")
+        page = Mock()
+        page.ele.return_value = password_element
+
+        def apply_password(script, element, value):
+            self.assertIn("InputEvent", script)
+            self.assertIn("descriptor.set.call", script)
+            element.value = value
+
+        page.run_js.side_effect = apply_password
+        self.assertTrue(
+            DomHelper(page).input_text_with_native_events(
+                selectors.IDENTITY_PASSWORD,
+                "test-password",
+                "MSC 登录密码",
+                timeout=10,
+            )
+        )
+
+        page.ele.assert_called_once_with(
+            selectors.IDENTITY_PASSWORD,
+            timeout=10,
+        )
+        self.assertEqual("test-password", password_element.value)
+
+    def test_identity_form_uses_javascript_click_after_b2c_button_move(self):
+        submit_button = Mock()
+        task = object.__new__(LoginMixin)
+        task.dom = Mock()
+        task.dom._find.return_value = submit_button
+        task.logger = Mock()
+
+        task._submit_identity_form()
+
+        task.dom._find.assert_called_once_with(
+            selectors.IDENTITY_SUBMIT,
+            "MSC 登录提交按钮",
+            timeout=10,
+        )
+        submit_button.click.assert_called_once_with(by_js=True, timeout=10)
+
+    def test_all_nonempty_b2c_error_messages_are_reported(self):
+        task = object.__new__(LoginMixin)
+        task.page = SimpleNamespace(
+            eles=Mock(return_value=[
+                SimpleNamespace(text=""),
+                SimpleNamespace(text="The username or password is invalid."),
+            ]),
+        )
+
+        with self.assertRaisesRegex(LoginError, "username or password is invalid"):
+            task._raise_if_identity_error()
+
+
+if __name__ == "__main__":
+    unittest.main()

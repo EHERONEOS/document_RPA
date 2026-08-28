@@ -1,3 +1,4 @@
+import re
 import time
 
 from app.core.logging.logger import log
@@ -44,7 +45,7 @@ class DomHelper:
 
     def _operation_error(self, action, locator, name, element, exc):
         return ElementOperationError(
-            f"{action}{name}失败：定位器={locator}；页面地址={self._page_url()}；"
+            f"{action}{name}失败：定位器={locator}；"
             f"原始异常={type(exc).__name__}: {exc}；元素状态：{self._element_status(element)}"
         )
 
@@ -60,13 +61,13 @@ class DomHelper:
             element = self.page.ele(locator, timeout=timeout)
         except BaseError as exc:
             raise ElementOperationError(
-                f"查找{name}失败：定位器={locator}；等待={timeout}s；页面地址={self._page_url()}；"
+                f"查找{name}失败：定位器={locator}；等待={timeout}s"
                 f"原始异常={type(exc).__name__}: {exc}"
             ) from exc
         if self._is_missing_element(element):
             if required:
                 raise ElementNotFoundError(
-                    f"{name}元素不存在：{locator}；等待={timeout}s；页面地址={self._page_url()}"
+                    f"{name}元素不存在：{locator}；等待={timeout}s"
                 )
             return False
         return element
@@ -135,6 +136,56 @@ class DomHelper:
                 return True
         raise ElementNotFoundError(f"{name}选项不存在：{option_text}")
 
+    def search_select_by_first_word(
+        self,
+        locator,
+        value,
+        option_locator,
+        name=None,
+        required=True,
+        timeout=2,
+        wait_time=3
+    ):
+        """通过搜索框定位器搜索目标值的第一个英文单词，并选择完全匹配项。"""
+        name = name or locator
+        element = self._find(locator, name, required, timeout)
+        if not element:
+            return False
+
+        target_text = str(value).strip()
+        if not target_text:
+            if required:
+                raise ElementNotFoundError(f"{name}目标值为空")
+            return False
+
+        keyword_match = re.search(r"[A-Za-z]+", target_text)
+        search_keyword = keyword_match.group(0) if keyword_match else target_text.split()[0]
+
+        normalize = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
+
+        log(f"搜索并选择{name}，搜索关键词：{search_keyword}")
+        self._perform("点击", locator, name, element, element.click)
+        self._perform(
+            "输入",
+            locator,
+            name,
+            element,
+            lambda: element.input(search_keyword, clear=True),
+        )
+        time.sleep(wait_time)
+        for option in self.page.eles(option_locator, timeout=timeout):
+            if normalize(option.text) != normalize(target_text):
+                continue
+            log(f"选择{name}")
+            self._perform("点击", option_locator, name, option, option.click)
+            return True
+
+        if required:
+            raise ElementNotFoundError(
+                f"{name}选项不存在：{target_text}；搜索关键词：{search_keyword}"
+            )
+        return False
+
     def click_all(self, locator, name=None, required=True, timeout=2):
         """点击所有匹配元素。"""
         name = name or locator
@@ -147,6 +198,21 @@ class DomHelper:
         for element in elements:
             element.click()
         return True
+
+    def select_radio(self, selector, value, name=None, required=True, timeout=2):
+        """按可见文本在单选框子选项中选中指定项。"""
+        name = name or selector
+        expected_text = str(value).strip()
+        for option in self.page.eles(selector, timeout=timeout):
+            if str(getattr(option, "text", "") or "").strip() != expected_text:
+                continue
+            log(f"选择{name}")
+            self._perform("点击", selector, name, option, option.click)
+            return True
+
+        if required:
+            raise ElementNotFoundError(f"{name}选项不存在：{value}")
+        return False
 
     def input_text(self, locator, value, name=None, required=True, timeout=2):
         """输入文本。"""
@@ -187,6 +253,7 @@ class DomHelper:
             )
         self.page.run_js("arguments[0].blur();", element)
         return True
+
 
     def select(self, locator, value, name=None, by="text", required=True, timeout=2):
         """选择 select 选项。"""
@@ -287,6 +354,14 @@ class DomHelper:
             return None
         log(f"切换到{name or locator}")
         return DomHelper(iframe)
+
+    def get_shadow_root(self, locator, name=None, required=True, timeout=2):
+        """获取开放式 Shadow DOM 的根节点。"""
+        host = self._find(locator, name, required, timeout)
+        if not host:
+            return None
+        log(f"获取{name or locator}的 Shadow Root")
+        return DomHelper(host.shadow_root)
 
     # def wait_eles_loaded(self, locator,any_one=False, required=True, timeout=10):
     #     """等待元素加待元素被加载到 DOM"""
