@@ -4,9 +4,10 @@ from app.core.task.base_task import BaseRpaTask
 from app.core.task.context import TaskContext
 from app.spider.MSC import selectors
 from app.spider.MSC.common.login import LoginMixin
+from app.spider.common.field_verify import FieldVerificationMixin
 
 
-class MscBase(LoginMixin, BaseRpaTask):
+class MscBase(FieldVerificationMixin, LoginMixin, BaseRpaTask):
     """复用 MSC 账号的 Cookie 和登录流程。"""
 
     carrier_code = "MSC"

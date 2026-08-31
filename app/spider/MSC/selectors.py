@@ -14,8 +14,16 @@ IDENTITY_ERROR_MESSAGES = "c:#api .error p"
 COOKIE_ACCEPT_BUTTON = "c:#onetrust-accept-btn-handler"
 
 
-EBOOKINGS_URL ="https://www.mymsc.com/myMSC/dashboard/ebookings"
+EBOOKINGS_URL ="https://www.mymsc.com/myMSC/dashboard/ebookings" # 提单列表页面
+CREATE_SHIPPING_INSTRUCTIONS_URL = "https://www.mymsc.com/myMSC/shippinginstructions/createshippinginstruction" #空白提单检验页面
 DASHBOARD_GRAPHQL_API = "https://services.mymsc.com/dashboard/graphql"
+
+CREATE_BOOKING_INPUT = "c:#BookingNumber"
+CREATE_CHECK_BOOKING_BTN = "c:#checkBC"
+CHECK_BOOKING_API = "https://www.mymsc.com/myMSC/ShippingInstructions/CheckImportShippingInstruction"
+CHECK_NO_BOOKING = "x://div[@id='checkPartial']/div[1][normalize-space()='We were unable to determine the agency for the booking number.']"
+CHECK_ERROR_LI = "x://div[@id='checkPartial']//li[.//span[contains(@class,'myMSC-icon-close')]]"
+
 BOOKING_SEARCH_INPUT = "c:.textSearchContainer input"
 SEARCH_BUTTON = "c:.searchBar+button"
 BOOKING_FIRST_NUMBER = "c:.MuiDataGrid-virtualScrollerRenderZone>div:nth-child(1) .bknumber"
@@ -26,13 +34,17 @@ SHIPPING_INSTRUCTIONS_URL = "https://www.mymsc.com/myMSC/shippinginstructions/sh
 
 SI_SHADOW = "c:#eSi-app"
 SELECT_DOCUMENT_RADIO = "c:[data-testid=document-selection] label"
+CHECKED_SELECT_DOCUMENT = "c:[data-testid='document-selection'] label:has(input:checked)"
 DOCUMENT_TYPE_RADIO = "c:[data-testid=rbOrigin] label"
+CHECKED_DOCUMENT_TYPE = "c:[data-testid=rbOrigin] label:has(input:checked)"
 UNFREIGHTED_NUM = "c:[data-testid=qtyOriginalUnfreighted] input"
 FREIGHTED_NUM = "c:[data-testid=qtyOriginalFreighted] input"
 REQUESTED_COPIES_UNFREIGHTED = "c:[data-testid=chkCopyUnfreighted] input"
 REQUESTED_COPIES_FREIGHTED = "c:[data-testid=chkCopyFreighted] input"
 COPIES_UNFREIGHTED_NUM = "c:[data-testid=qtyCopyUnfreighted] input"
 COPIES_FREIGHTED_NUM = "c:[data-testid=qtyCopyFreighted] input"
+
+
 
 SHIPPER_EDIT_BUTTON = "x://h5[contains(text(),'Shipper')]/button"
 FORWARD_EDIT_BUTTON = "x://h5[contains(text(),'Forwarding Agency')]/button"
@@ -64,17 +76,21 @@ CONTAINER_NUM_INPUT = "c:.edit-modal-container [data-testid=txtFieldContainerNum
 CONTAINER_NUM_VERIFY = "c:.edit-modal-container [data-testid=txtFieldContainerNumber]+.container-verification"
 CONTAINER_SEAL_NO_INPUT = "c:.edit-modal-container [data-testid=txtFieldCarrierSeal] input"
 CONTAINER_COMMENTS_INPUT = "c:.edit-modal-container [data-testid=txtFieldCommentsCtrEdit] [name=comments]"
+CONTAINER_TAB = "c:[data-testid=dialogEditContainerModalContent] [data-testid='tabTabbarWrapper-Container']"
 CARGO_TAB = "c:[data-testid=dialogEditContainerModalContent] [data-testid='tabTabbarWrapper-Cargo']"
+CARGO_LIST_ITEM = "x://*[@class='edit-cargo-list']/div[{}]"
 CARGO_CODE = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.hsCode']"
 CARGO_HS_OPTIONS = "c:[data-testid=editCargoDetailsContainer] [data-testid=harmonizedCodeContainer] .MuiAutocomplete-listbox li"
 CARGO_CONFIRM = "c:[data-testid=dialogConfirm] [data-testid=btnOkConfirm]"
 CARGO_DESC = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.cargoDescription']"
 CARGO_WEIGHT = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.cargoWeightPerUnit']"
 CARGO_WEIGHT_UNIT = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.isCargoWeightInLbs']"
+CARGO_WEIGHT_UNIT_TEXT = "c:[data-testid=editCargoDetailsContainer] [id='mui-component-select-selectedCargo.isCargoWeightInLbs']"
 CARGO_WEIGHT_UNIT_OPTIONS = "c:[id='menu-selectedCargo.isCargoWeightInLbs'] ul li"
 
 CARGO_VOLUME = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.volume']"
 CARGO_VOLUME_UNIT = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.isVolumeInCubicFeet']"
+CARGO_VOLUME_UNIT_TEXT = "c:[data-testid=editCargoDetailsContainer] [id='mui-component-select-selectedCargo.isVolumeInCubicFeet']"
 CARGO_VOLUME_UNIT_OPTIONS = "c:[id='menu-selectedCargo.isVolumeInCubicFeet'] ul li"
 
 CARGO_PACKAGE = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.numberOfPackages']"
@@ -86,9 +102,6 @@ CONTAINER_SAVE_BTN = "x://*[@data-testid='dialogActionsConfirm']//button[normali
 
 
 PAYMENT_TYPE_RADIO = "c:[data-testid=ChargeDetails] button"
+PAYMENT_TYPE_CHECKED = "c:[data-testid=ChargeDetails] .Mui-selected"
 PAYMENT_LOCATION_INPUT = "c:[name=paymentElsewhereLocation]"
 PAYMENT_REMARK_INPUT = "c:[name=comments]"
-
-
-
-

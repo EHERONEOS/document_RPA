@@ -6,9 +6,14 @@ from app.core.task.context import TaskContext
 from app.core.task.errors import BusinessError, ElementNotFoundError
 from app.spider.MSC.base import MscBase
 from app.spider.MSC import selectors
+from app.spider.MSC.common.si_field_verify import (
+    ADDRESS_OPTIONAL_FIELDS,
+    ROUTER_DETAIL_FIELDS,
+    MscSiFieldVerificationMixin,
+)
 
 
-class FhtMscSiTask(MscBase):
+class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
     """执行 FHT_MSC_SI；当前仅验证并建立 MSC 登录会话。"""
 
     job_type = "SI"
@@ -16,26 +21,31 @@ class FhtMscSiTask(MscBase):
         super().__init__(context)
         self.content = context.content or {}
         self.remain_content = context.remain_content or {}
+        self.blankBill = self.content.get("blankBill", False)
 
     def execute_business(self) -> None:
         """预留 SI 业务实现，当前不填写、保存或提交单据。"""
-        self._goto_shippinginstructions(self.content["bookingNo"])
+        # if self.blankBill:
+        #     self._goto_create_shippinginstruction()
+        # else:
+        #     self._goto_shippinginstructions(self.content["bookingNo"])
+
         self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW)
-        self.select_document_group()
+        # self.select_document_group()
 
-        self._fill_address_info("Shipper")
-        self._fill_address_info("Consignee")
-        self._fill_address_info("Notify Party")
-        self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
-        self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
+        # self._fill_address_info("Shipper")
+        # self._fill_address_info("Consignee")
+        # self._fill_address_info("Notify Party")
+        # self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
+        # self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
 
-        self._fill_router_details()
+        # self._fill_router_details()
 
 
         self._fill_container_cargo()
 
         self._fill_payment_type()
-        self.si_shadow.input_text(selectors.PAYMENT_REMARK_INPUT,self.content.get("remarks"),name="填写备注")
+        pass
 
 
     def _fill_payment_type(self) -> None:
@@ -46,8 +56,9 @@ class FhtMscSiTask(MscBase):
                 locator=selectors.PAYMENT_LOCATION_INPUT,
                 value=self.content.get("paymentLocation"),
                 option_locator=selectors.DIALOG_LOCATION_OPTION,
-                name="选择loaction",
-            )   
+                name="选择Elsewhere Location",
+            )
+        self.content.get("remarks") and self.si_shadow.input_text(selectors.PAYMENT_REMARK_INPUT,self.content.get("remarks"),name="填写备注")
 
     def _fill_container_cargo(self) -> None:
         """填写集装箱信息"""
@@ -58,23 +69,20 @@ class FhtMscSiTask(MscBase):
 
             self.si_shadow.click(f"c:#panel{index+1}-header [data-testid=container-options-button]")
             self.si_shadow.click(f"x://*[@id='panel{index+1}-header']//*[@id='split-button-menu']/li[normalize-space()='Edit Container']")
-            expected_value = container.get("containerType")
-            actual_value = self.si_shadow.get_value(selectors.CONTAINER_TYPE_INPUT)
-            if expected_value != actual_value:
-                raise BusinessError(f"集装箱 {index+1} 类型 {expected_value} 与实际值 {actual_value} 不匹配")
+            time.sleep(2)
             self.si_shadow.input_text(
                 selectors.CONTAINER_NUM_INPUT, container.get("containerNo"), f"{index+1} 集装箱Container Number"
             )
             time.sleep(2)
-            verify_tip = self.si_shadow.get_text(selectors.CONTAINER_NUM_VERIFY)
-            if verify_tip != "Container verified!":
-                raise BusinessError(f"集装箱 {index+1} 号箱号检验失败官网提示:{verify_tip}")
-            self.si_shadow.input_text(
-                selectors.CONTAINER_SEAL_NO_INPUT, container.get("sealNo"), f"{index+1} 集装箱Carrier Seal Number"
-            )
-            self.si_shadow.input_text(
-                selectors.CONTAINER_COMMENTS_INPUT, container.get("remarks"), f"{index+1} 集装箱Remarks"
-            )
+            self._verify_container_number(index)
+            if not self._is_empty_expected_value(container.get("sealNo")):
+                self.si_shadow.input_text(
+                    selectors.CONTAINER_SEAL_NO_INPUT, container["sealNo"], f"{index+1} 集装箱Carrier Seal Number"
+                )
+            if not self._is_empty_expected_value(container.get("remarks")):
+                self.si_shadow.input_text(
+                    selectors.CONTAINER_COMMENTS_INPUT, container["remarks"], f"{index+1} 集装箱Remarks"
+                )
             self.si_shadow.click(selectors.CARGO_TAB)
 
 
@@ -109,10 +117,11 @@ class FhtMscSiTask(MscBase):
                 self.si_shadow.input_text(
                     selectors.CARGO_WEIGHT, cargo.get("grossWeight"), f"{index+1}集装箱 {_+1}货物Weight"
                 )
-                self.si_shadow.select_by_word(selectors.CARGO_VOLUME_UNIT,cargo.get("volumeUnit"),selectors.CARGO_VOLUME_UNIT_OPTIONS)
-                self.si_shadow.input_text(
-                    selectors.CARGO_VOLUME, cargo.get("volume"), f"{index+1}集装箱 {_+1}货物Volume"
-                )
+                if not self._is_empty_expected_value(cargo.get("volume")):
+                    self.si_shadow.select_by_word(selectors.CARGO_VOLUME_UNIT,cargo.get("volumeUnit"),selectors.CARGO_VOLUME_UNIT_OPTIONS)
+                    self.si_shadow.input_text(
+                        selectors.CARGO_VOLUME, cargo["volume"], f"{index+1}集装箱 {_+1}货物Volume"
+                    )
                 self.si_shadow.select_by_word(
                     selectors.CARGO_PACKAGE_UNIT,cargo.get("packageUnit"),selectors.CARGO_PACKAGE_UNIT_OPTIONS
                 )
@@ -123,28 +132,27 @@ class FhtMscSiTask(MscBase):
                     selectors.CARGO_MARKS, cargo.get("marks"), f"{index+1}集装箱 {_+1}货物MarksAndNumbers"
                 )
 
+
+
+
+            self._verify_container_cargo(container, index)
             self.si_shadow.click(selectors.CONTAINER_SAVE_BTN,name=f"保存{index+1}集装箱")
             time.sleep(3)
             if self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False):
                 raise BusinessError(f"集装箱 {index+1} 保存失败")
 
-
-
-
-
-
-
     def _fill_router_details(self) -> None:
         """填写港口信息"""
-        self.content.get("receiptPlace") and self.si_shadow.input_text(selectors.RECEIPT_INPUT, self.content.get("receiptPlace"), "收货地",required=False)
-        self.content.get("pol") and self.si_shadow.input_text(selectors.POL_INPUT, self.content.get("pol"), "起运港")
-        self.content.get("pod") and self.si_shadow.input_text(selectors.POD_INPUT, self.content.get("pod"), "卸货港")
-        self.content.get("deliveryPlace") and self.si_shadow.input_text(selectors.DELIVERY_INPUT, self.content.get("deliveryPlace"), "交货地",required=False)
+        for field_path, selector, name, required in ROUTER_DETAIL_FIELDS:
+            value = self.content.get(field_path)
+            if value:
+                self.si_shadow.input_text(selector, value, name, required=required)
+        self._verify_router_details()
 
 
     # 收发通
     def _fill_address_info(self, address_type: str) -> None:
-        """填写地址和参考"""
+        """填写地址和参考 {address_type 类型}"""
 
         # The dialog uses the same controls for every party; only the content
         # prefix changes between the five party types.
@@ -192,11 +200,6 @@ class FhtMscSiTask(MscBase):
         self.si_shadow.input_text(
             selectors.DIALOG_ADDRESS, content_value("Address"), f"{address_type} Address"
         )
-        self.si_shadow.input_text(
-            selectors.DIALOG_CONTACT_REFERENCE,
-            content_value("ContactReference"),
-            f"{address_type} Reference",
-        )
         self.dom.search_select_by_first_word(
             locator=selectors.DIALOG_LOCATION,
             value=content_value("City"),
@@ -204,65 +207,53 @@ class FhtMscSiTask(MscBase):
             name="选择loaction",
         )
 
-        optional_fields = (
-            ("ContactName", selectors.DIALOG_CONTACT_NAME, "Contact Name"),
-            ("Email", selectors.DIALOG_CONTACT_EMAIL, "Email"),
-            ("Fax", selectors.DIALOG_CONTACT_FAX, "Fax"),
-            ("Tel", selectors.DIALOG_CONTACT_PHONE, "Tel"),
-        )
-        for suffix, locator, label in optional_fields:
+        # 非必填
+        for suffix, locator, label in ADDRESS_OPTIONAL_FIELDS:
             field_value = content_value(suffix)
             if field_value:
                 self.si_shadow.input_text(locator, field_value, f"{address_type} {label}")
-
+        # 校验字段
+        self._verify_address_info(address_type, content_prefix)
         self.si_shadow.click(selectors.DIALOG_SAVE_BTN, f"保存{address_type}信息")
         time.sleep(1)
         if self.si_shadow._find(selectors.DIALOG_NAME, required=False):
             raise BusinessError(f"{address_type}保存失败")
 
-
-
-
-
     def select_document_group(self) -> None:
         """选择Document Group"""
-        self.dom.select_radio(selectors.SELECT_DOCUMENT_RADIO, self.content["selectDocument"], "选择出单类型")
-        
-        match self.content["selectDocument"]:
-            case "Sea Waybill":
-                self.select_requested_copies()      
-                return 
-            case "Original":
-                self.select_document_type()
-                self.select_requested_copies()
-                return 
-            case "Original eBL":
-                  self.select_document_type()
-                  return 
+        self.si_shadow.select_radio(selectors.SELECT_DOCUMENT_RADIO, self.content["releaseMode"], "选择出单类型")
+        release_mode = self.content["releaseMode"]
+        if release_mode == "Sea Waybill":
+            self.select_requested_copies()
+        elif release_mode == "Original":
+            self.select_document_type(release_mode)
+            self.select_requested_copies()
+        elif release_mode == "Original eBL":
+            self.select_document_type(release_mode)
+        self.verify_document_group()
 
-    def select_document_type(self) -> None:
+    def select_document_type(self, release_mode: str) -> None:
         """选择Document Type"""
-        documentType  = self.content["documentType"]
-        if documentType.get("Original Unfreighted") and int(documentType["Original Unfreighted"])>0:
-            self.dom.select_radio(selectors.DOCUMENT_TYPE_RADIO, "Original Unfreighted", "选择Original Unfreighted")
-            self.dom.input_text(selectors.UNFREIGHTED_NUM, documentType["Original Unfreighted"], "Original Unfreighted 数量")
-        elif documentType.get("Original Freighted") and int(documentType["Original Freighted"])>0:
-            self.dom.select_radio(selectors.DOCUMENT_TYPE_RADIO, "Original Freighted", "选择Original Freighted")
-            self.dom.input_text(selectors.FREIGHTED_NUM, documentType["Original Freighted"], "Original Freighted 数量")
+        document_type  = self.content.get("originalDocumentType")
+        self.si_shadow.select_radio(selectors.DOCUMENT_TYPE_RADIO, document_type, "选择Document Type")
+        if release_mode == "Original":
+            if document_type == "Original Unfreighted":
+                self.si_shadow.input_text(selectors.UNFREIGHTED_NUM, self.content.get("numberOfOriginal"), "Original Unfreighted 数量")
+            elif document_type == "Original Freighted":
+                self.si_shadow.input_text(selectors.FREIGHTED_NUM, self.content.get("numberOfFreightedOriginal"), "Original Freighted 数量")
 
     def select_requested_copies(self) -> None:
         """选择Requested Copies"""
-        requestedCopies  = self.content["requestedCopies"]
-        if requestedCopies.get("Copy Unfreighted") and int(requestedCopies["Copy Unfreighted"])>0:
-            dom = self.dom._find(selectors.REQUESTED_COPIES_UNFREIGHTED)
+        if self.content["copyUnfreighted"]:
+            dom = self.si_shadow._find(selectors.REQUESTED_COPIES_UNFREIGHTED)
             if not dom.states.is_checked:
                 dom.click()
-            self.dom.input_text(selectors.COPIES_UNFREIGHTED_NUM, requestedCopies["Copy Unfreighted"], "Copy Unfreighted 数量")
-        if requestedCopies.get("Copy Freighted") and int(requestedCopies["Copy Freighted"])>0:
-            dom = self.dom._find(selectors.REQUESTED_COPIES_FREIGHTED)
+            self.si_shadow.input_text(selectors.COPIES_UNFREIGHTED_NUM, self.content.get("numberOfCopy"), "Copy Unfreighted 数量")
+        if self.content["copyFreighted"]:
+            dom = self.si_shadow._find(selectors.REQUESTED_COPIES_FREIGHTED)
             if not dom.states.is_checked:
                 dom.click()
-            self.dom.input_text(selectors.COPIES_FREIGHTED_NUM, requestedCopies["Copy Freighted"], "Copy Freighted 数量")
+            self.si_shadow.input_text(selectors.COPIES_FREIGHTED_NUM, self.content.get("numberOfCopyFreighted"), "Copy Freighted 数量")
 
 
 
@@ -292,6 +283,27 @@ class FhtMscSiTask(MscBase):
             raise BusinessError(f"{bookingNo} 状态不是Confirmed,页面值为{page_status}")
         self.dom.click(selectors.BOOKING_FIRST_BUTTON, "跳转填单页面")
         self._wait_for_shippinginstructions()
+
+
+    def _goto_create_shippinginstruction(self) -> None:
+        """跳转至 空白提单 页面"""
+        self.page.get(selectors.CREATE_SHIPPING_INSTRUCTIONS_URL)
+        self.page._wait_loaded()
+        self.dom.input_text(selectors.CREATE_BOOKING_INPUT, self.content["bookingNo"], "Booking Number")
+        self.http.wait_api_finished(
+            selectors.CHECK_BOOKING_API,
+            trigger=lambda: self.dom.click(selectors.CREATE_CHECK_BOOKING_BTN),
+        )
+        no_booking = self.dom._find(selectors.CHECK_NO_BOOKING, required=False)
+        if no_booking:
+            raise BusinessError(f"单号{self.content.get('bookingNo')} 不存在")
+        error_doms = self.dom._find_array(selectors.CHECK_ERROR_LI, required=False) or []
+        error_msgs = [
+            (getattr(dom, "text", "") or "").strip()
+            for dom in error_doms
+            if (getattr(dom, "text", "") or "").strip()
+        ]
+        raise BusinessError(f"单号{self.content.get('bookingNo')}已创建,错误信息为{error_msgs}")
 
 
 
