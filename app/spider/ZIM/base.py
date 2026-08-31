@@ -19,3 +19,4 @@ class CarrierBase(LoginMixin, BaseRpaTask):
     def query_booking(self, blNo: str):
         """查询订舱单据（薄壳，转发到公共方法）。"""
         return _query_booking(self, blNo)
+

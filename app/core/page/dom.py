@@ -72,6 +72,23 @@ class DomHelper:
             return False
         return element
 
+    def _find_array(self, locator, name=None, required=True, timeout=2):
+        name = name or locator
+        try:
+            element = self.page.eles(locator, timeout=timeout)
+        except BaseError as exc:
+            raise ElementOperationError(
+                f"查找{name}失败：定位器={locator}；等待={timeout}s"
+                f"原始异常={type(exc).__name__}: {exc}"
+            ) from exc
+        if self._is_missing_element(element):
+            if required:
+                raise ElementNotFoundError(
+                    f"{name}元素不存在：{locator}；等待={timeout}s"
+                )
+            return False
+        return element
+
     def click(self, locator, name=None, required=True, timeout=2):
         """点击元素。"""
         name = name or locator
@@ -178,6 +195,7 @@ class DomHelper:
                 continue
             log(f"选择{name}")
             self._perform("点击", option_locator, name, option, option.click)
+            self.page.run_js("arguments[0].blur();", element)
             return True
 
         if required:
@@ -214,7 +232,7 @@ class DomHelper:
             raise ElementNotFoundError(f"{name}选项不存在：{value}")
         return False
 
-    def input_text(self, locator, value, name=None, required=True, timeout=2):
+    def input_text(self, locator, value, name=None, required=True, blur=True, timeout=2):
         """输入文本。"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -251,7 +269,8 @@ class DomHelper:
                 element,
                 expected_value,
             )
-        self.page.run_js("arguments[0].blur();", element)
+        if blur:
+            self.page.run_js("arguments[0].blur();", element)
         return True
 
 
@@ -276,6 +295,24 @@ class DomHelper:
             raise ElementNotFoundError(f"{name}选项不存在：{value}") from exc
         self.page.run_js("arguments[0].blur();", element)
         return True
+    
+    def select_by_word(self, locator, value, child_locator, name=None, required=True, timeout=2):
+        """非原生下拉选择 通过文本匹配"""
+        name = name or locator
+        element = self._find(locator, name, required, timeout)
+        if not element:
+            return False
+
+        self._perform("点击", locator, name, element, element.click)
+        for option in self.page.eles(child_locator, timeout=timeout):
+            if str(getattr(option, "text", "") or "").strip() != str(value).strip():
+                continue
+            self._perform("点击", child_locator, name, option, option.click)
+            return True
+
+        if required:
+            raise ElementNotFoundError(f"{name}选项不存在：{value}")
+        return False
 
     def search_select(self, locator, value, child_locator, name=None, required=True, timeout=2):
         """搜索并选择"""

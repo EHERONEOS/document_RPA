@@ -19,30 +19,119 @@ class FhtMscSiTask(MscBase):
 
     def execute_business(self) -> None:
         """预留 SI 业务实现，当前不填写、保存或提交单据。"""
-        # self._goto_shippinginstructions(self.content["bookingNo"])
+        self._goto_shippinginstructions(self.content["bookingNo"])
         self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW)
-        # self.select_document_group()
+        self.select_document_group()
 
-        # self._fill_address_info("Shipper")
-        # self._fill_address_info("Consignee")
-        # self._fill_address_info("Notify Party")
-        # self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
-        # self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
+        self._fill_address_info("Shipper")
+        self._fill_address_info("Consignee")
+        self._fill_address_info("Notify Party")
+        self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
+        self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
 
-        # self._fill_router_details()
+        self._fill_router_details()
 
 
         self._fill_container_cargo()
-       
+
+        self._fill_payment_type()
+        self.si_shadow.input_text(selectors.PAYMENT_REMARK_INPUT,self.content.get("remarks"),name="填写备注")
+
+
+    def _fill_payment_type(self) -> None:
+        """填写支付方式"""
+        self.si_shadow.select_radio(selectors.PAYMENT_TYPE_RADIO,self.content.get("paymentType"),name="选择支付方式")
+        if self.content.get("paymentType") == "Payable Elsewhere":
+            self.dom.search_select_by_first_word(
+                locator=selectors.PAYMENT_LOCATION_INPUT,
+                value=self.content.get("paymentLocation"),
+                option_locator=selectors.DIALOG_LOCATION_OPTION,
+                name="选择loaction",
+            )   
 
     def _fill_container_cargo(self) -> None:
         """填写集装箱信息"""
         containers = self.content.get("containers", [])
         if not containers:
             raise BusinessError("SI 中没有集装箱信息")
-        for container in containers:
-            self.si_shadow.click("c:#panel1-header [data-testid=container-options-button]")
-            pass
+        for index,container in enumerate(containers):
+
+            self.si_shadow.click(f"c:#panel{index+1}-header [data-testid=container-options-button]")
+            self.si_shadow.click(f"x://*[@id='panel{index+1}-header']//*[@id='split-button-menu']/li[normalize-space()='Edit Container']")
+            expected_value = container.get("containerType")
+            actual_value = self.si_shadow.get_value(selectors.CONTAINER_TYPE_INPUT)
+            if expected_value != actual_value:
+                raise BusinessError(f"集装箱 {index+1} 类型 {expected_value} 与实际值 {actual_value} 不匹配")
+            self.si_shadow.input_text(
+                selectors.CONTAINER_NUM_INPUT, container.get("containerNo"), f"{index+1} 集装箱Container Number"
+            )
+            time.sleep(2)
+            verify_tip = self.si_shadow.get_text(selectors.CONTAINER_NUM_VERIFY)
+            if verify_tip != "Container verified!":
+                raise BusinessError(f"集装箱 {index+1} 号箱号检验失败官网提示:{verify_tip}")
+            self.si_shadow.input_text(
+                selectors.CONTAINER_SEAL_NO_INPUT, container.get("sealNo"), f"{index+1} 集装箱Carrier Seal Number"
+            )
+            self.si_shadow.input_text(
+                selectors.CONTAINER_COMMENTS_INPUT, container.get("remarks"), f"{index+1} 集装箱Remarks"
+            )
+            self.si_shadow.click(selectors.CARGO_TAB)
+
+
+            for _,cargo in enumerate(container.get("goods", [])):
+                cargo_index = _ + 1
+                cargo_ele =  self.si_shadow._find(f"x://*[@class='edit-cargo-list']/div[{cargo_index}]", required=False)
+                if cargo_ele:
+                    cargo_ele.click()
+                else:
+                    self.si_shadow.click(selectors.CARGO_ADD_BTN,name=f"{index+1}集装箱 {_+1}添加货物")
+                    self.si_shadow.click(f"x://*[@class='edit-cargo-list']/div[{cargo_index}]",name=f"{index+1}集装箱 {_+1}货物")
+
+
+                actual_hs_code = self.si_shadow.get_value(selectors.CARGO_CODE)
+                if actual_hs_code != cargo.get("hsCode"):
+                    self.si_shadow.input_text(
+                        selectors.CARGO_CODE, cargo.get("hsCode"), f"{index+1}集装箱 {_+1}货物HS Code",blur=False
+                    )  
+                    time.sleep(2)
+                    options = self.si_shadow._find_array(selectors.CARGO_HS_OPTIONS)
+                    matched = False
+                    for option in options:
+                        hs_code = (option.text or "").split("-", 1)[0].strip()
+                        if hs_code == cargo.get("hsCode"):
+                            option.click()
+                            self.si_shadow.click(selectors.CARGO_CONFIRM, required=False)
+                            matched = True
+                            break
+                    if not options or not matched:
+                        raise BusinessError(f"找不到该hscode: {cargo.get('hsCode')}")           
+                self.si_shadow.select_by_word(selectors.CARGO_WEIGHT_UNIT,cargo.get("grossWeightUnit"),selectors.CARGO_WEIGHT_UNIT_OPTIONS)
+                self.si_shadow.input_text(
+                    selectors.CARGO_WEIGHT, cargo.get("grossWeight"), f"{index+1}集装箱 {_+1}货物Weight"
+                )
+                self.si_shadow.select_by_word(selectors.CARGO_VOLUME_UNIT,cargo.get("volumeUnit"),selectors.CARGO_VOLUME_UNIT_OPTIONS)
+                self.si_shadow.input_text(
+                    selectors.CARGO_VOLUME, cargo.get("volume"), f"{index+1}集装箱 {_+1}货物Volume"
+                )
+                self.si_shadow.select_by_word(
+                    selectors.CARGO_PACKAGE_UNIT,cargo.get("packageUnit"),selectors.CARGO_PACKAGE_UNIT_OPTIONS
+                )
+                self.si_shadow.input_text(
+                    selectors.CARGO_PACKAGE, cargo.get("packages"), f"{index+1}集装箱 {_+1}货物NumberOfPackages"
+                )
+                self.si_shadow.input_text(
+                    selectors.CARGO_MARKS, cargo.get("marks"), f"{index+1}集装箱 {_+1}货物MarksAndNumbers"
+                )
+
+            self.si_shadow.click(selectors.CONTAINER_SAVE_BTN,name=f"保存{index+1}集装箱")
+            time.sleep(3)
+            if self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False):
+                raise BusinessError(f"集装箱 {index+1} 保存失败")
+
+
+
+
+
 
 
     def _fill_router_details(self) -> None:

@@ -59,3 +59,36 @@ POD_INPUT = "c:[data-testid=textFieldLocation-POD]  input"
 DELIVERY_INPUT = "c:[data-testid=textFieldLocation-DESTINATION]  input"
 
 
+CONTAINER_TYPE_INPUT = "c:.edit-modal-container [data-testid=container-equipment-type] input"
+CONTAINER_NUM_INPUT = "c:.edit-modal-container [data-testid=txtFieldContainerNumber] input"
+CONTAINER_NUM_VERIFY = "c:.edit-modal-container [data-testid=txtFieldContainerNumber]+.container-verification"
+CONTAINER_SEAL_NO_INPUT = "c:.edit-modal-container [data-testid=txtFieldCarrierSeal] input"
+CONTAINER_COMMENTS_INPUT = "c:.edit-modal-container [data-testid=txtFieldCommentsCtrEdit] [name=comments]"
+CARGO_TAB = "c:[data-testid=dialogEditContainerModalContent] [data-testid='tabTabbarWrapper-Cargo']"
+CARGO_CODE = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.hsCode']"
+CARGO_HS_OPTIONS = "c:[data-testid=editCargoDetailsContainer] [data-testid=harmonizedCodeContainer] .MuiAutocomplete-listbox li"
+CARGO_CONFIRM = "c:[data-testid=dialogConfirm] [data-testid=btnOkConfirm]"
+CARGO_DESC = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.cargoDescription']"
+CARGO_WEIGHT = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.cargoWeightPerUnit']"
+CARGO_WEIGHT_UNIT = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.isCargoWeightInLbs']"
+CARGO_WEIGHT_UNIT_OPTIONS = "c:[id='menu-selectedCargo.isCargoWeightInLbs'] ul li"
+
+CARGO_VOLUME = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.volume']"
+CARGO_VOLUME_UNIT = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.isVolumeInCubicFeet']"
+CARGO_VOLUME_UNIT_OPTIONS = "c:[id='menu-selectedCargo.isVolumeInCubicFeet'] ul li"
+
+CARGO_PACKAGE = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.numberOfPackages']"
+CARGO_PACKAGE_UNIT = "c:[data-testid=editCargoDetailsContainer] [data-testid='cargo-package-type'] input"
+CARGO_PACKAGE_UNIT_OPTIONS = "c:.select-search-dropdown li"
+CARGO_MARKS = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.marksAndNumbers']"
+CARGO_ADD_BTN = "x://*[@data-testid='dialogActionsConfirm']//button[normalize-space()='Add Cargo']"
+CONTAINER_SAVE_BTN = "x://*[@data-testid='dialogActionsConfirm']//button[normalize-space()='Save']"
+
+
+PAYMENT_TYPE_RADIO = "c:[data-testid=ChargeDetails] button"
+PAYMENT_LOCATION_INPUT = "c:[name=paymentElsewhereLocation]"
+PAYMENT_REMARK_INPUT = "c:[name=comments]"
+
+
+
+
