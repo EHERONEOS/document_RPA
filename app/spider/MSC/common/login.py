@@ -53,10 +53,11 @@ class LoginMixin:
         """打开 myMSC 首页。"""
         self.page.get(self.index_url, show_errmsg=True)
         self.page.wait.doc_loaded()
-        self.dom.click_if_clickable(
+        self.dom.click(
             selectors.COOKIE_ACCEPT_BUTTON,
             "MSC Cookie 同意按钮",
             timeout=1,
+            required=False,
         )
 
 

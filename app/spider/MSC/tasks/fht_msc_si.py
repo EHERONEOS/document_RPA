@@ -25,21 +25,20 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
 
     def execute_business(self) -> None:
         """预留 SI 业务实现，当前不填写、保存或提交单据。"""
-        # if self.blankBill:
-        #     self._goto_create_shippinginstruction()
-        # else:
-        #     self._goto_shippinginstructions(self.content["bookingNo"])
-
+        if self.blankBill:
+            self._goto_create_shippinginstruction()
+        else:
+            self._goto_shippinginstructions(self.content["bookingNo"])
         self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW)
-        # self.select_document_group()
+        self.select_document_group()
+        
+        self._fill_address_info("Shipper")
+        self._fill_address_info("Consignee")
+        self._fill_address_info("Notify Party")
+        self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
+        self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
 
-        # self._fill_address_info("Shipper")
-        # self._fill_address_info("Consignee")
-        # self._fill_address_info("Notify Party")
-        # self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
-        # self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
-
-        # self._fill_router_details()
+        self._fill_router_details()
 
 
         self._fill_container_cargo()
@@ -67,8 +66,8 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
             raise BusinessError("SI 中没有集装箱信息")
         for index,container in enumerate(containers):
 
-            self.si_shadow.click(f"c:#panel{index+1}-header [data-testid=container-options-button]")
-            self.si_shadow.click(f"x://*[@id='panel{index+1}-header']//*[@id='split-button-menu']/li[normalize-space()='Edit Container']")
+            self.si_shadow.click(f"c:#panel{index+1}-header [data-testid=container-options-button]",name=f"{index+1}集装箱操作按钮")
+            self.si_shadow.click(f"x://*[@id='panel{index+1}-header']//*[@id='split-button-menu']/li[normalize-space()='Edit Container']",name=f"{index+1}集装箱编辑按钮")
             time.sleep(2)
             self.si_shadow.input_text(
                 selectors.CONTAINER_NUM_INPUT, container.get("containerNo"), f"{index+1} 集装箱Container Number"
@@ -102,7 +101,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
                         selectors.CARGO_CODE, cargo.get("hsCode"), f"{index+1}集装箱 {_+1}货物HS Code",blur=False
                     )  
                     time.sleep(2)
-                    options = self.si_shadow._find_array(selectors.CARGO_HS_OPTIONS)
+                    options = self.si_shadow._find_eles(selectors.CARGO_HS_OPTIONS)
                     matched = False
                     for option in options:
                         hs_code = (option.text or "").split("-", 1)[0].strip()
@@ -138,7 +137,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
             self._verify_container_cargo(container, index)
             self.si_shadow.click(selectors.CONTAINER_SAVE_BTN,name=f"保存{index+1}集装箱")
             time.sleep(3)
-            if self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False):
+            if self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False,timeout=0.5):
                 raise BusinessError(f"集装箱 {index+1} 保存失败")
 
     def _fill_router_details(self) -> None:
@@ -157,8 +156,8 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
         # The dialog uses the same controls for every party; only the content
         # prefix changes between the five party types.
         # 关闭弹窗
-        self.si_shadow.click("c:.si-party-modal-title button",required=False,timeout=1)
-        self.si_shadow.click("c:.confirm-dialog-box button[data-testid=btnOkConfirm]",required=False,timeout=1)
+        self.si_shadow.click("c:.si-party-modal-title button",required=False,timeout=0.5)
+        self.si_shadow.click("c:.confirm-dialog-box button[data-testid=btnOkConfirm]",required=False,timeout=0.5)
 
         content_prefixes = {
             "Shipper": "shipper",
@@ -173,7 +172,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
             raise ValueError(f"不支持的地址类型: {address_type}") from exc
 
         edit_btn = self.si_shadow._find(
-            f"x://h5[contains(text(),'{address_type}')]/button", required=False
+            f"x://h5[contains(text(),'{address_type}')]/button", required=False,timeout=0.5
         )
         if edit_btn:
             edit_btn.click()
@@ -215,8 +214,8 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
         # 校验字段
         self._verify_address_info(address_type, content_prefix)
         self.si_shadow.click(selectors.DIALOG_SAVE_BTN, f"保存{address_type}信息")
-        time.sleep(1)
-        if self.si_shadow._find(selectors.DIALOG_NAME, required=False):
+        time.sleep(3)
+        if self.si_shadow._find(selectors.DIALOG_NAME, required=False,timeout=0.5):
             raise BusinessError(f"{address_type}保存失败")
 
     def select_document_group(self) -> None:
@@ -297,7 +296,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
         no_booking = self.dom._find(selectors.CHECK_NO_BOOKING, required=False)
         if no_booking:
             raise BusinessError(f"单号{self.content.get('bookingNo')} 不存在")
-        error_doms = self.dom._find_array(selectors.CHECK_ERROR_LI, required=False) or []
+        error_doms = self.dom._find_eles(selectors.CHECK_ERROR_LI, required=False) or []
         error_msgs = [
             (getattr(dom, "text", "") or "").strip()
             for dom in error_doms
