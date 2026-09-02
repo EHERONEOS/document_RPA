@@ -48,8 +48,8 @@ class QtctZimSiTask(CarrierBase):
         #     raise BusinessError(f"ZIM SI 填单失败，官网提示：{err_tip}" if err_tip else "ZIM SI 填单失败")
         # # postData = format_post_data(save_res.get("postData",""))
         # self.logger.info(f"ZIM SI 保存成功")
-        # file_path = self.screenshot.page_shot(self.job_no,self.job_type,error=False)
-        # self.attachments.append(file_path)
+        file_path = self.screenshot.page_shot(self.job_no,self.job_type,error=False)
+        self.attachments.append(file_path)
         pass
     
     def fill_base_fields(self):

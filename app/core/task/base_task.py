@@ -29,7 +29,7 @@ class BaseRpaTask:
     wait_page_load = False #是否等待页面加载完成
     use_proxy = False #是否使用代理
     # booking_no = ""
-    ignored_unfilled_fields = ["carrier", "isUserSave", "blNo", "jobNo"] # 忽略的未填字段列表
+    ignored_unfilled_fields = ["carrier", "isUserSave", "blNo", "jobNo","bookingNo",'blankBill'] # 忽略的未填字段列表
     REDIS_MAIN= 15 # redis 索引(默认15)
     REDIS_HEART_BEAT = 8
 
@@ -93,7 +93,12 @@ class BaseRpaTask:
             # 获取浏览器端口并获取初始化页面
             self.page = self.browser_manager.start(self.context, self)
             # 初始化dom助手
-            self.dom = DomHelper(self.page)
+            self.dom = DomHelper(
+                self.page,
+                download_dir=self.browser_manager.settings.download_dir,
+                queue_name=self.context.queue_name,
+                rpa_message_id=self.context.rpa_message_id,
+            )
             # 初始化http助手
             self.http = HttpHelper(self.page)
             # 初始化截图助手

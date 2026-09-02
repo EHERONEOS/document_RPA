@@ -1,20 +1,21 @@
-"""FHT 客户的 MSC Shipping Instruction 任务。"""
+"""FHT 客户的 MSCGW Shipping Instruction 任务。"""
 from email.errors import MessageParseError
 import time
 
 from app.core.task.context import TaskContext
-from app.core.task.errors import BusinessError, ElementNotFoundError
-from app.spider.MSC.base import MscBase
-from app.spider.MSC import selectors
-from app.spider.MSC.common.si_field_verify import (
+from app.core.task.errors import BusinessError, ElementNotFoundError, FormValidationError
+from app.spider.MSCGW.base import MscgwBase
+from app.spider.MSCGW import selectors
+from app.spider.MSCGW.common.si_field_verify import (
     ADDRESS_OPTIONAL_FIELDS,
     ROUTER_DETAIL_FIELDS,
-    MscSiFieldVerificationMixin,
+    MscgwSiFieldVerificationMixin,
+    get_address_content_field_path,
 )
 
 
-class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
-    """执行 FHT_MSC_SI；当前仅验证并建立 MSC 登录会话。"""
+class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
+    """执行 FHT_MSCGW_SI；当前仅验证并建立 MSCGW 登录会话。"""
 
     job_type = "SI"
     def __init__(self, context: TaskContext):
@@ -30,6 +31,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
         else:
             self._goto_shippinginstructions(self.content["bookingNo"])
         self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW)
+        
         self.select_document_group()
         
         self._fill_address_info("Shipper")
@@ -37,33 +39,73 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
         self._fill_address_info("Notify Party")
         self.content.get("secondNotifyName") and  self._fill_address_info("Second Notify")
         self.content.get("overseasAgentName") and  self._fill_address_info("Forwarding Agency")
-
+        
         self._fill_router_details()
 
 
         self._fill_container_cargo()
 
         self._fill_payment_type()
+        self.raise_if_unfilled_fields()
+        # self.save_submit()
         pass
+
+
+    def save_submit(self) -> None:
+        """保存并提交单据"""
+        self.si_shadow.click(selectors.SAVE_BOOKING_BTN, name="保存按钮")
+        is_save_success = self.si_shadow._find(selectors.SAVE_SUCCESS_MSG, name="保存成功消息",timeout=10,required=False)
+        if not is_save_success:
+            raise BusinessError("截单保存失败")
+        self.si_shadow.click(selectors.SAVE_SUCCESS_OK, name="保存成功确认按钮")
+        self.page.wait.doc_loaded()
+        self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW, timeout=20)
+        for _ in range(30):
+            preview_btn = self.si_shadow._find(selectors.PREVIEW_BTN, name="预览按钮",timeout=1,required=False)
+            if preview_btn and preview_btn.states.is_enabled:
+                preview_btn.click()
+                break
+            time.sleep(1)
+        else:
+            raise BusinessError("页面刷新后预览按钮未可用")
+        for _ in range(30):
+            download_preview_btn = self.si_shadow._find(selectors.DOWNLOAD_PREVIEW_BTN, name="下载预览按钮",timeout=1,required=False)
+            if download_preview_btn and download_preview_btn.states.is_enabled:
+                file_path = self.dom.click_to_download(
+                    download_preview_btn,
+                    name="下载预览按钮",
+                )
+                self.attachments.append(file_path)
+                break
+            time.sleep(1)
+        self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮")
+
 
 
     def _fill_payment_type(self) -> None:
         """填写支付方式"""
         self.si_shadow.select_radio(selectors.PAYMENT_TYPE_RADIO,self.content.get("paymentType"),name="选择支付方式")
         if self.content.get("paymentType") == "Payable Elsewhere":
+            self.dom.scroll_to_see(selectors.PAYMENT_LOCATION_INPUT)
             self.dom.search_select_by_first_word(
                 locator=selectors.PAYMENT_LOCATION_INPUT,
                 value=self.content.get("paymentLocation"),
                 option_locator=selectors.DIALOG_LOCATION_OPTION,
                 name="选择Elsewhere Location",
             )
-        self.content.get("remarks") and self.si_shadow.input_text(selectors.PAYMENT_REMARK_INPUT,self.content.get("remarks"),name="填写备注")
+        if self.content.get("remarks"):
+            self.dom.scroll_to_see(selectors.PAYMENT_REMARK_INPUT)
+            self.si_shadow.input_text(selectors.PAYMENT_REMARK_INPUT,self.content.get("remarks"),name="填写备注")
+        self._verify_payment_type()
 
     def _fill_container_cargo(self) -> None:
         """填写集装箱信息"""
         containers = self.content.get("containers", [])
         if not containers:
-            raise BusinessError("SI 中没有集装箱信息")
+            raise BusinessError("后台下发的集装箱信息为空")
+        container_ele = self.dom._find_eles(selectors.CONTAINER_ITEM)
+        if(len(container_ele) != len(containers)):
+            raise FormValidationError("官网 SI 集装箱数量与填写数量不一致")
         for index,container in enumerate(containers):
 
             self.si_shadow.click(f"c:#panel{index+1}-header [data-testid=container-options-button]",name=f"{index+1}集装箱操作按钮")
@@ -112,7 +154,8 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
                             break
                     if not options or not matched:
                         raise BusinessError(f"找不到该hscode: {cargo.get('hsCode')}")           
-                self.si_shadow.select_by_word(selectors.CARGO_WEIGHT_UNIT,cargo.get("grossWeightUnit"),selectors.CARGO_WEIGHT_UNIT_OPTIONS)
+                self.si_shadow.select_by_word(selectors.CARGO_WEIGHT_UNIT,cargo.get("grossWeightUnit"),selectors.CARGO_WEIGHT_UNIT_OPTIONS,name="选择Weight Unit")
+                
                 self.si_shadow.input_text(
                     selectors.CARGO_WEIGHT, cargo.get("grossWeight"), f"{index+1}集装箱 {_+1}货物Weight"
                 )
@@ -122,15 +165,17 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
                         selectors.CARGO_VOLUME, cargo["volume"], f"{index+1}集装箱 {_+1}货物Volume"
                     )
                 self.si_shadow.select_by_word(
-                    selectors.CARGO_PACKAGE_UNIT,cargo.get("packageUnit"),selectors.CARGO_PACKAGE_UNIT_OPTIONS
+                    selectors.CARGO_PACKAGE_UNIT,cargo.get("packageUnit"),selectors.CARGO_PACKAGE_UNIT_OPTIONS,name="选择Package Unit"
                 )
                 self.si_shadow.input_text(
                     selectors.CARGO_PACKAGE, cargo.get("packages"), f"{index+1}集装箱 {_+1}货物NumberOfPackages"
                 )
                 self.si_shadow.input_text(
+                    selectors.CARGO_DESC, cargo.get("goodsDesc"), f"{index+1}集装箱 {_+1}货物Description"
+                )
+                self.si_shadow.input_text(
                     selectors.CARGO_MARKS, cargo.get("marks"), f"{index+1}集装箱 {_+1}货物MarksAndNumbers"
                 )
-
 
 
 
@@ -145,6 +190,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
         for field_path, selector, name, required in ROUTER_DETAIL_FIELDS:
             value = self.content.get(field_path)
             if value:
+                self.dom.scroll_to_see(selector, name, required=required)
                 self.si_shadow.input_text(selector, value, name, required=required)
         self._verify_router_details()
 
@@ -183,14 +229,14 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
             )
 
         def content_value(suffix: str):
-            return self.content.get(f"{content_prefix}{suffix}")
+            return self.content.get(get_address_content_field_path(content_prefix, suffix))
 
         self.si_shadow.input_text(
             selectors.DIALOG_NAME, content_value("Name"), f"{address_type} Name"
         )
         self.si_shadow.input_text(
             selectors.DIALOG_ADDRESS_DETAILS,
-            content_value("ContactAddress"),
+            content_value("AddressDetails"),
             f"{address_type} Address",
         )
         self.si_shadow.input_text(
@@ -252,7 +298,7 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
             dom = self.si_shadow._find(selectors.REQUESTED_COPIES_FREIGHTED)
             if not dom.states.is_checked:
                 dom.click()
-            self.si_shadow.input_text(selectors.COPIES_FREIGHTED_NUM, self.content.get("numberOfCopyFreighted"), "Copy Freighted 数量")
+            self.si_shadow.input_text(selectors.COPIES_FREIGHTED_NUM, self.content.get("numberOfFreightedCopy"), "Copy Freighted 数量")
 
 
 
@@ -293,6 +339,20 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
             selectors.CHECK_BOOKING_API,
             trigger=lambda: self.dom.click(selectors.CREATE_CHECK_BOOKING_BTN),
         )
+        create_btn = self.dom._find(selectors.CREATE_BOOKING_BTN, required=False,name="创建提单")
+        if create_btn:
+            create_btn.click()
+            self._wait_for_shippinginstructions()
+            return
+        reset_create_btn = self.dom._find(selectors.RESET_CREATE_BOOKING_BTN, required=False,name="重置创建")
+        if reset_create_btn:
+            reset_create_btn.click()
+            time.sleep(1)
+            self.dom.click(selectors.RESET_CREATE_SUBMIT,name="确认重置创建")
+            self.dom.click(selectors.RESET_CREATE_CANCEL,name="取消弹窗",required=False)
+            self._wait_for_shippinginstructions()
+            return
+
         no_booking = self.dom._find(selectors.CHECK_NO_BOOKING, required=False)
         if no_booking:
             raise BusinessError(f"单号{self.content.get('bookingNo')} 不存在")
@@ -319,6 +379,6 @@ class FhtMscSiTask(MscSiFieldVerificationMixin, MscBase):
 
   
 
-def fht_msc_si(context):
-    """提供给 FHT_MSC_SI 路由调用的任务入口。"""
-    return FhtMscSiTask(context).run()
+def fht_mscgw_si(context):
+    """提供给 FHT_MSCGW_SI 路由调用的任务入口。"""
+    return FhtMscgwSiTask(context).run()

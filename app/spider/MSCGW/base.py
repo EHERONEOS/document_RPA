@@ -1,16 +1,16 @@
-"""MSC 船司共享配置。"""
+"""MSCGW 船司共享配置。"""
 
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.context import TaskContext
-from app.spider.MSC import selectors
-from app.spider.MSC.common.login import LoginMixin
+from app.spider.MSCGW import selectors
+from app.spider.MSCGW.common.login import LoginMixin
 from app.spider.common.field_verify import FieldVerificationMixin
 
 
-class MscBase(FieldVerificationMixin, LoginMixin, BaseRpaTask):
-    """复用 MSC 账号的 Cookie 和登录流程。"""
+class MscgwBase(FieldVerificationMixin, LoginMixin, BaseRpaTask):
+    """复用 MSCGW 账号的 Cookie 和登录流程。"""
 
-    carrier_code = "MSC"
+    carrier_code = "MSCGW"
     login_url = selectors.LOGIN_URL
     index_url = selectors.INDEX_URL
 

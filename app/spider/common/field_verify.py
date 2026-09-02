@@ -21,12 +21,14 @@ class FieldVerificationMixin:
         expected_value=_UNSET,
         mark_done: bool = True,
         skip_if_empty: bool = False,
+        ignore_case: bool = False,
     ) -> None:
         """读取页面字段并校验，成功后默认标记对应消息字段已处理。
 
         ``page`` 未传时使用任务的底层 ``self.page``；传入 ``DomHelper``
         或 Shadow Root 包装对象时，复用其统一的元素定位能力。
         ``skip_if_empty`` 为真时，空值或缺失字段不读取页面，直接标记完成。
+        ``ignore_case`` 为真时，文本和值类型的字符串比较忽略大小写。
         """
         name = name or selector
         source = page or self.page
@@ -52,7 +54,11 @@ class FieldVerificationMixin:
         elif selector_type == "checked" and not isinstance(expected_value, bool):
             raise BusinessError(f"{name}的期望值必须是布尔值：{expected_value}")
 
-        if actual_value != comparable_expected_value:
+        values_match = actual_value == comparable_expected_value
+        if ignore_case and selector_type in {"text", "value"}:
+            values_match = actual_value.casefold() == comparable_expected_value.casefold()
+
+        if not values_match:
             raise FormValidationError(
                 f"{name} 验证失败，实际值：{actual_value}传入期值：{expected_value}"
             )
@@ -224,12 +230,13 @@ class FieldVerificationMixin:
         readers = {
             "text": "get_text",
             "value": "get_value",
+            "select": "get_select_value",
         }
         try:
             reader_name = readers[selector_type]
         except KeyError as error:
             raise BusinessError(
-                f"不支持的 selector_type：{selector_type}，仅支持 text、value、checked"
+                f"不支持的 selector_type：{selector_type}，仅支持 text、value、select、checked"
             ) from error
 
         reader = getattr(source, reader_name, None)

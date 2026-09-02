@@ -1,7 +1,7 @@
-"""MSC Shipping Instruction 页面字段校验编排。"""
+"""MSCGW Shipping Instruction 页面字段校验编排。"""
 
 from app.core.task.errors import BusinessError
-from app.spider.MSC import selectors
+from app.spider.MSCGW import selectors
 
 
 ADDRESS_OPTIONAL_FIELDS = (
@@ -12,6 +12,19 @@ ADDRESS_OPTIONAL_FIELDS = (
     ("Tel", selectors.DIALOG_CONTACT_PHONE, "Tel"),
 )
 
+SECOND_NOTIFY_CONTACT_FIELD_PATHS = {
+    "Fax": "secondFax",
+    "Tel": "secondTel",
+}
+
+
+def get_address_content_field_path(content_prefix: str, suffix: str) -> str:
+    """返回地址字段在任务内容中的路径。"""
+    if content_prefix == "secondNotify":
+        return SECOND_NOTIFY_CONTACT_FIELD_PATHS.get(suffix, f"{content_prefix}{suffix}")
+    return f"{content_prefix}{suffix}"
+
+
 ROUTER_DETAIL_FIELDS = (
     ("receiptPlace", selectors.RECEIPT_INPUT, "收货地", False),
     ("pol", selectors.POL_INPUT, "起运港", True),
@@ -20,8 +33,8 @@ ROUTER_DETAIL_FIELDS = (
 )
 
 
-class MscSiFieldVerificationMixin:
-    """提供 MSC SI 填单后的字段校验方法。"""
+class MscgwSiFieldVerificationMixin:
+    """提供 MSCGW SI 填单后的字段校验方法。"""
 
     def _verify_container_number(self, container_index: int) -> None:
         """校验已填写的箱号已通过 MSC 官网校验。"""
@@ -105,6 +118,7 @@ class MscSiFieldVerificationMixin:
             ("packageUnit", selectors.CARGO_PACKAGE_UNIT, "Package Type", "value"),
             ("packages", selectors.CARGO_PACKAGE, "No. of Packages", "value"),
             ("marks", selectors.CARGO_MARKS, "Marks & Numbers", "value"),
+            ("goodsDesc", selectors.CARGO_DESC, "Description", "value"),
         ):
             field_path = [*cargo_path, field_name]
             if field_name == "volumeUnit" and volume_is_empty:
@@ -143,30 +157,43 @@ class MscSiFieldVerificationMixin:
         """校验地址弹窗字段。"""
 
         def verify_address_value(
-            suffix: str, locator: str, label: str, page, *, skip_if_empty: bool = False
+            field_path: str,
+            locator: str,
+            label: str,
+            page,
+            *,
+            skip_if_empty: bool = False,
+            ignore_case: bool = False,
         ) -> None:
             self.verify_page_value(
                 selector=locator,
-                field_path=f"{content_prefix}{suffix}",
+                field_path=field_path,
                 selector_type="value",
                 page=page,
                 name=f"{address_type} {label}",
                 skip_if_empty=skip_if_empty,
+                ignore_case=ignore_case,
             )
 
         required_fields = (
             ("Name", selectors.DIALOG_NAME, "Name", self.si_shadow),
-            ("ContactAddress", selectors.DIALOG_ADDRESS_DETAILS, "Contact Address", self.si_shadow),
+            ("AddressDetails", selectors.DIALOG_ADDRESS_DETAILS, "Contact Address", self.si_shadow),
             ("Title", selectors.DIALOG_TITLE, "Title", self.si_shadow),
             ("Address", selectors.DIALOG_ADDRESS, "Address", self.si_shadow),
             ("City", selectors.DIALOG_LOCATION, "City", self.dom),
         )
         for suffix, locator, label, page in required_fields:
-            verify_address_value(suffix, locator, label, page)
+            verify_address_value(
+                get_address_content_field_path(content_prefix, suffix),
+                locator,
+                label,
+                page,
+                ignore_case=suffix == "City",
+            )
 
         for suffix, locator, label in ADDRESS_OPTIONAL_FIELDS:
             verify_address_value(
-                suffix,
+                get_address_content_field_path(content_prefix, suffix),
                 locator,
                 label,
                 self.si_shadow,
@@ -230,7 +257,7 @@ class MscSiFieldVerificationMixin:
                 checkbox_selector=selectors.REQUESTED_COPIES_FREIGHTED,
                 checkbox_field="copyFreighted",
                 quantity_selector=selectors.COPIES_FREIGHTED_NUM,
-                quantity_field="numberOfCopyFreighted",
+                quantity_field="numberOfFreightedCopy",
                 name="Copy Freighted",
             )
 
