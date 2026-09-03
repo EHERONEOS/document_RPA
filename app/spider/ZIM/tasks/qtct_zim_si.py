@@ -15,10 +15,6 @@ class QtctZimSiTask(CarrierBase):
         super().__init__(context)
         self.content = context.content or {}
         self.remain_content = context.remain_content or {}
-        # self.booking_no = self.content.get("jobNo")
-        # # self.mark_field_done("jobNo")
-        # # self.mark_field_done("carrier")
-        # # self.mark_field_done("isUserSave")
 
 
 

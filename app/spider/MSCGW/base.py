@@ -16,5 +16,5 @@ class MscgwBase(FieldVerificationMixin, LoginMixin, BaseRpaTask):
 
     def __init__(self, context: TaskContext, **kwargs):
         super().__init__(context, **kwargs)
-        account_identity = self.website_info.get("id") or self.website_info.get("websiteAccount")
-        self.cookies_redis_key = f"cookies:{self.carrier_code}_{account_identity or 'default'}"
+        account_identity = self.website_info.get("websiteAccount")
+        self.cookies_redis_key = f"cookies:mscgw_{account_identity or 'default'}"

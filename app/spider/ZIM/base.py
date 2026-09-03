@@ -13,7 +13,7 @@ class CarrierBase(LoginMixin, BaseRpaTask):
 
     def __init__(self, context: TaskContext):
         super().__init__(context)
-        self.cookies_redis_key = f"cookies:{self.carrier_code}_{self.website_info.get('websiteAccount')}"
+        self.cookies_redis_key = f"cookies:zim_{self.website_info.get('websiteAccount')}"
         pass
 
     def query_booking(self, blNo: str):

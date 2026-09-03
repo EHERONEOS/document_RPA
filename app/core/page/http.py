@@ -1,5 +1,6 @@
 from typing import Any
 
+import requests
 from app.core.logging.logger import log
 from DrissionPage import ChromiumPage
 from DrissionPage._pages.chromium_base import ChromiumBase
@@ -9,10 +10,41 @@ from app.core.task.errors import ElementNotFoundError
 
 
 class HttpHelper:
-    """页面 HTTP 监听封装。"""
+    """页面 HTTP 监听和主动请求封装。"""
 
     def __init__(self, page:ChromiumBase):
         self.page = page
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        data: Any = None,
+        json: Any = None,
+        headers: dict[str, str] | None = None,
+        cookies: dict[str, str] | None = None,
+        timeout: int = 30,
+        **kwargs: Any,
+    ) -> requests.Response:
+        """发起 HTTP 请求并返回成功响应。"""
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                params=params,
+                data=data,
+                json=json,
+                headers=headers,
+                cookies=cookies,
+                timeout=timeout,
+                **kwargs,
+            )
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            raise ElementNotFoundError(f"HTTP 请求失败：{method.upper()} {url}，{exc}") from exc
 
     def wait_api_finished(
         self,

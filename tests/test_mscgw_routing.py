@@ -6,10 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import requests
+
 from app.control.dependencies import queue_manifest
 from app.core.page.dom import DomHelper
+from app.core.page.http import HttpHelper
 from app.core.task.dispatcher import dispatch_context
-from app.core.task.errors import LoginError
+from app.core.task.errors import ElementNotFoundError, LoginError
 from app.core.task.router import CarrierRoute, resolve_queue_route
 from app.queue.message import build_task_context
 from app.spider.MSCGW import selectors
@@ -64,6 +67,41 @@ class MscgwRoutingTests(unittest.TestCase):
         self.assertIsNone(task.execute_business())
 
 
+class HttpHelperRequestTests(unittest.TestCase):
+    @patch("app.core.page.http.requests.request")
+    def test_request_forwards_request_arguments_and_returns_response(self, request):
+        response = Mock()
+        request.return_value = response
+        helper = HttpHelper(Mock())
+
+        result = helper.request(
+            "POST",
+            "http://127.0.0.1:8081/api/mscgw/login",
+            json={"websiteAccount": "account", "websitePassword": "password"},
+            timeout=15,
+        )
+
+        self.assertIs(response, result)
+        request.assert_called_once_with(
+            method="POST",
+            url="http://127.0.0.1:8081/api/mscgw/login",
+            params=None,
+            data=None,
+            json={"websiteAccount": "account", "websitePassword": "password"},
+            headers=None,
+            cookies=None,
+            timeout=15,
+        )
+        response.raise_for_status.assert_called_once_with()
+
+    @patch("app.core.page.http.requests.request", side_effect=requests.ConnectionError("offline"))
+    def test_request_converts_request_errors(self, request):
+        helper = HttpHelper(Mock())
+
+        with self.assertRaisesRegex(ElementNotFoundError, "HTTP 请求失败"):
+            helper.request("GET", "http://127.0.0.1:8081/health")
+
+
 class MscgwLoginTests(unittest.TestCase):
     def test_login_screen_is_not_mistaken_for_authenticated_session(self):
         task = object.__new__(LoginMixin)
@@ -86,31 +124,87 @@ class MscgwLoginTests(unittest.TestCase):
     def test_credentials_are_required_before_any_login_form_operation(self):
         task = object.__new__(LoginMixin)
         task.website_info = {}
-        task.dom = Mock()
+        task.http = Mock()
 
         with self.assertRaisesRegex(LoginError, "缺少网站账号或密码"):
             task._login_with_credentials()
 
-        task.dom.input_text.assert_not_called()
+        task.http.request.assert_not_called()
 
-    def test_identity_password_uses_dom_helper_native_events_method(self):
+    def test_login_service_cookies_are_applied_to_browser_session(self):
         task = object.__new__(LoginMixin)
         task.website_info = {
             "websiteAccount": "account@example.test",
             "websitePassword": "test-password",
         }
-        task.dom = Mock()
-        task._wait_for_password_page_or_success = Mock(return_value=False)
-        task._submit_identity_form = Mock()
-        task._wait_for_login_success = Mock()
+        task.http = Mock()
+        task.http.request.return_value.json.return_value = {
+            "code": 200,
+            "data": {"session": "cookie-value"},
+        }
+        task.page = Mock()
+        task._open_home_page = Mock()
+        task._is_logged_in = Mock(return_value=True)
 
         task._login_with_credentials()
 
-        task.dom.input_text_with_native_events.assert_called_once_with(
-            selectors.IDENTITY_PASSWORD,
-            "test-password",
-            "MSC 登录密码",
-            timeout=10,
+        task.http.request.assert_called_once_with(
+            "POST",
+            selectors.LOGIN_API_URL,
+            json={
+                "websiteAccount": "account@example.test",
+                "websitePassword": "test-password",
+            },
+            timeout=task.login_wait_seconds,
+        )
+        task.page.set.cookies.assert_called_once_with({"session": "cookie-value"})
+        task._open_home_page.assert_called_once_with()
+
+    def test_login_service_error_falls_back_to_browser_automation(self):
+        task = object.__new__(LoginMixin)
+        task.website_info = {
+            "websiteAccount": "account@example.test",
+            "websitePassword": "test-password",
+        }
+        task.http = Mock()
+        task.http.request.return_value.json.return_value = {
+            "code": 401,
+            "message": "账号或密码错误",
+        }
+        task.page = Mock()
+        task.logger = Mock()
+        task._login_with_browser = Mock()
+
+        task._login_with_credentials()
+
+        task.page.set.cookies.assert_not_called()
+        task._login_with_browser.assert_called_once_with(
+            "account@example.test", "test-password"
+        )
+        task.logger.warn.assert_called_once()
+
+    def test_cookie_login_failure_falls_back_to_browser_automation(self):
+        task = object.__new__(LoginMixin)
+        task.website_info = {
+            "websiteAccount": "account@example.test",
+            "websitePassword": "test-password",
+        }
+        task.http = Mock()
+        task.http.request.return_value.json.return_value = {
+            "code": 200,
+            "data": {"session": "cookie-value"},
+        }
+        task.page = Mock()
+        task.logger = Mock()
+        task._open_home_page = Mock()
+        task._is_logged_in = Mock(return_value=False)
+        task._login_with_browser = Mock()
+
+        task._login_with_credentials()
+
+        task.page.set.cookies.assert_called_once_with({"session": "cookie-value"})
+        task._login_with_browser.assert_called_once_with(
+            "account@example.test", "test-password"
         )
 
     def test_native_event_dom_input_writes_and_verifies_value(self):

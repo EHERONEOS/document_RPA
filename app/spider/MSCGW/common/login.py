@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from app.core.task.errors import LoginError
@@ -25,7 +25,7 @@ class LoginMixin:
         # self.util_redis.delete(self.cookies_redis_key)
         self._open_home_page()
         if self._is_logged_in():
-            # self.save_cookies(self.cookies_redis_key)
+            self.save_cookies(self.cookies_redis_key)
             self.logger.info("MSC 已登录")
             return
 
@@ -62,24 +62,57 @@ class LoginMixin:
 
 
     def _login_with_credentials(self: "MscgwBase") -> None:
-        """完成 myMSC 邮箱页和 Azure AD B2C 密码页的两段式登录。"""
-
-        
+        """优先使用登录服务 Cookie，失败时回退至浏览器自动化登录。"""
         account = str(self.website_info.get("websiteAccount") or "").strip()
         password = str(self.website_info.get("websitePassword") or "")
         if not account or not password:
             raise LoginError("MSC 登录缺少网站账号或密码")
 
+        try:
+            self._login_with_service_cookies(account, password)
+            return
+        except Exception as exc:
+            self.logger.warn(f"MSC 登录服务失败，回退浏览器自动化登录：{exc}")
+
+        self._login_with_browser(account, password)
+
+    def _login_with_service_cookies(self: "MscgwBase", account: str, password: str) -> None:
+        """调用本地登录服务获取 Cookie，并将其写入浏览器会话。"""
+        response = self.http.request(
+            "POST",
+            selectors.LOGIN_API_URL,
+            json={
+                "websiteAccount": account,
+                "websitePassword": password,
+            },
+            timeout=self.login_wait_seconds,
+        )
+        try:
+            result: dict[str, Any] = response.json()
+        except ValueError as exc:
+            raise LoginError("MSC 登录服务返回了无效的 JSON 响应") from exc
+        if not isinstance(result, dict):
+            raise LoginError("MSC 登录服务返回了无效的 JSON 响应")
+
+        if result.get("code") != 200:
+            message = str(result.get("message") or "未知错误")
+            raise LoginError(f"MSC 登录服务调用失败：{message}")
+
+        cookies = result.get("data")
+        if not isinstance(cookies, dict) or not cookies:
+            raise LoginError("MSC 登录服务未返回有效 Cookie")
+
+        self.page.set.cookies(cookies)
+        self._open_home_page()
+        if not self._is_logged_in():
+            raise LoginError("MSC Cookie 登录失败")
+
+    def _login_with_browser(self: "MscgwBase", account: str, password: str) -> None:
+        """执行原有 Azure AD B2C 自动化登录流程。"""
         if self._is_auth_in():
             self._submit_login(account, password)
         else:
             self._submit_auth(account, password)
-        
-
-        
-
-        
-
 
     def _submit_auth(self: "MscgwBase", account: str, password: str) -> None:
         """提交 Azure AD B2C 授权。"""

@@ -353,7 +353,7 @@ class BaseRpaTask:
     def save_cookies(self, cookies_redis_key):
         """保存浏览器 cookies。"""
         cookies = self.page.cookies()
-        self.util_redis.set(cookies_redis_key, json.dumps(cookies, ensure_ascii=False))
+        self.util_redis.set(cookies_redis_key, json.dumps({"cookies": cookies}, ensure_ascii=False))
 
     def set_page_cookies(self, cookies_redis_key):
         """设置浏览器 cookies。"""
@@ -361,4 +361,6 @@ class BaseRpaTask:
         if not cookies_str:
             return
         cookies = json.loads(cookies_str)
+        # 兼容两种格式：如果是字典且包含cookies键则取其值，否则直接使用原始cookies
+        cookies = cookies["cookies"] if isinstance(cookies, dict) and "cookies" in cookies else cookies
         self.page.set.cookies(cookies)

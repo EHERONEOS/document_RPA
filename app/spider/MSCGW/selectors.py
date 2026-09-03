@@ -3,6 +3,7 @@
 LOGIN_URL = "https://www.mymsc.com/myMSC/"
 AUTH_URL = "https://mscciam.b2clogin.com/mscciam.onmicrosoft.com/oauth2/v2.0/authorize"
 INDEX_URL = "https://www.mymsc.com/myMSC/welcome"
+LOGIN_API_URL = "http://127.0.0.1:8081/api/mscgw/login"
 
 # myMSC 首屏先收集邮箱，再跳转到 Azure AD B2C 密码页。
 LOGIN_USERNAME = "c:#UserName"

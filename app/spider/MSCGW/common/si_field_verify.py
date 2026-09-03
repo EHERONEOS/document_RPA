@@ -261,6 +261,14 @@ class MscgwSiFieldVerificationMixin:
                 name="Copy Freighted",
             )
 
+        for field_name in (
+            "numberOfOriginal",
+            "numberOfFreightedOriginal",
+            "numberOfCopy",
+            "numberOfFreightedCopy",
+        ):
+            self.mark_field_done(field_name)
+
     def _verify_requested_copy(
         self,
         *,
@@ -286,5 +294,3 @@ class MscgwSiFieldVerificationMixin:
                 page=self.si_shadow,
                 name=f"{name} 数量",
             )
-        else:
-            self.mark_field_done(quantity_field)
