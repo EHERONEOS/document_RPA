@@ -118,7 +118,6 @@ class MySQLControlRepository:
                 started_at DATETIME(6) NULL,
                 stopped_at DATETIME(6) NULL,
                 last_error TEXT NOT NULL,
-                source_changes JSON NOT NULL,
                 restart_reason JSON NOT NULL,
                 observed_at DATETIME(6) NOT NULL,
                 PRIMARY KEY (device_id, queue_name),
@@ -158,6 +157,19 @@ class MySQLControlRepository:
         with self._transaction() as cursor:
             for statement in statements:
                 cursor.execute(statement)
+            # 旧库保留该列及其历史数据，但状态上报不再写入源码变更信息。
+            cursor.execute(
+                """
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'queue_statuses'
+                  AND column_name = 'source_changes'
+                """
+            )
+            legacy_column = cursor.fetchone()
+            if legacy_column is not None and legacy_column["is_nullable"] == "NO":
+                cursor.execute(
+                    "ALTER TABLE queue_statuses MODIFY COLUMN source_changes JSON NULL"
+                )
 
     # 创建一个可在页面上管理的设备，并返回仅显示一次的注册令牌。
     def create_device(self, device_id: str, display_name: str) -> dict[str, str]:
@@ -412,7 +424,7 @@ class MySQLControlRepository:
                 """
                 SELECT a.device_id, a.queue_name, a.desired_state, a.assignment_version,
                        s.actual_state, s.process_id, s.started_at, s.stopped_at,
-                       s.last_error, s.source_changes, s.restart_reason, s.observed_at
+                       s.last_error, s.restart_reason, s.observed_at
                 FROM queue_assignments a
                 LEFT JOIN queue_statuses s
                   ON s.device_id = a.device_id AND s.queue_name = a.queue_name
@@ -431,7 +443,6 @@ class MySQLControlRepository:
                 "startedAt": _as_iso(row["started_at"]),
                 "stoppedAt": _as_iso(row["stopped_at"]),
                 "lastError": row["last_error"] or "",
-                "sourceChanges": _as_json(row["source_changes"]),
                 "restartReason": _as_json(row["restart_reason"]),
                 "observedAt": _as_iso(row["observed_at"]),
             }
@@ -494,13 +505,13 @@ class MySQLControlRepository:
                 """
                 INSERT INTO queue_statuses
                 (device_id, queue_name, actual_state, desired_state, process_id, started_at,
-                 stopped_at, last_error, source_changes, restart_reason, observed_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 stopped_at, last_error, restart_reason, observed_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     actual_state = VALUES(actual_state), desired_state = VALUES(desired_state),
                     process_id = VALUES(process_id), started_at = VALUES(started_at),
                     stopped_at = VALUES(stopped_at), last_error = VALUES(last_error),
-                    source_changes = VALUES(source_changes), restart_reason = VALUES(restart_reason),
+                    restart_reason = VALUES(restart_reason),
                     observed_at = VALUES(observed_at)
                 """,
                 (
@@ -512,7 +523,6 @@ class MySQLControlRepository:
                     self._parse_time(queue.get("startedAt")),
                     self._parse_time(queue.get("stoppedAt")),
                     str(queue.get("lastError") or ""),
-                    _serialize(queue.get("sourceChanges") or []),
                     _serialize(queue.get("restartReason") or []),
                     observed_at,
                 ),
@@ -542,7 +552,7 @@ class MySQLControlRepository:
               ON a.device_id = s.device_id AND a.queue_name = s.queue_name
             SET s.actual_state = 'UNREPORTED', s.process_id = NULL, s.started_at = NULL,
                 s.stopped_at = NULL, s.last_error = '等待设备同步队列分配',
-                s.source_changes = JSON_ARRAY(), s.restart_reason = JSON_ARRAY(),
+                s.restart_reason = JSON_ARRAY(),
                 s.observed_at = %s
             WHERE s.device_id = %s{missing_condition}
             """,

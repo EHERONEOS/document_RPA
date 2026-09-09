@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 
 import requests
 
-from app.control.dependencies import queue_manifest
 from app.core.page.dom import DomHelper
 from app.core.page.http import HttpHelper
 from app.core.task.dispatcher import dispatch_context
@@ -50,13 +49,6 @@ class MscgwRoutingTests(unittest.TestCase):
             self.assertTrue(dispatch_context(context))
 
         handler.assert_called_once_with(context)
-
-    def test_manifest_tracks_mscgw_package(self):
-        manifest = queue_manifest("FHT_MSCGW_SI", PROJECT_ROOT)
-
-        self.assertIn("app/spider/MSCGW/base.py", manifest)
-        self.assertIn("app/spider/MSCGW/selectors.py", manifest)
-        self.assertIn("app/spider/MSCGW/tasks/fht_mscgw_si.py", manifest)
 
     def test_mscgw_base_uses_login_mixin(self):
         self.assertIs(MscgwBase.login, LoginMixin.login)

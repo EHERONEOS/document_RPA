@@ -43,7 +43,7 @@ button.neutral { color: #244a70; background: #fff; border-color: #9cb4ca; }
 table { width: 100%; min-width: 900px; border-collapse: collapse; background: #fff; }
 th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid #dde5df; font-size: 13px; }
 th { background: #e7eee9; color: #32443a; font-weight: 600; }
-td.error, td.changes { max-width: 280px; white-space: pre-wrap; overflow-wrap: anywhere; }
+td.error { max-width: 280px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 230px; }
 .actions button { min-height: 29px; padding: 4px 8px; font-size: 12px; }
 .state { display: inline-block; min-width: 80px; font-weight: 600; }

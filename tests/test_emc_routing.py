@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from app.control.dependencies import queue_manifest
 from app.core.page.dom import DomHelper
 from app.core.task.dispatcher import dispatch_context
 from app.core.task.errors import BusinessError, ElementNotFoundError, FormValidationError
@@ -51,13 +50,6 @@ class EmcRoutingTests(unittest.TestCase):
     def test_asy_task_uses_emc_common_flow_and_login_mixin(self):
         self.assertTrue(issubclass(AsyEmcSiTask, EmcSiBaseTask))
         self.assertIs(EmcBase.login, LoginMixin.login)
-
-    def test_manifest_tracks_emc_package(self):
-        manifest = queue_manifest("ASY_EMC_SI", PROJECT_ROOT)
-
-        self.assertIn("app/spider/EMC/base.py", manifest)
-        self.assertIn("app/spider/EMC/selectors.py", manifest)
-        self.assertIn("app/spider/EMC/tasks/asy_emc_si.py", manifest)
 
 
 class EmcSiPolicyTests(unittest.TestCase):

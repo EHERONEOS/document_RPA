@@ -80,13 +80,11 @@ function render(dashboard) {
     const paused = queue.state === "PAUSED";
     const busy = ["DRAINING", "RESTARTING"].includes(queue.state);
     const offline = !devices.some((device) => device.deviceId === queue.deviceId && device.status === "ONLINE");
-    const changes = queue.sourceChanges.length ? queue.sourceChanges.join("\n") : "-";
     return `<tr>
       <td>${escapeHtml(queue.deviceId)}</td>
       <td><strong>${escapeHtml(queue.queueName)}</strong></td>
       <td>${queueState(queue.state)}</td>
       <td>${escapeHtml(queue.pid || "-")}</td>
-      <td class="changes">${escapeHtml(changes)}</td>
       <td class="error">${escapeHtml(queue.lastError || "-")}</td>
       <td><div class="actions">
         ${actionButton("暂停", "pause", queue.deviceId, queue.queueName, offline || paused || busy)}

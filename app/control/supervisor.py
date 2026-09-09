@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from app.control.dependencies import manifest_changes, queue_manifest
 from app.control.worker import run_queue_worker
 
 
@@ -32,7 +31,6 @@ class QueueRuntime:
     started_at: str | None = None
     stopped_at: str | None = None
     last_error: str = ""
-    manifest: dict[str, str] = field(default_factory=dict)
     restart_requested: bool = False
     restart_reason: list[str] = field(default_factory=list)
     remove_requested: bool = False
@@ -112,12 +110,11 @@ class QueueSupervisor:
             for runtime in self._runtimes.values():
                 self._terminate_worker(runtime)
 
-    # 返回所有队列的运行状态及待同步源码变更。
+    # 返回所有队列的运行状态。
     def queue_statuses(self) -> list[dict[str, Any]]:
         with self._lock:
             statuses = []
             for runtime in sorted(self._runtimes.values(), key=lambda item: item.name):
-                changes = manifest_changes(runtime.manifest, self.project_root)
                 statuses.append(
                     {
                         "name": runtime.name,
@@ -127,7 +124,6 @@ class QueueSupervisor:
                         "startedAt": runtime.started_at,
                         "stoppedAt": runtime.stopped_at,
                         "lastError": runtime.last_error,
-                        "sourceChanges": changes,
                         "restartReason": runtime.restart_reason,
                     }
                 )
@@ -184,21 +180,6 @@ class QueueSupervisor:
             self._request_drain(runtime)
             self._state_changed()
 
-    # 预览恢复一个暂停队列后需要同步重启的其他队列。
-    def preview_resume(self, queue_name: str) -> dict[str, Any]:
-        with self._lock:
-            runtime = self._runtime(queue_name)
-            if runtime.state != "PAUSED":
-                raise ValueError(f"队列 {runtime.name} 当前状态为 {runtime.state}，不能恢复")
-            affected = []
-            for candidate in self._runtimes.values():
-                if candidate.name == runtime.name or candidate.state not in RUNNING_STATES:
-                    continue
-                changes = manifest_changes(candidate.manifest, self.project_root)
-                if changes:
-                    affected.append({"name": candidate.name, "changes": changes})
-            return {"queue": runtime.name, "affected": sorted(affected, key=lambda item: item["name"])}
-
     # 请求指定 Worker 停止拉取消息并完成已接收任务。
     def pause(self, queue_name: str) -> None:
         with self._lock:
@@ -212,20 +193,17 @@ class QueueSupervisor:
             self._request_drain(runtime)
             self._state_changed()
 
-    # 使用新进程恢复指定队列，并重启受共享代码影响的队列。
-    def resume(self, queue_name: str) -> dict[str, Any]:
+    # 使用新进程恢复指定队列。
+    def resume(self, queue_name: str) -> None:
         with self._lock:
-            preview = self.preview_resume(queue_name)
             runtime = self._runtime(queue_name)
+            if runtime.state != "PAUSED":
+                raise ValueError(f"队列 {runtime.name} 当前状态为 {runtime.state}，不能恢复")
             runtime.desired_state = "RUNNING"
             runtime.restart_requested = False
             runtime.restart_reason = []
             self._start_worker(runtime)
-            for item in preview["affected"]:
-                affected = self._runtime(item["name"])
-                self._restart_runtime(affected, ["依赖代码已变更"])
             self._state_changed()
-            return preview
 
     # 排空或强制替换指定队列 Worker，使其加载磁盘中的新代码。
     def restart(self, queue_name: str, *, force: bool = False) -> None:
@@ -288,7 +266,6 @@ class QueueSupervisor:
         process = runtime.process
         if process is not None and process.is_alive():
             return
-        runtime.manifest = queue_manifest(runtime.name, self.project_root)
         runtime.commands = self._context.Queue()
         worker_args = (runtime.name, runtime.commands, self._events)
         if self.account_session_coordinator is not None:
