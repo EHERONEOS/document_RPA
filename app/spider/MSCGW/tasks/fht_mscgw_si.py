@@ -1,5 +1,6 @@
 """FHT 客户的 MSCGW Shipping Instruction 任务。"""
 from email.errors import MessageParseError
+import re
 import time
 
 from app.core.task.context import TaskContext
@@ -16,7 +17,7 @@ from app.spider.MSCGW.common.si_field_verify import (
 
 class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
     """执行 FHT_MSCGW_SI；当前仅验证并建立 MSCGW 登录会话。"""
-
+    enable_record = True # 是否开启录屏
     job_type = "SI"
     def __init__(self, context: TaskContext):
         super().__init__(context)
@@ -47,7 +48,7 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
 
         self._fill_payment_type()
         self.raise_if_unfilled_fields()
-        # self.save_submit()
+        self.save_submit()
         pass
 
 
@@ -106,6 +107,7 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
         container_ele = self.dom._find_eles(selectors.CONTAINER_ITEM)
         if(len(container_ele) != len(containers)):
             raise FormValidationError("官网 SI 集装箱数量与填写数量不一致")
+        self.dom.scroll_to_see("c:#Containers", name="定位到集装箱列表")
         for index,container in enumerate(containers):
 
             self.si_shadow.click(f"c:#panel{index+1}-header [data-testid=container-options-button]",name=f"{index+1}集装箱操作按钮")
@@ -155,18 +157,20 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
                     if not options or not matched:
                         raise BusinessError(f"找不到该hscode: {cargo.get('hsCode')}")           
                 self.si_shadow.select_by_word(selectors.CARGO_WEIGHT_UNIT,cargo.get("grossWeightUnit"),selectors.CARGO_WEIGHT_UNIT_OPTIONS,name="选择Weight Unit")
-                
+                time.sleep(1)
                 self.si_shadow.input_text(
                     selectors.CARGO_WEIGHT, cargo.get("grossWeight"), f"{index+1}集装箱 {_+1}货物Weight"
                 )
                 if not self._is_empty_expected_value(cargo.get("volume")):
                     self.si_shadow.select_by_word(selectors.CARGO_VOLUME_UNIT,cargo.get("volumeUnit"),selectors.CARGO_VOLUME_UNIT_OPTIONS)
+                    time.sleep(1)
                     self.si_shadow.input_text(
                         selectors.CARGO_VOLUME, cargo["volume"], f"{index+1}集装箱 {_+1}货物Volume"
                     )
                 self.si_shadow.select_by_word(
                     selectors.CARGO_PACKAGE_UNIT,cargo.get("packageUnit"),selectors.CARGO_PACKAGE_UNIT_OPTIONS,name="选择Package Unit"
                 )
+                time.sleep(1)
                 self.si_shadow.input_text(
                     selectors.CARGO_PACKAGE, cargo.get("packages"), f"{index+1}集装箱 {_+1}货物NumberOfPackages"
                 )
@@ -181,9 +185,19 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
 
             self._verify_container_cargo(container, index)
             self.si_shadow.click(selectors.CONTAINER_SAVE_BTN,name=f"保存{index+1}集装箱")
-            time.sleep(3)
-            if self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False,timeout=0.5):
+            if not self._wait_for_container_save():
                 raise BusinessError(f"集装箱 {index+1} 保存失败")
+
+
+    def _wait_for_container_save(self) -> bool:
+        """等待 集装箱保存成功。返回 True 如果保存成功，否则返回 False。"""
+        for _ in range(10):
+            save_dialog = self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False,timeout=0.5)
+            if not save_dialog:
+                return True
+            time.sleep(1)
+        return False
+
 
     def _fill_router_details(self) -> None:
         """填写港口信息"""
@@ -202,6 +216,7 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
         # The dialog uses the same controls for every party; only the content
         # prefix changes between the five party types.
         # 关闭弹窗
+        self.dom.scroll_to_see(selectors.ADD_NEW_PARTY_BUTTON, name="定位到添加新地址按钮")
         self.si_shadow.click("c:.si-party-modal-title button",required=False,timeout=0.5)
         self.si_shadow.click("c:.confirm-dialog-box button[data-testid=btnOkConfirm]",required=False,timeout=0.5)
 
@@ -223,9 +238,9 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
         if edit_btn:
             edit_btn.click()
         else:
-            self.si_shadow.click(selectors.ADD_NEW_PARTY_BUTTON)
+            self.si_shadow.click(selectors.ADD_NEW_PARTY_BUTTON, name="点击添加新地址按钮")
             self.si_shadow.click(
-                f"x://ul[@data-testid='menuListAddNewParty']//li[contains(text(),'{address_type}')]"
+                f"x://ul[@data-testid='menuListAddNewParty']//li[contains(text(),'{address_type}')]", name=f"点击添加{address_type}按钮"
             )
 
         def content_value(suffix: str):
@@ -245,12 +260,7 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
         self.si_shadow.input_text(
             selectors.DIALOG_ADDRESS, content_value("Address"), f"{address_type} Address"
         )
-        self.dom.search_select_by_first_word(
-            locator=selectors.DIALOG_LOCATION,
-            value=content_value("City"),
-            option_locator=selectors.DIALOG_LOCATION_OPTION,
-            name="选择loaction",
-        )
+        self.search_location_select(selectors.DIALOG_LOCATION,content_value("City"),name=f"{address_type} Location")
 
         # 非必填
         for suffix, locator, label in ADDRESS_OPTIONAL_FIELDS:
@@ -260,9 +270,45 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
         # 校验字段
         self._verify_address_info(address_type, content_prefix)
         self.si_shadow.click(selectors.DIALOG_SAVE_BTN, f"保存{address_type}信息")
-        time.sleep(3)
-        if self.si_shadow._find(selectors.DIALOG_NAME, required=False,timeout=0.5):
+        if not self._wait_for_address_save():
             raise BusinessError(f"{address_type}保存失败")
+
+    def _wait_for_address_save(self) -> bool:
+        """等待 地址保存成功。返回 True 如果保存成功，否则返回 False。"""
+        for _ in range(10):
+            save_dialog = self.si_shadow._find(selectors.DIALOG_NAME, required=False,timeout=0.5)
+            if not save_dialog:
+                return True
+            time.sleep(1)
+        return False
+
+    def search_location_select(self, location: str,value: str,name="选择loaction") -> None:
+        """搜索并选择地址"""
+        target_text = str(value).strip()
+        if not target_text:
+            raise ElementNotFoundError(f"{name}目标值为空")
+        symbol_or_digit = re.search(r"[\d_]|[^\w\s]", target_text)
+        search_keyword = (
+            target_text[: symbol_or_digit.start()] if symbol_or_digit else target_text
+        ).strip()[:10]
+
+        normalize = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
+        self.logger.info(f"搜索并选择{name}，搜索关键词：{search_keyword}")
+        element  = self.si_shadow._find(location,name)
+        element.click()
+        element.input(search_keyword, clear=True)
+        time.sleep(3)
+        for option in self.si_shadow._find_eles(selectors.DIALOG_LOCATION_OPTION,required=False):
+            if normalize(option.text) != normalize(target_text):
+                continue
+            option.click()
+            self.page.run_js("arguments[0].blur();", element)
+            self.logger.info(f"选择{name}")
+            return True
+        raise ElementNotFoundError(
+                f"{name}选项不存在：{target_text}；搜索关键词：{search_keyword}"
+            )
+
 
     def select_document_group(self) -> None:
         """选择Document Group"""
@@ -345,7 +391,7 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
             self._wait_for_shippinginstructions()
             return
         reset_create_btn = self.dom._find(selectors.RESET_CREATE_BOOKING_BTN, required=False,name="重置创建")
-        if reset_create_btn:
+        if reset_create_btn and reset_create_btn.states.is_clickable:
             reset_create_btn.click()
             time.sleep(1)
             self.dom.click(selectors.RESET_CREATE_SUBMIT,name="确认重置创建")

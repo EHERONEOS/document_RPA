@@ -1,5 +1,7 @@
 """MSCGW Shipping Instruction 页面字段校验编排。"""
 
+import time
+
 from app.core.task.errors import BusinessError
 from app.spider.MSCGW import selectors
 
@@ -74,6 +76,7 @@ class MscgwSiFieldVerificationMixin:
         container_path = ["containers", container_index]
 
         self.si_shadow.click(selectors.CONTAINER_TAB, name=f"第{container_number}个集装箱 Container 标签")
+        time.sleep(3)
         for field_name, selector, name in (
             ("containerType", selectors.CONTAINER_TYPE_INPUT, "Container Type"),
             ("containerNo", selectors.CONTAINER_NUM_INPUT, "Container Number"),

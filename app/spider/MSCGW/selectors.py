@@ -3,7 +3,7 @@
 LOGIN_URL = "https://www.mymsc.com/myMSC/"
 AUTH_URL = "https://mscciam.b2clogin.com/mscciam.onmicrosoft.com/oauth2/v2.0/authorize"
 INDEX_URL = "https://www.mymsc.com/myMSC/welcome"
-LOGIN_API_URL = "http://127.0.0.1:8081/api/mscgw/login"
+LOGIN_API_URL = "http://115.236.42.234:42000/interface/api/mscgw/login"
 
 # myMSC 首屏先收集邮箱，再跳转到 Azure AD B2C 密码页。
 LOGIN_USERNAME = "c:#UserName"
@@ -24,7 +24,7 @@ CREATE_CHECK_BOOKING_BTN = "c:#checkBC"
 CHECK_BOOKING_API = "https://www.mymsc.com/myMSC/ShippingInstructions/CheckImportShippingInstruction"
 CHECK_NO_BOOKING = "x://div[@id='checkPartial']/div[1][normalize-space()='We were unable to determine the agency for the booking number.']"
 CHECK_ERROR_LI = "x://div[@id='checkPartial']//li[.//span[contains(@class,'myMSC-icon-close')]]"
-CREATE_BOOKING_BTN = "x://div[@id='checkPartial']/button[normalize-space()='Create']"
+CREATE_BOOKING_BTN = "x://button[@id='searchBC'][normalize-space()='Create']"
 RESET_CREATE_BOOKING_BTN = "x://*[@id='checkPartial']//button[normalize-space()='Reset and create']"
 RESET_CREATE_SUBMIT = "c:#modalCreate"
 RESET_CREATE_CANCEL = "c:#modalCreate+button"

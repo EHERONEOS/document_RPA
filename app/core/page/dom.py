@@ -329,57 +329,6 @@ class DomHelper:
                 return True
         raise ElementNotFoundError(f"{name}选项不存在：{option_text}")
 
-    def search_select_by_first_word(
-        self,
-        locator,
-        value,
-        option_locator,
-        name=None,
-        required=True,
-        timeout=2,
-        wait_time=3
-    ):
-        """通过搜索框定位器搜索目标值的第一个英文单词，并选择完全匹配项。"""
-        name = name or locator
-        element = self._find(locator, name, required, timeout)
-        if not element:
-            return False
-
-        target_text = str(value).strip()
-        if not target_text:
-            if required:
-                raise ElementNotFoundError(f"{name}目标值为空")
-            return False
-
-        keyword_match = re.search(r"[A-Za-z]+", target_text)
-        search_keyword = keyword_match.group(0) if keyword_match else target_text.split()[0]
-
-        normalize = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
-
-        log(f"搜索并选择{name}，搜索关键词：{search_keyword}")
-        element.click()
-        element.input(search_keyword, clear=True)
-        time.sleep(wait_time)
-        for option in self.page.eles(option_locator, timeout=timeout):
-            if normalize(option.text) != normalize(target_text):
-                continue
-            log(f"选择{name}")
-            option.click()
-            self.page.run_js("arguments[0].blur();", element)
-            return True
-
-        if required:
-            raise ElementNotFoundError(
-                f"{name}选项不存在：{target_text}；搜索关键词：{search_keyword}"
-            )
-        return False
-
-
-
-
-
-    
-
 
     def search_select(self, locator, value, child_locator, name=None, required=True, timeout=2):
         """搜索并选择"""
