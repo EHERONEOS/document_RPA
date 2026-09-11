@@ -93,6 +93,8 @@ class MscgwSiFieldVerificationMixin:
             )
 
         self.si_shadow.click(selectors.CARGO_TAB, name=f"第{container_number}个集装箱 Cargo 标签")
+        time.sleep(2)
+
         for cargo_index, cargo in enumerate(container.get("goods", [])):
             cargo_number = cargo_index + 1
             self.si_shadow.click(

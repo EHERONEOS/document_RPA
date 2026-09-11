@@ -50,7 +50,7 @@ class DomHelper:
 
             
 
-    def _find(self, locator, name=None, required=True, timeout=2):
+    def _find(self, locator, name=None, required=True,timeout=5):
         name = name or locator
         try:
             element = self.page.ele(locator, timeout=timeout)
@@ -67,7 +67,7 @@ class DomHelper:
             return False
         return element
 
-    def _find_eles(self, locator, name=None, required=True, timeout=2):
+    def _find_eles(self, locator, name=None, required=True,timeout=5):
         name = name or locator
         try:
             elements = self.page.eles(locator, timeout=timeout)
@@ -82,7 +82,7 @@ class DomHelper:
             )
         return elements
 
-    def click(self, locator, name=None, required=True, timeout=2):
+    def click(self, locator, name=None, required=True,timeout=5):
         """点击元素。"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -98,7 +98,7 @@ class DomHelper:
         element.click()
         return True
 
-    def click_all(self, locator, name=None, required=True, timeout=2):
+    def click_all(self, locator, name=None, required=True,timeout=5):
         """点击所有匹配元素。"""
         name = name or locator
         elements = self._find_eles(locator, name, required, timeout)
@@ -166,7 +166,7 @@ class DomHelper:
         log(f"{name}下载完成：{file_path}")
         return file_path
    
-    def select_radio(self, selector, value, name=None, required=True, timeout=2):
+    def select_radio(self, selector, value, name=None, required=True,timeout=5):
         """按可见文本在单选框子选项中选中指定项。"""
         name = name or selector
         expected_text = str(value).strip()
@@ -182,7 +182,7 @@ class DomHelper:
         return False  
 
 
-    def input_text(self, locator, value, name=None, required=True, blur=True, timeout=2):
+    def input_text(self, locator, value, name=None, required=True, blur=True,timeout=5):
         """输入文本。"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -199,7 +199,7 @@ class DomHelper:
             self.page.run_js("arguments[0].blur();", element)
         return True
 
-    def scroll_to_see(self,locator, name=None, required=True, timeout=2):
+    def scroll_to_see(self,locator, name=None, required=True,timeout=5):
         """滚动到元素可见。"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -211,7 +211,7 @@ class DomHelper:
 
 
 
-    def select(self, locator, value, name=None, by="text", required=True, timeout=2):
+    def select(self, locator, value, name=None, by="text", required=True,timeout=5):
         """选择 select 选项。"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -233,7 +233,7 @@ class DomHelper:
         self.page.run_js("arguments[0].blur();", element)
         return True
 
-    def select_by_word(self, locator, value, child_locator, name=None, required=True, timeout=2):
+    def select_by_word(self, locator, value, child_locator, name=None, required=True,timeout=5):
         """非原生select下拉选择 通过文本匹配"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -251,14 +251,14 @@ class DomHelper:
             raise ElementNotFoundError(f"{name}选项不存在：{value}")
         return False
 
-    def get_text(self, locator, name=None, required=True, timeout=2):
+    def get_text(self, locator, name=None, required=True,timeout=5):
         """获取元素文本。"""
         element = self._find(locator, name, required, timeout)
         if not element:
             return ""
         return getattr(element, "text", "") or ""
 
-    def get_value(self, locator, name=None, required=True, timeout=2):
+    def get_value(self, locator, name=None, required=True,timeout=5):
         """获取 input value。"""
         element = self._find(locator, name, required, timeout)
         if not element:
@@ -266,7 +266,7 @@ class DomHelper:
         value = element.value
         return "" if value is None else str(value)
 
-    def get_select_value(self, locator, name=None,by="text", required=True, timeout=2):
+    def get_select_value(self, locator, name=None,by="text", required=True,timeout=5):
         """获取 select 当前选中值。"""
         element = self._find(locator, name, required, timeout)
         if not element:
@@ -278,7 +278,7 @@ class DomHelper:
             return selected_option.text if selected_option else ""
         raise ElementNotFoundError(f'不支持的 select 取值方式: {by}')
 
-    def get_select_text(self, locator, name=None, required=True, timeout=2):
+    def get_select_text(self, locator, name=None, required=True,timeout=5):
         """获取 select 当前选中展示文本。"""
         element = self._find(locator, name, required, timeout)
         if not element:
@@ -295,7 +295,7 @@ class DomHelper:
             return ""
         return getattr(option, "text", "") or ""
 
-    def in_frame(self, locator, name=None, required=True, timeout=2):
+    def in_frame(self, locator, name=None, required=True,timeout=5):
         """切换到 iframe。"""
         iframe = self._find(locator, name, required, timeout)
         if not iframe:
@@ -303,7 +303,7 @@ class DomHelper:
         log(f"切换到{name or locator}")
         return self._clone(iframe)
 
-    def get_shadow_root(self, locator, name=None, required=True, timeout=2):
+    def get_shadow_root(self, locator, name=None, required=True,timeout=5):
         """获取开放式 Shadow DOM 的根节点。"""
         host = self._find(locator, name, required, timeout)
         if not host:
@@ -315,7 +315,7 @@ class DomHelper:
 
 
    
-    def search_select_element(self, element, value, option_locator, option_text, name=None, timeout=2):
+    def search_select_element(self, element, value, option_locator, option_text, name=None,timeout=5):
         """在已定位的可搜索下拉框中输入筛选值并选择精确匹配的候选项。"""
         name = name or option_text
         log(f"输入{name}")
@@ -330,7 +330,7 @@ class DomHelper:
         raise ElementNotFoundError(f"{name}选项不存在：{option_text}")
 
 
-    def search_select(self, locator, value, child_locator, name=None, required=True, timeout=2):
+    def search_select(self, locator, value, child_locator, name=None, required=True,timeout=5):
         """搜索并选择"""
         name = name or locator
         element = self._find(locator, name, required, timeout)

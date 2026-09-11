@@ -27,12 +27,14 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
 
     def execute_business(self) -> None:
         """预留 SI 业务实现，当前不填写、保存或提交单据。"""
+
+        
         if self.blankBill:
             self._goto_create_shippinginstruction()
         else:
             self._goto_shippinginstructions(self.content["bookingNo"])
         self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW)
-        
+
         self.select_document_group()
         
         self._fill_address_info("Shipper")
@@ -126,8 +128,8 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
                 self.si_shadow.input_text(
                     selectors.CONTAINER_COMMENTS_INPUT, container["remarks"], f"{index+1} 集装箱Remarks"
                 )
-            self.si_shadow.click(selectors.CARGO_TAB)
-
+            self.si_shadow.click(selectors.CARGO_TAB,name=f"{index+1}集装箱切换货物标签页")
+            time.sleep(2)
 
             for _,cargo in enumerate(container.get("goods", [])):
                 cargo_index = _ + 1
@@ -287,26 +289,40 @@ class FhtMscgwSiTask(MscgwSiFieldVerificationMixin, MscgwBase):
         target_text = str(value).strip()
         if not target_text:
             raise ElementNotFoundError(f"{name}目标值为空")
-        symbol_or_digit = re.search(r"[\d_]|[^\w\s]", target_text)
-        search_keyword = (
-            target_text[: symbol_or_digit.start()] if symbol_or_digit else target_text
-        ).strip()[:10]
 
         normalize = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
-        self.logger.info(f"搜索并选择{name}，搜索关键词：{search_keyword}")
+        words = re.findall(r"[^\W_]+", target_text, flags=re.UNICODE)
+        if not words:
+            raise ElementNotFoundError(f"{name}目标值不包含可搜索单词：{target_text}")
+
         element  = self.si_shadow._find(location,name)
         element.click()
-        element.input(search_keyword, clear=True)
-        time.sleep(3)
-        for option in self.si_shadow._find_eles(selectors.DIALOG_LOCATION_OPTION,required=False):
-            if normalize(option.text) != normalize(target_text):
-                continue
-            option.click()
-            self.page.run_js("arguments[0].blur();", element)
-            self.logger.info(f"选择{name}")
-            return True
+
+        search_keywords = []
+        for index in range(1, len(words) + 1):
+            search_keyword = " ".join(words[:index])
+            search_keywords.append(search_keyword)
+            self.logger.info(f"搜索并选择{name}，搜索关键词：{search_keyword}")
+            self.http.wait_api_finished(
+                url="https://services.mymsc.com/shipping-instruction/graphql",
+                method=("POST",),
+                trigger=lambda keyword=search_keyword: element.input(keyword, clear=True),
+                request_params={
+                    "operationName": "GetLocations",
+                },
+                timeout=10,
+                required=False
+            )
+            for option in self.si_shadow._find_eles(selectors.DIALOG_LOCATION_OPTION,required=False):
+                if normalize(option.text) != normalize(target_text):
+                    continue
+                option.click()
+                self.page.run_js("arguments[0].blur();", element)
+                self.logger.info(f"选择{name}")
+                return True
+
         raise ElementNotFoundError(
-                f"{name}选项不存在：{target_text}；搜索关键词：{search_keyword}"
+                f"{name}选项不存在：{target_text}；已尝试搜索：{'；'.join(search_keywords)}"
             )
 
 
