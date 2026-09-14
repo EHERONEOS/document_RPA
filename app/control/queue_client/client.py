@@ -8,6 +8,7 @@ from typing import Any
 
 from app.control.queue_client.config import QueueClientSettings
 from app.control.queue_client.redis_client import QueueControlRedisClient
+from app.control.queue_client.flow_sync import FlowSynchronizer
 from app.control.supervisor import QueueSupervisor
 from app.config.settings import Settings
 from app.core.scheduler.account_session import (
@@ -31,12 +32,19 @@ class QueueControlClient:
         self._heartbeat_thread: threading.Thread | None = None
         self._account_session_manager = None
         self._account_session_coordinator = None
+        self.flow_synchronizer = FlowSynchronizer(
+            api_url=settings.flow_api_url,
+            device_id=settings.device_id,
+            enrollment_token=settings.enrollment_token,
+            cache_directory=settings.flow_cache_dir,
+        )
         self.supervisor = QueueSupervisor(
             [],
             project_root=settings.project_root,
             drain_timeout_seconds=settings.drain_timeout_seconds,
             persist_state=False,
             status_observer=self._publish_status,
+            task_event_settings=settings,
         )
         atexit.register(self.stop)
 
@@ -127,6 +135,8 @@ class QueueControlClient:
             )
         elif action == "restart_all":
             self.supervisor.restart_all()
+        elif action == "flow_sync":
+            self.flow_synchronizer.sync(command)
         else:
             raise ValueError(f"不支持的设备命令：{action}")
 

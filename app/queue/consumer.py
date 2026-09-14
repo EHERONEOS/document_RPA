@@ -13,7 +13,7 @@ _LOCAL_ACCOUNT_COORDINATOR = None
 
 
 def _get_local_account_coordinator():
-    """Provide the legacy in-process consumer entry with the same slot rules."""
+    """提供与原有并发槽位规则一致的进程内消费者入口。"""
     global _LOCAL_ACCOUNT_COORDINATOR
     if _LOCAL_ACCOUNT_COORDINATOR is None:
         from app.config.settings import Settings
@@ -25,9 +25,11 @@ def _get_local_account_coordinator():
     return _LOCAL_ACCOUNT_COORDINATOR
 
 
-def handle_message(task, account_session_coordinator=None):
+def handle_message(task, account_session_coordinator=None, task_event_reporter_factory=None):
     """处理单条队列消息。"""
     context = build_task_context(task)
+    reporter = task_event_reporter_factory() if task_event_reporter_factory else None
+    context.task_event_reporter = reporter
     coordinator = account_session_coordinator or _get_local_account_coordinator()
     account_key = build_account_session_key(context)
     lease = coordinator.acquire_slot(
@@ -37,9 +39,34 @@ def handle_message(task, account_session_coordinator=None):
     )
     context.browser_lease = lease
     context.account_session_coordinator = coordinator
+    success = False
+    error = ""
     try:
-        return dispatch_context(context)
+        if reporter is not None:
+            from app.core.task.protocol import TaskRuntimeIdentity
+
+            reporter.start(
+                TaskRuntimeIdentity(
+                    task_run_id=context.task_run_id,
+                    rpa_message_id=context.rpa_message_id,
+                    queue_name=context.queue_name,
+                    flow_id=context.flow_id,
+                    flow_version=context.flow_version,
+                )
+            )
+            if not context.flow_id:
+                reporter.step_changed("legacy.dispatch")
+        result = dispatch_context(context)
+        # 现有任务实现会以 False 表示已处理的业务失败。
+        # 原静态路由无异常返回 None 时，仍视为成功完成。
+        success = result is not False
+        return result
+    except Exception as exc:
+        error = str(exc)
+        raise
     finally:
+        if reporter is not None:
+            reporter.finish(success, error)
         coordinator.release_slot(account_key, lease["lease_id"])
 
 
@@ -57,7 +84,9 @@ def save_task_message(task, queue_name):
     output_path.write_text(json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def create_queue_consumer(queue_name, account_session_coordinator=None):
+def create_queue_consumer(
+    queue_name, account_session_coordinator=None, task_event_reporter_factory=None
+):
     """为单个 RabbitMQ 队列创建可由本地控制台管理的消费者。"""
     try:
         from app.queue.booster import RpaBoosterParams
@@ -68,7 +97,7 @@ def create_queue_consumer(queue_name, account_session_coordinator=None):
         raise RuntimeError(f"funboost 未安装或不可用：{exc}") from exc
 
     def consume(task=None):
-        return handle_message(task or {}, account_session_coordinator)
+        return handle_message(task or {}, account_session_coordinator, task_event_reporter_factory)
 
     from app.config.settings import Settings
 

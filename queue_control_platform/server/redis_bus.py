@@ -54,12 +54,14 @@ class RedisStreamBus:
         self, consumer_name: str, *, block_ms: int = 1000, count: int = 20
     ) -> list[tuple[str, dict[str, Any]]]:
         stream = self.event_stream()
-        group = "queue-control-platform"
-        return self._read_group(stream, group, consumer_name, block_ms, count)
+        # v2 从 Stream 末尾开始消费。旧组从 0-0 开始，可能积压大量历史消息，
+        # 从而无限延后当前设备心跳的处理。
+        group = "queue-control-platform-v2"
+        return self._read_group(stream, group, consumer_name, block_ms, count, start_id="$")
 
     # 确认中心已将一条 Agent 事件持久化到 MySQL。
     def acknowledge_event(self, message_id: str) -> None:
-        self._client().xack(self.event_stream(), "queue-control-platform", message_id)
+        self._client().xack(self.event_stream(), "queue-control-platform-v2", message_id)
 
     # 返回指定设备的命令流名称。
     @staticmethod
@@ -72,19 +74,26 @@ class RedisStreamBus:
         return "queue-control:events"
 
     # 创建消费组；已存在时保持原有消费位置。
-    def _ensure_group(self, stream: str, group: str) -> None:
+    def _ensure_group(self, stream: str, group: str, *, start_id: str = "0-0") -> None:
         try:
-            self._client().xgroup_create(stream, group, id="0-0", mkstream=True)
+            self._client().xgroup_create(stream, group, id=start_id, mkstream=True)
         except Exception as exc:
             if "BUSYGROUP" not in str(exc):
                 raise
 
     # 优先重领超时未确认消息，再读取该消费组的新消息。
     def _read_group(
-        self, stream: str, group: str, consumer_name: str, block_ms: int, count: int
+        self,
+        stream: str,
+        group: str,
+        consumer_name: str,
+        block_ms: int,
+        count: int,
+        *,
+        start_id: str = "0-0",
     ) -> list[tuple[str, dict[str, Any]]]:
         client = self._client()
-        self._ensure_group(stream, group)
+        self._ensure_group(stream, group, start_id=start_id)
         claimed = client.xautoclaim(
             stream,
             group,

@@ -117,3 +117,13 @@ SAVE_SUCCESS_OK = "c:[data-testid=btnOkConfirm]"
 PREVIEW_BTN = "c:[title=Preview]"
 DOWNLOAD_PREVIEW_BTN = "c:#document-preview-dialog-title [aria-label=download]"
 DOWNLOAD_CLOSE_BTN = "c:#document-preview-dialog-title [aria-label=close]"
+
+# 声明式能力通过这些稳定的逻辑控件引用页面元素；上方旧常量在船司定位器持续演进时仍保留可用。
+SI_CONTROLS = {
+    "root": SI_SHADOW,
+    "document_group": SELECT_DOCUMENT_RADIO,
+    "container_items": CONTAINER_ITEM,
+    "save": SAVE_BOOKING_BTN,
+    "preview": PREVIEW_BTN,
+    "preview_download": DOWNLOAD_PREVIEW_BTN,
+}

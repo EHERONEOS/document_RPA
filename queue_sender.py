@@ -1,7 +1,10 @@
-"""Send RPA task messages to RabbitMQ from outside the app package.
+"""从应用包外部向 RabbitMQ 发送 RPA 任务消息。
 
-Usage:
-    uv run python queue_sender.py --queue QTCT_ZIM_SI --message ./message_list/msg_demo.json
+用法：
+    uv run python queue_sender.py
+
+    # 覆盖目标队列，或为每个指定单号分别发送一条消息。
+    uv run python queue_sender.py --queue FHT_MSCGW_SI --job-number 96543453643
 """
 from __future__ import annotations
 
@@ -24,13 +27,14 @@ from funboost import (
     get_publisher,
 )
 
-# Importing this module registers the project's RabbitMQ publisher/consumer classes.
+# 导入该模块会注册项目自定义的 RabbitMQ 发布器和消费者类型。
 from app.queue import rabbitmq  # noqa: F401
 
 
 _publisher_lock = RLock()
 _publishers: dict[str, Any] = {}
 _exit_handler_registered = False
+DEFAULT_MESSAGE_PATH = "./message_list/FHT_MSCGW_SI.json"
 
 
 def send_queue_message(
@@ -40,10 +44,10 @@ def send_queue_message(
     delay: int = 0,
     passive: bool = True,
 ) -> bool:
-    """Send one task message to a RabbitMQ queue.
+    """向 RabbitMQ 队列发送一条任务消息。
 
-    The worker consumer expects funboost to receive a ``task`` keyword argument,
-    so the published message is wrapped as ``{"task": task}``.
+    Worker 消费者要求 funboost 接收 ``task`` 关键字参数，因此发布消息包装为
+    ``{"task": task}``。
     """
     normalized_queue_name = _normalize_queue_name(queue_name)
     normalized_task = _normalize_task(task, normalized_queue_name)
@@ -86,7 +90,7 @@ def send_queue_messages_for_job_numbers(
 
 
 def close_publishers() -> None:
-    """Close all cached publisher connections."""
+    """关闭全部缓存的发布器连接。"""
     with _publisher_lock:
         publishers = list(_publishers.values())
         _publishers.clear()
@@ -159,8 +163,21 @@ def _load_task(path: str) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Send one RPA task message to RabbitMQ.")
-    parser.add_argument("--queue", required=True, help="目标队列名，例如 QTCT_ZIM_SI")
-    parser.add_argument("--message", required=True, help="任务消息 JSON 文件路径")
+    parser.add_argument(
+        "--queue",
+        help="目标队列名；默认使用消息中的 rpaTaskTopic",
+    )
+    parser.add_argument(
+        "--message",
+        default=DEFAULT_MESSAGE_PATH,
+        help=f"任务消息 JSON 文件路径（默认：{DEFAULT_MESSAGE_PATH}）",
+    )
+    parser.add_argument(
+        "--job-number",
+        action="append",
+        default=[],
+        help="覆写消息中的 content.blNo 和 content.jobNo；可重复指定",
+    )
     parser.add_argument("--delay", type=int, default=0, help="延迟发送秒数")
     parser.add_argument(
         "--declare",
@@ -169,19 +186,25 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    send_queue_messages_for_job_numbers(
-        args.queue,
-        _load_task(args.message),
-        [
-            "GOSUSNH8263993",
-            # "GOSUSNH8263992",
-            # "GOSUSNH8263991",
-            # "GOSUSNH8263990",
-            # "GOSUSNH8263989",
-        ],
+    task = _load_task(args.message)
+    queue_name = args.queue or task.get("rpaTaskTopic")
+    if args.job_number:
+        send_queue_messages_for_job_numbers(
+            queue_name,
+            task,
+            args.job_number,
+            delay=args.delay,
+            passive=not args.declare,
+        )
+        return
+
+    send_queue_message(
+        queue_name,
+        task,
         delay=args.delay,
         passive=not args.declare,
     )
+    print(f"sent queue={_normalize_queue_name(queue_name)} message={args.message}")
 
 
 if __name__ == "__main__":

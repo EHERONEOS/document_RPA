@@ -22,6 +22,9 @@ launch.json
 # AI Rules
 .trae/rules/*.json
 tests/*
+!tests/
+!tests/test_task_protocol.py
+!tests/test_task_event_processor.py
 !tests/test_browser_profile_name.py
 !tests/test_element_names.py
 !tests/test_recording_lifecycle.py
@@ -29,6 +32,7 @@ tests/*
 !tests/test_emc_routing.py
 !tests/test_email_otp.py
 !tests/test_mscgw_routing.py
+!tests/test_flow_center.py
 # !tests/test_browser_session_lock.py
 message_list/
 .idea/

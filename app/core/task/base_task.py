@@ -32,6 +32,7 @@ class BaseRpaTask:
     ignored_unfilled_fields = ["carrier", "isUserSave", "blNo", "jobNo","bookingNo",'blankBill'] # 忽略的未填字段列表
     REDIS_MAIN= 15 # redis 索引(默认15)
     REDIS_HEART_BEAT = 8
+    defer_login_to_business = False
 
     page: ChromiumBase = None # 页面实例
 
@@ -103,14 +104,14 @@ class BaseRpaTask:
             self.http = HttpHelper(self.page)
             # 初始化截图助手
             self.screenshot = Screenshot(self.page)
-            # 执行登录 登录完成后释放登录锁
-            login_success = False
-            try:
-                self.login()
-                login_success = True
-            finally:
-                # 通知登录完成放开登录锁
-                self._notify_login_finished(login_success)
+            # 声明式船司流程将登录作为显式能力步骤执行。
+            if not self.defer_login_to_business:
+                login_success = False
+                try:
+                    self.login()
+                    login_success = True
+                finally:
+                    self._notify_login_finished(login_success)
 
             # 开启录屏
             self._try_start_recording()

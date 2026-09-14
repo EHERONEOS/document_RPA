@@ -7,12 +7,27 @@ from typing import Any
 
 
 # 作为独立进程入口，启动并协作式排空一个队列消费者。
-def run_queue_worker(queue_name: str, commands, events, account_session_coordinator=None) -> None:
+def run_queue_worker(
+    queue_name: str,
+    commands,
+    events,
+    account_session_coordinator=None,
+    task_event_settings=None,
+) -> None:
     """运行一个队列，直到收到本地排空命令。"""
     try:
         from app.queue.consumer import create_queue_consumer
 
-        consumer = create_queue_consumer(queue_name, account_session_coordinator)
+        reporter_factory = None
+        if task_event_settings is not None:
+            from app.core.task.reporter import build_task_event_reporter
+
+            reporter_factory = lambda: build_task_event_reporter(task_event_settings)
+        consumer = create_queue_consumer(
+            queue_name,
+            account_session_coordinator,
+            reporter_factory,
+        )
         consumer.start_consuming_message()
         ready_deadline = time.monotonic() + 30
         while not consumer.wait_until_ready(timeout=0.1):

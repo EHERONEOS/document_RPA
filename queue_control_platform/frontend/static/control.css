@@ -24,6 +24,18 @@ section { border-bottom: 1px solid #d3ddd6; padding: 18px 0; }
 section:first-child { padding-top: 0; }
 
 .toolbar-section { display: grid; gap: 14px; }
+.flow-section { display: grid; gap: 14px; }
+.flow-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.flow-toolbar label { min-width: 180px; }
+.wide-field { min-width: min(420px, 100%); }
+.wide-field input { min-width: 100%; }
+.flow-steps { display: grid; gap: 8px; }
+.flow-step { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(160px, 2fr) auto; gap: 10px; align-items: end; padding: 10px; border: 1px solid #cbd7ce; background: #fff; }
+.flow-step label { min-width: 0; }
+.flow-step input, .flow-step select { min-width: 0; width: 100%; }
+.flow-step button { min-height: 34px; }
+.release-form { padding-top: 4px; }
+.flow-history { margin-top: 2px; }
 .inline-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 label { display: grid; gap: 6px; font-size: 13px; color: #405148; }
 input, select, button { min-height: 34px; border: 1px solid #aebdb3; border-radius: 4px; font: inherit; }
@@ -62,5 +74,7 @@ td.error { max-width: 280px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .topbar { padding: 16px; }
   .section-heading { align-items: start; flex-direction: column; }
   .inline-form, .inline-form label { width: 100%; }
+  .flow-toolbar, .flow-toolbar label, .flow-step { width: 100%; }
+  .flow-step { grid-template-columns: 1fr; }
   input, select, .inline-form button { width: 100%; }
 }

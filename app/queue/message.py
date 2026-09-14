@@ -1,6 +1,9 @@
 from app.core.task.context import TaskContext, copy_content, parse_queue_name
-from app.core.task.router import normalize_queue_name
 from app.core.task.errors import MessageParseError
+from app.core.task.protocol import normalize_rpa_message_id, normalize_task_run_id
+from app.core.task.router import normalize_queue_name
+from app.core.flow.bindings import FlowBindingCache
+import os
 
 
 def _require_dict(value, name):
@@ -25,17 +28,28 @@ def build_task_context(
     customer_code, carrier_code, business_code = parse_queue_name(queue_name)
     website_info = _require_dict(task.get("websiteInfo"), "task.websiteInfo")
     content = _require_dict(task.get("content"), "task.content")
-    rpa_message_id = str(task.get("rpaMessageId") or "").strip()
+    try:
+        rpa_message_id = normalize_rpa_message_id(task.get("rpaMessageId"))
+        task_run_id = normalize_task_run_id(task.get("taskRunId"))
+    except ValueError as exc:
+        raise MessageParseError(str(exc)) from exc
     task_id = task.get("id")
-    if not rpa_message_id:
-        raise MessageParseError("task.rpaMessageId 不能为空")
-
+    flow_id = str(task.get("flowId") or "").strip() or None
+    flow_version = str(task.get("flowVersion") or "").strip() or None
+    if not flow_id and not flow_version:
+        binding = FlowBindingCache(os.getenv("FLOW_CACHE_DIR", "runtime/flow_cache")).get(queue_name)
+        if binding is not None:
+            flow_id = binding["flowId"]
+            flow_version = binding["flowVersion"]
+    elif not flow_id or not flow_version:
+        raise MessageParseError("flowId 和 flowVersion 必须同时提供")
     return TaskContext(
         # raw_message=raw_message,
         task=task,
         task_id=task_id,
         queue_name=queue_name,
         rpa_message_id=rpa_message_id,
+        task_run_id=task_run_id,
         customer_code=customer_code,
         carrier_code=carrier_code,
         business_code=business_code,
@@ -46,4 +60,6 @@ def build_task_context(
         runtime_mode=runtime_mode,
         enable_notify=enable_notify,
         enable_result_publish=enable_result_publish,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )

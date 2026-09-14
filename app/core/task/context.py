@@ -12,6 +12,7 @@ class TaskContext:
     task_id: str | int
     queue_name: str
     rpa_message_id: str
+    task_run_id: str
     customer_code: str
     carrier_code: str
     business_code: str
@@ -24,6 +25,9 @@ class TaskContext:
     enable_result_publish: bool = True
     browser_lease: dict[str, Any] | None = None
     account_session_coordinator: Any = None
+    task_event_reporter: Any = None
+    flow_id: str | None = None
+    flow_version: str | None = None
 
 
 def parse_queue_name(queue_name):

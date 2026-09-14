@@ -53,6 +53,7 @@ class QueueSupervisor:
         persist_state: bool = True,
         status_observer: Callable[[list[dict[str, Any]]], None] | None = None,
         account_session_coordinator=None,
+        task_event_settings=None,
     ):
         self.project_root = project_root or Path(__file__).resolve().parents[2]
         self.drain_timeout_seconds = drain_timeout_seconds
@@ -61,6 +62,7 @@ class QueueSupervisor:
         self.persist_state = persist_state
         self.status_observer = status_observer
         self.account_session_coordinator = account_session_coordinator
+        self.task_event_settings = task_event_settings
         self._context = multiprocessing.get_context("spawn")
         self._events = self._context.Queue()
         self._lock = threading.RLock()
@@ -82,7 +84,7 @@ class QueueSupervisor:
         atexit.register(self.stop)
 
     def set_account_session_coordinator(self, coordinator) -> None:
-        """Attach the device-wide coordinator before Queue Workers are started."""
+        """在启动 Queue Worker 前关联设备级账号会话协调器。"""
         with self._lock:
             if self._started:
                 raise RuntimeError("队列监管器已启动，不能替换账号会话协调器")
@@ -270,6 +272,10 @@ class QueueSupervisor:
         worker_args = (runtime.name, runtime.commands, self._events)
         if self.account_session_coordinator is not None:
             worker_args += (self.account_session_coordinator,)
+        elif self.task_event_settings is not None:
+            worker_args += (None,)
+        if self.task_event_settings is not None:
+            worker_args += (self.task_event_settings,)
         runtime.process = self._context.Process(
             target=self.worker_target,
             args=worker_args,
@@ -300,7 +306,7 @@ class QueueSupervisor:
         try:
             self.account_session_coordinator.release_worker_slots(worker_pid)
         except Exception:
-            # Worker recovery must continue even if the local manager is unavailable.
+            # 即使本地管理器不可用，也必须继续恢复 Worker。
             return
 
     # 向存活 Worker 发送协作式排空指令。

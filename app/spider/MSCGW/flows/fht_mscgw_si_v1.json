@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "flowId": "MSCGW.FHT.SI",
+  "flowVersion": "v1",
+  "name": "FHT MSCGW 提单指令",
+  "description": "填写、校验、保存并下载 FHT 客户的 MSCGW Shipping Instruction。",
+  "metadata": {
+    "adapter": "MSCGW.SI",
+    "queueName": "FHT_MSCGW_SI",
+    "sideEffectBoundary": "save.shipping_instruction"
+  },
+  "steps": [
+    {"type": "action", "stepId": "login", "name": "登录 MSCGW", "description": "复用有效 Cookie，必要时执行受控账号登录。", "action": "MSCGW.login"},
+    {"type": "action", "stepId": "open.shipping_instruction", "name": "打开提单指令", "description": "按提单类型进入对应的 Shipping Instruction 页面。", "action": "MSCGW.open_shipping_instruction"},
+    {"type": "action", "stepId": "document.group", "name": "填写出单信息", "description": "选择出单方式、正本类型和副本数量。", "action": "MSCGW.select_document_group"},
+    {"type": "action", "stepId": "party.shipper", "name": "填写发货人", "action": "MSCGW.fill_party", "inputs": {"party": "Shipper"}},
+    {"type": "action", "stepId": "party.consignee", "name": "填写收货人", "action": "MSCGW.fill_party", "inputs": {"party": "Consignee"}},
+    {"type": "action", "stepId": "party.notify", "name": "填写通知人", "action": "MSCGW.fill_party", "inputs": {"party": "Notify Party"}},
+    {
+      "type": "if",
+      "stepId": "party.second_notify.required",
+      "name": "判断是否需要第二通知人",
+      "condition": {"left": "${content.secondNotifyName}", "operator": "truthy"},
+      "then": [{"type": "action", "stepId": "party.second_notify", "name": "填写第二通知人", "action": "MSCGW.fill_party", "inputs": {"party": "Second Notify"}}]
+    },
+    {
+      "type": "if",
+      "stepId": "party.forwarding_agent.required",
+      "name": "判断是否需要境外代理",
+      "condition": {"left": "${content.overseasAgentName}", "operator": "truthy"},
+      "then": [{"type": "action", "stepId": "party.forwarding_agent", "name": "填写境外代理", "action": "MSCGW.fill_party", "inputs": {"party": "Forwarding Agency"}}]
+    },
+    {"type": "action", "stepId": "route.details", "name": "填写运输港口", "action": "MSCGW.fill_router_details"},
+    {"type": "action", "stepId": "containers.and.cargo", "name": "填写集装箱和货物", "description": "填写并校验所有集装箱及其货物明细。", "action": "MSCGW.fill_containers_and_cargo"},
+    {"type": "action", "stepId": "payment", "name": "填写付款信息", "action": "MSCGW.fill_payment"},
+    {"type": "action", "stepId": "verify.shipping_instruction", "name": "校验提单指令", "description": "确认页面回读字段完整且与下发内容一致。", "action": "MSCGW.verify_shipping_instruction"},
+    {"type": "checkpoint", "stepId": "checkpoint.before_save", "name": "保存前检查点", "description": "此后将产生船司侧保存副作用。", "checkpointId": "before.save"},
+    {"type": "action", "stepId": "save.shipping_instruction", "name": "保存提单指令", "description": "保存到 MSCGW 网站。", "action": "MSCGW.save_shipping_instruction"},
+    {"type": "action", "stepId": "download.preview", "name": "下载提单预览", "action": "MSCGW.download_preview"}
+  ]
+}

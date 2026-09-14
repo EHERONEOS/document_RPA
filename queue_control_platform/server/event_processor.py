@@ -61,3 +61,7 @@ class EventProcessor:
             device_id,
             {"action": "sync", "assignments": assignments},
         )
+        # 重连节点无需重启 Worker，即可获得最新版本解析结果。
+        flow_bindings = getattr(self.repository, "list_device_flow_bindings", None)
+        if flow_bindings is not None:
+            self.bus.send_command(device_id, {"action": "flow_sync", "bindings": flow_bindings(device_id)})

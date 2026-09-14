@@ -15,6 +15,39 @@
   </header>
 
   <main>
+    <section class="flow-section" aria-labelledby="flow-heading">
+      <div class="section-heading">
+        <h2 id="flow-heading">流程中心</h2>
+        <span id="flow-summary">未加载流程</span>
+      </div>
+      <form id="flow-form" class="inline-form">
+        <label>流程 ID<input id="flow-id" name="flowId" required maxlength="128" autocomplete="off"></label>
+        <label>名称<input id="flow-name" name="displayName" required maxlength="512" autocomplete="off"></label>
+        <label class="wide-field">说明<input id="flow-description" name="description" maxlength="512" autocomplete="off"></label>
+        <button type="submit">创建流程</button>
+      </form>
+      <div class="flow-toolbar">
+        <label>流程<select id="flow-select"></select></label>
+        <label>版本<input id="flow-version" value="v1" maxlength="128" autocomplete="off"></label>
+        <button id="add-action-step" type="button">添加动作</button>
+        <button id="add-checkpoint-step" type="button" class="neutral">添加检查点</button>
+        <button id="save-version" type="button">校验并保存版本</button>
+      </div>
+      <div id="flow-steps" class="flow-steps" aria-label="流程步骤"></div>
+      <form id="flow-release-form" class="inline-form release-form">
+        <label>绑定队列<input name="queueName" required maxlength="255" autocomplete="off"></label>
+        <label>发布策略<select name="mode"><option value="all">全量</option><option value="devices">指定设备</option><option value="percentage">百分比灰度</option></select></label>
+        <label>设备 ID<input name="deviceIds" placeholder="DEV-A, DEV-B" autocomplete="off"></label>
+        <label>百分比<input name="percentage" type="number" min="1" max="99" autocomplete="off"></label>
+        <label>备注<input name="releaseNote" maxlength="512" autocomplete="off"></label>
+        <button type="submit">绑定并发布</button>
+      </form>
+      <div class="table-scroll flow-history"><table>
+        <thead><tr><th>流程</th><th>当前版本</th><th>发布时间</th><th>操作</th></tr></thead>
+        <tbody id="flow-list"></tbody>
+      </table></div>
+    </section>
+
     <section class="toolbar-section" aria-labelledby="device-heading">
       <h2 id="device-heading">新增设备</h2>
       <form id="device-form" class="inline-form">

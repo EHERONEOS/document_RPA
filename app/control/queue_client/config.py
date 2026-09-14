@@ -15,6 +15,8 @@ class QueueClientSettings:
     redis_url: str
     drain_timeout_seconds: int
     project_root: Path
+    flow_api_url: str
+    flow_cache_dir: str
 
     @classmethod
     # 从环境变量构建机器侧客户端配置，并校验设备注册信息。
@@ -34,4 +36,6 @@ class QueueClientSettings:
             redis_url=os.getenv("QUEUE_CONTROL_REDIS_URL", "redis://127.0.0.1:6379/0"),
             drain_timeout_seconds=int(os.getenv("CONTROL_DRAIN_TIMEOUT_SECONDS", "1800")),
             project_root=project_root or Path(__file__).resolve().parents[3],
+            flow_api_url=os.getenv("QUEUE_CONTROL_FLOW_API_URL", "").strip(),
+            flow_cache_dir=os.getenv("FLOW_CACHE_DIR", "runtime/flow_cache"),
         )
