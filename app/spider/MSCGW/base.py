@@ -3,7 +3,7 @@
 from app.core.task.base_task import BaseRpaTask
 from app.core.task.context import TaskContext
 from app.spider.MSCGW import selectors
-from app.spider.MSCGW.common.login import LoginMixin
+from app.spider.MSCGW.actions.login import LoginMixin
 from app.spider.common.field_verify import FieldVerificationMixin
 
 

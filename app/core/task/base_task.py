@@ -1,5 +1,6 @@
 import json
 import platform
+from pathlib import Path
 
 from DrissionPage._elements.none_element import NoneElement
 from DrissionPage._pages.chromium_base import ChromiumBase 
@@ -24,14 +25,17 @@ from app.core.browser.manager import BrowserManager
 class BaseRpaTask:
     """RPA 任务生命周期基类。"""
 
-    enable_record = False #是否开启录屏
+    enable_record = True #是否开启录屏
     incognito = False #是否开启无痕模式
     wait_page_load = False #是否等待页面加载完成
     use_proxy = False #是否使用代理
     # booking_no = ""
-    ignored_unfilled_fields = ["carrier", "isUserSave", "blNo", "jobNo","bookingNo",'blankBill'] # 忽略的未填字段列表
+    ignored_unfilled_fields = [
+        "carrier", "isUserSave", "blNo", "jobNo", "bookingNo", "blankBill"
+    ] # 忽略的未填字段列表
     REDIS_MAIN= 15 # redis 索引(默认15)
     REDIS_HEART_BEAT = 8
+    MAX_RECORDING_UPLOAD_SIZE = 10 * 1024 * 1024
 
     page: ChromiumBase = None # 页面实例
 
@@ -166,6 +170,7 @@ class BaseRpaTask:
             self.recorder = Recorder(
                 self.page,
                 queue_name=self.context.queue_name,
+                job_no=self.job_no,
             )
             self.recorder.start()
         except Exception as exc:
@@ -200,13 +205,16 @@ class BaseRpaTask:
         """登记业务过程文件，任务结束时统一上传并写入执行记录。"""
         self.business_record_files.append((record_type, file_path))
 
-    def capture_business_screenshot(self, record_type, suffix):
+    def capture_business_screenshot(self, record_type, suffix=""):
         """截取业务过程页面并登记为指定类型的执行记录文件。"""
         if not self.context.enable_result_publish:
             return None
+        job_type = getattr(self, "job_type", "")
+        if suffix:
+            job_type = f"{job_type}_{suffix}" if job_type else suffix
         file_path = self.screenshot.page_shot(
             self.job_no,
-            f"{getattr(self, 'job_type', '')}_{suffix}",
+            job_type,
             error=False,
         )
         self.add_business_record_file(record_type, file_path)
@@ -225,7 +233,7 @@ class BaseRpaTask:
                 continue
             grouped_files.setdefault(record_type, []).append({
                 "fileObjectName": file_info["objectName"],
-                "fileName": file_info.get("filename") or str(file_path),
+                "fileName": Path(file_path).name,
             })
         return [
             {"type": record_type, "files": files}
@@ -234,10 +242,37 @@ class BaseRpaTask:
         ]
 
     def _upload_execute_video(self, record_file_path):
+        record_file_path = Path(record_file_path)
         try:
-            return self.oss_client.oss_upload(record_file_path, is_remove=True)
+            file_size = record_file_path.stat().st_size
         except Exception as exc:
-            self.logger.error(f"上传流程视频 OSS 失败：{exc}")
+            self.logger.error(f"读取录屏文件大小失败，本地录屏已保留：{exc}")
+            return None
+
+        if file_size > self.MAX_RECORDING_UPLOAD_SIZE:
+            self.logger.warn(
+                f"录屏文件超过 {self.MAX_RECORDING_UPLOAD_SIZE / (1024 * 1024):g}MB，"
+                f"跳过上传并保留本地文件：{record_file_path}"
+            )
+            return None
+
+        try:
+            file_info = self.oss_client.oss_upload(record_file_path, is_remove=False)
+            if not isinstance(file_info, dict) or not file_info.get("objectName"):
+                self.logger.error("上传流程视频 OSS 未返回 objectName，本地文件已保留")
+                return None
+
+            try:
+                record_file_path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                self.logger.error(
+                    f"录屏上传成功但删除本地文件失败 path={record_file_path} error={exc}"
+                )
+            return file_info
+        except Exception as exc:
+            self.logger.error(f"上传流程视频 OSS 失败，本地录屏已保留：{exc}")
             return None
 
     def _upload_error_screenshot(self):

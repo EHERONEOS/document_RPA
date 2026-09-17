@@ -166,10 +166,13 @@ class MySQLControlRepository:
                 """
             )
             legacy_column = cursor.fetchone()
-            if legacy_column is not None and legacy_column["is_nullable"] == "NO":
-                cursor.execute(
-                    "ALTER TABLE queue_statuses MODIFY COLUMN source_changes JSON NULL"
-                )
+            if legacy_column is not None:
+                # information_schema 在不同 MySQL/连接配置下可能返回大小写不同的列名。
+                is_nullable = legacy_column.get("IS_NULLABLE", legacy_column.get("is_nullable"))
+                if is_nullable == "NO":
+                    cursor.execute(
+                        "ALTER TABLE queue_statuses MODIFY COLUMN source_changes JSON NULL"
+                    )
 
     # 创建一个可在页面上管理的设备，并返回仅显示一次的注册令牌。
     def create_device(self, device_id: str, display_name: str) -> dict[str, str]:
@@ -492,15 +495,9 @@ class MySQLControlRepository:
             )
             if cursor.fetchone() is None:
                 continue
-            desired_state = str(queue.get("desiredState") or "RUNNING").upper()
-            if desired_state in {"RUNNING", "PAUSED"}:
-                cursor.execute(
-                    """
-                    UPDATE queue_assignments SET desired_state = %s, updated_at = %s
-                    WHERE device_id = %s AND queue_name = %s
-                    """,
-                    (desired_state, observed_at, device_id, queue_name),
-                )
+            # Agent 上报只更新观测状态，不能反写中心控制意图。
+            # 否则 resume/pause 后紧随而来的旧心跳会把 desired_state 盖回去，
+            # 随后 heartbeat 触发的 sync 又会把设备端打回原状态。
             cursor.execute(
                 """
                 INSERT INTO queue_statuses

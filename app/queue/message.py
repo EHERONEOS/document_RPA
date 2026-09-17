@@ -42,6 +42,7 @@ def build_task_context(
         website_info=website_info,
         content=content,
         remain_content=copy_content(content),
+        rpa_operate=str(task.get("rpaOperate") or "").strip(),
         customer_role=str(task.get("customerRole") or "").strip(),
         runtime_mode=runtime_mode,
         enable_notify=enable_notify,

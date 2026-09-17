@@ -197,13 +197,17 @@ class QueueSupervisor:
     def resume(self, queue_name: str) -> None:
         with self._lock:
             runtime = self._runtime(queue_name)
-            if runtime.state != "PAUSED":
-                raise ValueError(f"队列 {runtime.name} 当前状态为 {runtime.state}，不能恢复")
-            runtime.desired_state = "RUNNING"
-            runtime.restart_requested = False
-            runtime.restart_reason = []
-            self._start_worker(runtime)
-            self._state_changed()
+            # sync 与显式 resume 可能先后到达；已在恢复/运行中时视为成功，保持幂等。
+            if runtime.state == "PAUSED":
+                runtime.desired_state = "RUNNING"
+                runtime.restart_requested = False
+                runtime.restart_reason = []
+                self._start_worker(runtime)
+                self._state_changed()
+                return
+            if runtime.desired_state == "RUNNING" and runtime.state in RUNNING_STATES:
+                return
+            raise ValueError(f"队列 {runtime.name} 当前状态为 {runtime.state}，不能恢复")
 
     # 排空或强制替换指定队列 Worker，使其加载磁盘中的新代码。
     def restart(self, queue_name: str, *, force: bool = False) -> None:

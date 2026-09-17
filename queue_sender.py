@@ -2,6 +2,7 @@
 
 Usage:
     uv run python queue_sender.py --queue QTCT_ZIM_SI --message ./message_list/msg_demo.json
+    uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI.json --direct
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ def send_queue_message(
     *,
     delay: int = 0,
     passive: bool = True,
+    normalize_task: bool = True,
 ) -> bool:
     """Send one task message to a RabbitMQ queue.
 
@@ -46,7 +48,11 @@ def send_queue_message(
     so the published message is wrapped as ``{"task": task}``.
     """
     normalized_queue_name = _normalize_queue_name(queue_name)
-    normalized_task = _normalize_task(task, normalized_queue_name)
+    if not isinstance(task, dict):
+        raise TypeError("task 必须是 dict")
+    message_task = (
+        _normalize_task(task, normalized_queue_name) if normalize_task else task
+    )
     priority_control_config = (
         PriorityConsumingControlConfig(countdown=delay) if delay else None
     )
@@ -54,7 +60,7 @@ def send_queue_message(
     with _publisher_lock:
         publisher = _get_publisher(normalized_queue_name, passive=passive)
         publisher.publish(
-            msg={"task": normalized_task},
+            msg={"task": message_task},
             priority_control_config=priority_control_config,
         )
     return True
@@ -138,9 +144,6 @@ def _normalize_queue_name(queue_name: str) -> str:
 
 
 def _normalize_task(task: dict[str, Any], queue_name: str) -> dict[str, Any]:
-    if not isinstance(task, dict):
-        raise TypeError("task 必须是 dict")
-
     normalized_task = dict(task)
     normalized_task["rpaTaskTopic"] = str(
         normalized_task.get("rpaTaskTopic") or queue_name
@@ -167,21 +170,37 @@ def main() -> None:
         action="store_true",
         help="队列不存在时允许声明队列；默认只向已存在队列发送",
     )
+    parser.add_argument(
+        "--direct",
+        action="store_true",
+        help="原样发送消息文件中的 task，不写入 blNo、jobNo 或 rpaTaskTopic",
+    )
     args = parser.parse_args()
 
-    send_queue_messages_for_job_numbers(
-        args.queue,
-        _load_task(args.message),
-        [
-            "GOSUSNH8263993",
-            # "GOSUSNH8263992",
-            # "GOSUSNH8263991",
-            # "GOSUSNH8263990",
-            # "GOSUSNH8263989",
-        ],
-        delay=args.delay,
-        passive=not args.declare,
-    )
+    task = _load_task(args.message)
+    if args.direct:
+        send_queue_message(
+            args.queue,
+            task,
+            delay=args.delay,
+            passive=not args.declare,
+            normalize_task=False,
+        )
+        print(f"sent queue={args.queue.strip().upper()}")
+    else:
+        send_queue_messages_for_job_numbers(
+            args.queue,
+            task,
+            [
+                "GOSUSNH8263993",
+                # "GOSUSNH8263992",
+                # "GOSUSNH8263991",
+                # "GOSUSNH8263990",
+                # "GOSUSNH8263989",
+            ],
+            delay=args.delay,
+            passive=not args.declare,
+        )
 
 
 if __name__ == "__main__":

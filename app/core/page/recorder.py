@@ -30,13 +30,20 @@ class Recorder:
         *,
         record_dir: str | Path = "runtime/records",
         queue_name: str = "task",
+        job_no: str = "",
     ) -> None:
         self.page = page
-        self.record_dir = Path(record_dir)
+        now = datetime.now()
+        date_dir = now.strftime("%Y-%m-%d")
+        safe_name = lambda value, fallback: (
+            re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", str(value)).strip(" ._") or fallback
+        )
+        safe_queue_name = safe_name(queue_name, "task")
+        safe_job_no = safe_name(job_no, "unknown")
+        self.record_dir = Path(record_dir) / date_dir / safe_queue_name
         self.record_dir.mkdir(parents=True, exist_ok=True)
-        safe_queue_name = re.sub(r"[^A-Za-z0-9_-]+", "_", queue_name).strip("_") or "task"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        self.file_path = self.record_dir / f"{safe_queue_name}_{timestamp}.mp4"
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        self.file_path = self.record_dir / f"{safe_queue_name}_{safe_job_no}_{timestamp}.mp4"
         self.client = CaptureSDKClient()
         self.session: CaptureSession | None = None
 
@@ -48,7 +55,7 @@ class Recorder:
             raise CaptureSDKError("录屏启动失败：page 不能为空。")
 
         browser_pid = browser_pid_from_drissionpage(self.page)
-        hwnd = self.client.wait_for_browser_hwnd(browser_pid)
+        hwnd = self.client.wait_for_browser_hwnd(browser_pid, allow_first=True)
         ensure_browser_window_ready(hwnd=hwnd)
         self.session = self.client.start(
             hwnd=hwnd,

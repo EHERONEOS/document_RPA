@@ -233,7 +233,7 @@ class DomHelper:
         self.page.run_js("arguments[0].blur();", element)
         return True
 
-    def select_by_word(self, locator, value, child_locator, name=None, required=True,timeout=5):
+    def select_by_word(self, locator, value, child_locator, clear_locator=None, name=None, required=True,timeout=5):
         """非原生select下拉选择 通过文本匹配"""
         name = name or locator
         element = self._find(locator, name, required, timeout)
@@ -241,10 +241,13 @@ class DomHelper:
             return False
 
         element.click()
+        if clear_locator:
+            self.click(clear_locator, name="清除", required=False)
         for option in self.page.eles(child_locator, timeout=timeout):
             if str(getattr(option, "text", "") or "").strip() != str(value).strip():
                 continue
             option.click()
+            self.page.run_js("arguments[0].blur();", element)
             return True
 
         if required:
@@ -354,5 +357,4 @@ class DomHelper:
         if required:
             raise ElementNotFoundError(f"{name}选项不存在：{value}")
         return False
-
 

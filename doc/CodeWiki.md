@@ -284,6 +284,7 @@ uv run python -m app.dev.local_runner --message mssage_list/msg_demo.json
   "task": {
     "rpaMessageId": "2054390608361074688",
     "rpaTaskTopic": "FL_ZIM_SI",
+    "rpaOperate": "CREATE",
     "websiteInfo": {
       "websiteType": "ZIM",
       "websiteAccount": "账号",
@@ -303,6 +304,7 @@ uv run python -m app.dev.local_runner --message mssage_list/msg_demo.json
 
 - `task` 必须是对象。
 - `task.rpaTaskTopic` 不能为空。
+- `task.rpaOperate` 与 `task.content` 同级，解析后可通过 `context.rpa_operate` 获取。
 - `task.websiteInfo` 必须是对象。
 - `task.content` 必须是对象。
 - `task.rpaMessageId` 不能为空。

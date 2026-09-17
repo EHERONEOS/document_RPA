@@ -18,6 +18,7 @@ class TaskContext:
     website_info: dict
     content: dict
     remain_content: dict
+    rpa_operate: str = ""
     customer_role: str = ""
     runtime_mode: str = "queue"
     enable_notify: bool = True

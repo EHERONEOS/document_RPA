@@ -49,14 +49,30 @@ class EventProcessor:
                 self.bus.acknowledge_event(event_id)
                 continue
             if accepted and event.get("type") == "heartbeat":
-                self._send_assignment_snapshot(str(event.get("deviceId") or ""))
+                self._reconcile_assignments(
+                    str(event.get("deviceId") or ""),
+                    event.get("queues") or [],
+                )
             self.bus.acknowledge_event(event_id)
             processed += 1
         return processed
 
-    # 在设备心跳后下发完整分配快照，使重启后的 Agent 自动恢复本机队列。
-    def _send_assignment_snapshot(self, device_id: str) -> None:
+    # 仅在本机队列与中心分配不一致时下发 sync，避免每次心跳都淹没真实控制命令。
+    def _reconcile_assignments(self, device_id: str, reported_queues: list) -> None:
         assignments = self.repository.list_device_assignments(device_id)
+        expected = {
+            str(item["queueName"]).upper(): str(item["desiredState"]).upper()
+            for item in assignments
+        }
+        reported = {
+            str(item.get("name") or "").upper(): str(
+                item.get("desiredState") or ""
+            ).upper()
+            for item in reported_queues
+            if str(item.get("name") or "").strip()
+        }
+        if expected == reported:
+            return
         self.bus.send_command(
             device_id,
             {"action": "sync", "assignments": assignments},

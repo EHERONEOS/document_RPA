@@ -1,10 +1,12 @@
 import json
 import os
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from time import sleep
 
 from app.core.browser.session_lock import build_account_session_key, build_browser_profile_name
+from app.core.logging.logger import log
 from app.core.task.dispatcher import dispatch_context
 from app.queue.message import build_task_context
 
@@ -25,6 +27,21 @@ def _get_local_account_coordinator():
     return _LOCAL_ACCOUNT_COORDINATOR
 
 
+def skip_test_job(func):
+    """跳过单号中包含 TEST 的测试任务，不启动浏览器或执行具体业务。"""
+    @wraps(func)
+    def _wrapper(task, *args, **kwargs):
+        content = task.get("content", {}) if isinstance(task, dict) else {}
+        if isinstance(content, dict):
+            for key in ("jobNo", "blNo", "bookingNo", "shippingNo"):
+                if "TEST" in str(content.get(key, "")).upper():
+                    log("测试单忽略处理")
+                    return False
+        return func(task, *args, **kwargs)
+    return _wrapper
+
+
+@skip_test_job
 def handle_message(task, account_session_coordinator=None):
     """处理单条队列消息。"""
     context = build_task_context(task)

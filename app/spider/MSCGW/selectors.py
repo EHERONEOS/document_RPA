@@ -35,9 +35,11 @@ BOOKING_FIRST_NUMBER = "c:.MuiDataGrid-virtualScrollerRenderZone>div:nth-child(1
 BOOKING_FIRST_STATUS = "c:.MuiDataGrid-virtualScrollerRenderZone>div:nth-child(1) .MuiGrid-item:nth-child(3)"
 BOOKING_FIRST_BUTTON = "c:.MuiDataGrid-virtualScrollerRenderZone>div:nth-child(1) .buttons-container-responsive .responsive"
 
-SHIPPING_INSTRUCTIONS_URL = "https://www.mymsc.com/myMSC/shippinginstructions/shippinginstructions"
+SHIPPING_INSTRUCTIONS_URL = "https://www.mymsc.com/myMSC/shippinginstructions/shippinginstructions" # 填单页面
+FREE_FORM_ESI_URL = "https://www.mymsc.com/myMSC/shippinginstructions/freeeditshippinginstructions" # 拆并单填单页面
 
 SI_SHADOW = "c:#eSi-app"
+
 SELECT_DOCUMENT_RADIO = "c:[data-testid=document-selection] label"
 CHECKED_SELECT_DOCUMENT = "c:[data-testid='document-selection'] label:has(input:checked)"
 DOCUMENT_TYPE_RADIO = "c:[data-testid=rbOrigin] label"
@@ -61,6 +63,9 @@ DIALOG_CONTACT_REFERENCE = "c:.party-edit-wrapper [name='billOfLadingData.contac
 DIALOG_LOCATION = "c:.party-edit-wrapper [name=location]"
 DIALOG_LOCATION_OPTION = "c:.MuiAutocomplete-listbox li"
 
+SEARCH_LOCATION_API = "https://services.mymsc.com/shipping-instruction/graphql" #普通单搜索城市
+SEARCH_FREE_LOCATION_API = "https://services.mymsc.com/shipping-instruction-free/graphql" #拆并单搜索城市
+
 
 DIALOG_CONTACT_NAME = "c:.party-edit-wrapper [name=contactName]"
 DIALOG_CONTACT_PHONE = "c:.party-edit-wrapper [name=contactPhone]"
@@ -69,6 +74,11 @@ DIALOG_CONTACT_EMAIL = "c:.party-edit-wrapper [name=contactEmail]"
 DIALOG_SAVE_BTN = "c:.party-edit-wrapper [data-testid=btnSavePartyEdit]"
 
 ADD_NEW_PARTY_BUTTON = "c:#AddNewParty"
+
+FREE_RECEIPT_LOCATION_INPUT = "c:[name='routeDetails.0.location']"
+FREE_POL_LOCATION_INPUT = "c:[name='routeDetails.1.location']"
+FREE_POD_LOCATION_INPUT = "c:[name='routeDetails.2.location']"
+FREE_DELIVERY_LOCATION_INPUT = "c:[name='routeDetails.3.location']"
 
 RECEIPT_INPUT = "c:[data-testid=textFieldLocation-ORIGIN]  input"
 POL_INPUT = "c:[data-testid=textFieldLocation-POL]  input"
@@ -117,3 +127,22 @@ SAVE_SUCCESS_OK = "c:[data-testid=btnOkConfirm]"
 PREVIEW_BTN = "c:[title=Preview]"
 DOWNLOAD_PREVIEW_BTN = "c:#document-preview-dialog-title [aria-label=download]"
 DOWNLOAD_CLOSE_BTN = "c:#document-preview-dialog-title [aria-label=close]"
+SUBMIT_BTN = "c:[title=Submit]"
+SUBMIT_SUCCESS_MSG = "x://*[@id='alert-dialog-title'][contains(normalize-space(),'Successfully Submitted')]"
+
+
+FREE_ESI_SHADOW = "c:#free-eSi-app"
+FREE_BOOKING_NUMBER = "c:[name=carrierBooking]"
+FREE_AGENCY = "c:[data-testid=siTopToolbar] .custom-select input"
+FREE_AGENCY_CLEAR = "c:[data-testid=siTopToolbar] .custom-select [title=Clear]"
+FREE_AGENCY_OPTIONS = "c:.select-search-dropdown li"
+FREE_VESSEL = "c:[name=vessel]"
+FREE_VOYAGE = "c:[name=voyage]"
+FREE_RECEIPT_CARRIAGE_MODE = "c:[data-testid=RouteDetails-ORIGIN] [data-testid=cmbTransportMode]"
+FREE_RECEIPT_CARRIAGE_MODE_OPTIONS = "c:[id='menu-routeDetails.0.transportMode'] li"
+FREE_DELIVERY_CARRIAGE_MODE = "c:[data-testid=RouteDetails-DESTINATION] [data-testid=cmbTransportMode]"
+FREE_DELIVERY_CARRIAGE_MODE_OPTIONS = "c:[id='menu-routeDetails.3.transportMode'] li"
+FREE_ADD_CONTAINER_BTN = "x://button[normalize-space()='Add Container']"
+CONTAINER_TYPE_CLEAR = "c:.edit-modal-container [data-testid=container-equipment-type] [title=Clear]"
+FREE_SAVE_BOOKING_BTN = "x://*[@title='Save as Draft']"
+FREE_SUBMIT_BOOKING_BTN = "x://*[@title='Submit Request']"
