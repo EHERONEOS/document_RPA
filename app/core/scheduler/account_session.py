@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import shutil
-import signal
-import subprocess
 import threading
 import time
 import uuid
@@ -16,7 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from app.core.browser.port import BrowserPortRegistry
+from app.core.browser.process import find_rpa_chromium_pids, terminate_browser_pids
 from app.core.logging.logger import log
+from app.core.scheduler.browser_cleanup import BrowserCleanupScheduler
 
 
 @dataclass(frozen=True)
@@ -28,6 +27,10 @@ class AccountSessionSettings:
     browser_port_end: int
     account_max_concurrent: int = 3
     account_idle_seconds: int = 60
+    browser_cleanup_enabled: bool = False
+    browser_cleanup_hour: int = 20
+    browser_cleanup_minute: int = 30
+    browser_cleanup_wait_busy_seconds: int = 1800
 
     @classmethod
     def from_app_settings(cls, settings):
@@ -37,6 +40,12 @@ class AccountSessionSettings:
             browser_port_end=settings.browser_port_end,
             account_max_concurrent=settings.account_max_concurrent,
             account_idle_seconds=settings.account_idle_seconds,
+            browser_cleanup_enabled=bool(getattr(settings, "browser_cleanup_enabled", False)),
+            browser_cleanup_hour=int(getattr(settings, "browser_cleanup_hour", 20)),
+            browser_cleanup_minute=int(getattr(settings, "browser_cleanup_minute", 30)),
+            browser_cleanup_wait_busy_seconds=int(
+                getattr(settings, "browser_cleanup_wait_busy_seconds", 1800)
+            ),
         )
 
 
@@ -59,12 +68,27 @@ class AccountSessionCoordinator:
         self._condition = threading.Condition()
         self._pools: dict[str, dict[str, Any]] = {}
         self._stop_event = threading.Event()
+        self._cleanup_hold = False
+        self._cleanup_thread: threading.Thread | None = None
         self._reaper = threading.Thread(
             target=self._reap_loop,
             name="account-session-reaper",
             daemon=True,
         )
         self._reaper.start()
+        if settings.browser_cleanup_enabled:
+            scheduler = BrowserCleanupScheduler(
+                hour=settings.browser_cleanup_hour,
+                minute=settings.browser_cleanup_minute,
+                stop_event=self._stop_event,
+                callback=self.cleanup_stale_browsers,
+            )
+            self._cleanup_thread = scheduler.start()
+            log(
+                "已启动浏览器日清理 "
+                f"time={settings.browser_cleanup_hour:02d}:{settings.browser_cleanup_minute:02d} "
+                f"wait_busy_seconds={settings.browser_cleanup_wait_busy_seconds}"
+            )
 
     def acquire_slot(
         self,
@@ -83,6 +107,9 @@ class AccountSessionCoordinator:
 
             pool["last_message_at"] = time.monotonic()
             while True:
+                if self._cleanup_hold:
+                    self._condition.wait(timeout=0.5)
+                    continue
                 lease = self._try_acquire_slot(pool, owner_pid)
                 if lease is not None:
                     return lease
@@ -215,6 +242,9 @@ class AccountSessionCoordinator:
             return
         self._stop_event.set()
         self._reaper.join(timeout=2)
+        if self._cleanup_thread is not None:
+            self._cleanup_thread.join(timeout=5)
+            self._cleanup_thread = None
         with self._condition:
             cleanup = []
             for pool in self._pools.values():
@@ -404,22 +434,99 @@ class AccountSessionCoordinator:
         except Exception as exc:
             log(f"删除临时浏览器目录失败 path={profile_path} error={exc}", level="ERROR")
 
+    def cleanup_stale_browsers(self) -> dict[str, Any]:
+        """关闭空闲和孤儿 RPA 浏览器，忙碌槽位等待至超时后跳过。"""
+        with self._condition:
+            if self._cleanup_hold:
+                return {"skipped": True, "reason": "in_progress"}
+            self._cleanup_hold = True
+            self._condition.notify_all()
+        try:
+            return self._run_stale_browser_cleanup()
+        finally:
+            with self._condition:
+                self._cleanup_hold = False
+                self._condition.notify_all()
+
+    def _run_stale_browser_cleanup(self) -> dict[str, Any]:
+        leftover_busy = self._wait_until_idle(self.settings.browser_cleanup_wait_busy_seconds)
+        busy_ports = {item["port"] for item in leftover_busy if item.get("port")}
+        busy_pids = {item["pid"] for item in leftover_busy if item.get("pid")}
+        with self._condition:
+            tracked_pids: list[int] = []
+            idle_ephemeral: list[dict[str, Any]] = []
+            for pool in self._pools.values():
+                retained = []
+                for slot in pool["slots"]:
+                    if slot["busy"]:
+                        retained.append(slot)
+                        continue
+                    if slot.get("pid"):
+                        tracked_pids.append(int(slot["pid"]))
+                    slot["pid"] = None
+                    if slot["is_primary"]:
+                        retained.append(slot)
+                    else:
+                        idle_ephemeral.append(dict(slot))
+                pool["slots"] = retained
+            allocated_ports = set(self._registry.allocated_ports())
+            allocated_ports.update(
+                slot["port"]
+                for pool in self._pools.values()
+                for slot in pool["slots"]
+                if slot.get("port")
+            )
+        orphan_pids = find_rpa_chromium_pids(
+            ports=allocated_ports,
+            user_data_dir=self._root,
+            exclude_ports=busy_ports,
+        )
+        pids = [pid for pid in [*tracked_pids, *orphan_pids] if pid not in busy_pids]
+        terminated = terminate_browser_pids(pids)
+        self._cleanup_slots(idle_ephemeral)
+        log(
+            "浏览器日清理完成 "
+            f"terminated={terminated} "
+            f"ephemeral_reaped={len(idle_ephemeral)} "
+            f"busy_skipped={len(leftover_busy)}"
+        )
+        return {
+            "skipped": False,
+            "terminated_pids": terminated,
+            "ephemeral_reaped": len(idle_ephemeral),
+            "busy_skipped": leftover_busy,
+        }
+
+    def _wait_until_idle(self, timeout_seconds: int) -> list[dict[str, Any]]:
+        deadline = time.monotonic() + max(int(timeout_seconds), 0)
+        while True:
+            with self._condition:
+                busy = [
+                    {
+                        "account_key": pool["account_key"],
+                        "slot_index": slot["slot_index"],
+                        "port": slot["port"],
+                        "pid": slot.get("pid"),
+                    }
+                    for pool in self._pools.values()
+                    for slot in pool["slots"]
+                    if slot["busy"]
+                ]
+                if not busy:
+                    return []
+            if time.monotonic() >= deadline or self._stop_event.is_set():
+                if busy:
+                    log(
+                        f"浏览器日清理仍有忙碌槽位，将跳过这些进程 count={len(busy)}",
+                        level="WARNING",
+                    )
+                return busy
+            remaining = deadline - time.monotonic()
+            self._stop_event.wait(timeout=min(0.5, max(remaining, 0)))
+
     @staticmethod
     def _terminate_browser(pid: int | None) -> None:
-        if not pid:
-            return
-        try:
-            if os.name == "nt":
-                subprocess.run(
-                    ["taskkill", "/PID", str(pid), "/T", "/F"],
-                    check=False,
-                    capture_output=True,
-                    timeout=10,
-                )
-            else:
-                os.kill(pid, signal.SIGTERM)
-        except (OSError, subprocess.SubprocessError):
-            pass
+        terminate_browser_pids([pid] if pid else [])
 
 
 class AccountSessionManager(BaseManager):

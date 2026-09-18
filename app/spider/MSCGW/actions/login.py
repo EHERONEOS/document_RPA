@@ -18,6 +18,7 @@ class LoginMixin:
     """复用 myMSC 会话，并在失效时通过 Azure AD B2C 登录。"""
 
     login_wait_seconds = 30
+    cookies_expire_hours = 3
 
     def login(self: "MscgwBase") -> None:
         """优先复用 Cookie，必要时只由一个任务提交账号凭据。"""
@@ -25,7 +26,7 @@ class LoginMixin:
         # self.util_redis.delete(self.cookies_redis_key)
         self._open_home_page()
         if self._is_logged_in():
-            self.save_cookies(self.cookies_redis_key)
+            self.save_cookies(self.cookies_redis_key, expire_hours=self.cookies_expire_hours)
             self.logger.info("MSC 已登录")
             return
 
@@ -33,7 +34,7 @@ class LoginMixin:
         self.set_page_cookies(self.cookies_redis_key)
         self._open_home_page()
         if self._is_logged_in():
-            self.save_cookies(self.cookies_redis_key)
+            self.save_cookies(self.cookies_redis_key, expire_hours=self.cookies_expire_hours)
             self.logger.info("获取redis cookie 登录成功")
             return
 
@@ -45,7 +46,7 @@ class LoginMixin:
                 return
         
         self._login_with_credentials()
-        self.save_cookies(self.cookies_redis_key)
+        self.save_cookies(self.cookies_redis_key, expire_hours=self.cookies_expire_hours)
 
 
     def _open_home_page(self: "MscgwBase") -> None:

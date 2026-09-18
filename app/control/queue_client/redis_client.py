@@ -98,3 +98,15 @@ class QueueControlRedisClient:
                     continue
                 decoded.append((message_id, payload))
         return decoded
+
+
+def is_control_plane_unavailable(exc: BaseException) -> bool:
+    """判断异常是否表示控制面 Redis 连不上，应启用本地队列兜底。"""
+    if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+        return True
+    try:
+        from redis.exceptions import ConnectionError as RedisConnectionError
+        from redis.exceptions import TimeoutError as RedisTimeoutError
+    except ImportError:
+        return False
+    return isinstance(exc, (RedisConnectionError, RedisTimeoutError))

@@ -242,8 +242,10 @@ class DomHelper:
 
         element.click()
         if clear_locator:
-            self.click(clear_locator, name="清除", required=False)
-        for option in self.page.eles(child_locator, timeout=timeout):
+            self.click(clear_locator, name="清除",required=False)
+        time.sleep(1)
+        options = self.page.eles(child_locator, timeout=timeout)
+        for option in options:
             if str(getattr(option, "text", "") or "").strip() != str(value).strip():
                 continue
             option.click()

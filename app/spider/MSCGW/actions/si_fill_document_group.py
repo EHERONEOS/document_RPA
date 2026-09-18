@@ -30,6 +30,8 @@ class SiFillDocumentGroupMixin:
 
     def select_document_type(self: "FhtMscgwSiTask", release_mode: str) -> None:
         document_type = self.content.get("originalDocumentType")
+        if not document_type:
+            raise BusinessError("后台 originalDocumentType 字段为空")
         self.si_shadow.select_radio(selectors.DOCUMENT_TYPE_RADIO, document_type, "选择Document Type")
         if release_mode == "Original":
             if document_type == "Original Unfreighted":

@@ -34,6 +34,7 @@ class SiNavigationMixin:
                 self.http.wait_api_finished(
                     selectors.DASHBOARD_GRAPHQL_API,
                     trigger=lambda: self.page.get(selectors.EBOOKINGS_URL),
+                    name="查询booking列表接口"
                 )
                 break
             except Exception as exc:
@@ -66,6 +67,7 @@ class SiNavigationMixin:
         self.http.wait_api_finished(
             selectors.CHECK_BOOKING_API,
             trigger=lambda: self.dom.click(selectors.CREATE_CHECK_BOOKING_BTN),
+            name="校验booking接口"
         )
         create_btn = self.dom._find(selectors.CREATE_BOOKING_BTN, required=False, name="创建提单")
         if create_btn:
@@ -90,28 +92,31 @@ class SiNavigationMixin:
             for dom in error_doms
             if (getattr(dom, "text", "") or "").strip()
         ]
-        raise BusinessError(f"单号{self.content.get('bookingNo')}已创建,错误信息为{error_msgs}")
+        if error_msgs:
+            raise BusinessError(f"单号{self.content.get('bookingNo')}已创建,错误信息为{error_msgs}")
+        else:
+            raise BusinessError(f"创建空白单页面异常")
 
     def _goto_free_form_esi(self: "FhtMscgwSiTask") -> None:
         """跳转至拆单/并单页面。"""
         self.page.get(selectors.FREE_FORM_ESI_URL)
-        for _ in range(30):
+        for _ in range(60):
             url = str(getattr(self.page, "url", "") or "")
             if selectors.FREE_FORM_ESI_URL in url:
                 self.dom._find("css:#documents", timeout=20, name="等待填单页面加载")
                 return
             time.sleep(1)
-        raise BusinessError("MSC 未在 30 秒内跳转至 填单页面")
+        raise BusinessError("MSC 未在 60 秒内跳转至 填单页面")
 
     def _wait_for_shippinginstructions(self: "FhtMscgwSiTask") -> None:
         """等待跳转到 Shipping Instructions。"""
-        for _ in range(30):
+        for _ in range(60):
             url = str(getattr(self.page, "url", "") or "")
             if selectors.SHIPPING_INSTRUCTIONS_URL in url:
                 self.dom._find("css:#documents", timeout=20, name="等待填单页面加载")
                 return
             time.sleep(1)
-        raise BusinessError("MSC 未在 30 秒内跳转至 填单页面")
+        raise BusinessError("MSC 未在 60 秒内跳转至 填单页面")
 
     def search_location_select(
         self: "FhtMscgwSiTask",
@@ -147,7 +152,7 @@ class SiNavigationMixin:
                 method=("POST",),
                 trigger=lambda keyword=search_keyword: element.input(keyword, clear=True),
                 request_params={"operationName": operationName},
-                timeout=10,
+                timeout=20,
                 required=False,
             )
             for option in self.si_shadow._find_eles(selectors.DIALOG_LOCATION_OPTION, required=False):

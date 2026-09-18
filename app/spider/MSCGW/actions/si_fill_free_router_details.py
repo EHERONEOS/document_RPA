@@ -1,9 +1,12 @@
 """MSCGW SI 拆并单港口信息填写。"""
 
 from __future__ import annotations
+import re
 
 import time
 from typing import TYPE_CHECKING
+
+from app.core.task.errors import ElementNotFoundError
 
 from app.spider.MSCGW import selectors
 
@@ -38,22 +41,16 @@ class SiFillFreeRouterDetailsMixin:
                 name="输入收货地",
             )
 
-        pol_name = f"{self.content.get('pol')} [{self.content.get('polCode')}]"
-        self.search_location_select(
+        self.search_ports_select(
             selectors.FREE_POL_LOCATION_INPUT,
-            pol_name,
-            selectors.SEARCH_FREE_LOCATION_API,
-            "SearchMdmPorts",
+            self.content.get("pol"),
             name="选择装货港城市",
         )
         self.si_shadow.input_text(selectors.POL_INPUT, self.content.get("polPrintOnBl"), name="输入装货港")
 
-        pod_name = f"{self.content.get('pod')} [{self.content.get('podCode')}]"
-        self.search_location_select(
+        self.search_ports_select(
             selectors.FREE_POD_LOCATION_INPUT,
-            pod_name,
-            selectors.SEARCH_FREE_LOCATION_API,
-            "SearchMdmPorts",
+            self.content.get("pod"),
             name="选择卸货港城市",
         )
         self.si_shadow.input_text(selectors.POD_INPUT, self.content.get("podPrintOnBl"), name="输入卸货港")
@@ -150,3 +147,37 @@ class SiFillFreeRouterDetailsMixin:
         )
         self.mark_field_done("pod")
         self.mark_field_done("podCode")
+
+
+    def search_ports_select(
+        self: "FhtMscgwSiTask",
+        location: str,
+        value: str,
+        name: str = "选择ports",
+    ) -> None:
+        """搜索并选择地点。"""
+        target_text = str(value).strip()
+        if not target_text:
+            raise ElementNotFoundError(f"{name}目标值为空")
+        normalize = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
+        element = self.si_shadow._find(location, name)
+        element.click()
+        self.http.wait_api_finished(
+            url=selectors.SEARCH_FREE_LOCATION_API,
+            method=("POST",),
+            trigger=lambda: element.input(target_text, clear=True),
+            request_params={"operationName": "SearchMdmPorts"},
+            timeout=20,
+            required=False,
+        )
+        for option in self.si_shadow._find_eles(selectors.DIALOG_LOCATION_OPTION, required=False):
+            if not normalize(option.text).startswith(normalize(target_text)):
+                continue
+            option.click()
+            self.page.run_js("arguments[0].blur();", element)
+            self.logger.info(f"选择{name}")
+            return True
+
+        raise ElementNotFoundError(
+            f"{name}选项不存在：{target_text}"
+        )

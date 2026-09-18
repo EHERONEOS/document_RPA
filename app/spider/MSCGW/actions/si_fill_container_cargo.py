@@ -47,12 +47,23 @@ class SiFillContainerCargoMixin:
                 )
                 time.sleep(2)
 
-            self.si_shadow.input_text(
-                selectors.CONTAINER_NUM_INPUT,
-                container.get("containerNo"),
-                f"{index + 1} 集装箱Container Number",
+            self.http.wait_api_finished(
+                url=(
+                    selectors.SEARCH_FREE_LOCATION_API
+                    if self.splitOrConsolidatedBill
+                    else selectors.SEARCH_LOCATION_API
+                ),
+                method=("POST",),
+                trigger=lambda: self.si_shadow.input_text(
+                    selectors.CONTAINER_NUM_INPUT,
+                    container.get("containerNo"),
+                    f"{index + 1} 集装箱Container Number",
+                ),
+                request_params={"operationName": "ValidateContainerNumber"},
+                required=False,
+                name="校验箱号接口"
             )
-            time.sleep(2)
+
             self._verify_container_number(index)
             if not self._is_empty_expected_value(container.get("sealNo")):
                 self.si_shadow.input_text(
@@ -101,11 +112,12 @@ class SiFillContainerCargoMixin:
                             blur=False,
                         ),
                         request_params={"operationName": "CommodityList"},
-                        timeout=10,
                         required=False,
+                        name="获取HS Code接口"
                     )
                     options = self.si_shadow._find_eles(
-                        selectors.CARGO_HS_OPTIONS, name="获取HS Code选项", required=False
+                        selectors.CARGO_HS_OPTIONS, name="获取HS Code选项", required=False,
+                        timeout=10,
                     )
                     matched = False
                     for option in options:

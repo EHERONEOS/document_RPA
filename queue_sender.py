@@ -3,6 +3,8 @@
 Usage:
     uv run python queue_sender.py --queue QTCT_ZIM_SI --message ./message_list/msg_demo.json
     uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI.json --direct
+    uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI_chai.json --direct
+    
 """
 from __future__ import annotations
 
@@ -45,11 +47,14 @@ def send_queue_message(
     """Send one task message to a RabbitMQ queue.
 
     The worker consumer expects funboost to receive a ``task`` keyword argument,
-    so the published message is wrapped as ``{"task": task}``.
+    so the published message is wrapped as ``{"task": task}``. Set
+    ``normalize_task`` to ``False`` to publish the task payload without changing
+    any of its fields.
     """
     normalized_queue_name = _normalize_queue_name(queue_name)
     if not isinstance(task, dict):
         raise TypeError("task 必须是 dict")
+
     message_task = (
         _normalize_task(task, normalized_queue_name) if normalize_task else task
     )

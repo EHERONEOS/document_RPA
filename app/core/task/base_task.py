@@ -31,8 +31,8 @@ class BaseRpaTask:
     use_proxy = False #是否使用代理
     # booking_no = ""
     ignored_unfilled_fields = [
-        "carrier", "isUserSave", "blNo", "jobNo", "bookingNo", "blankBill"
-    ] # 忽略的未填字段列表
+        "carrier", "isUserSave", "blNo", "jobNo", "bookingNo"
+    ]
     REDIS_MAIN= 15 # redis 索引(默认15)
     REDIS_HEART_BEAT = 8
     MAX_RECORDING_UPLOAD_SIZE = 10 * 1024 * 1024
@@ -257,6 +257,7 @@ class BaseRpaTask:
             return None
 
         try:
+            # OSS 返回有效 objectName 后才清理本地录屏，上传异常或返回异常时保留文件。
             file_info = self.oss_client.oss_upload(record_file_path, is_remove=False)
             if not isinstance(file_info, dict) or not file_info.get("objectName"):
                 self.logger.error("上传流程视频 OSS 未返回 objectName，本地文件已保留")
@@ -272,7 +273,7 @@ class BaseRpaTask:
                 )
             return file_info
         except Exception as exc:
-            self.logger.error(f"上传流程视频 OSS 失败，本地录屏已保留：{exc}")
+            self.logger.error(f"上传流程视频 OSS 失败，本地文件已保留：{exc}")
             return None
 
     def _upload_error_screenshot(self):
@@ -385,10 +386,17 @@ class BaseRpaTask:
             # self.publisher.publish_attachments(self.attachments)
             # self.attachments = {}
 
-    def save_cookies(self, cookies_redis_key):
-        """保存浏览器 cookies。"""
+    def save_cookies(self, cookies_redis_key, expire_hours=None):
+        """保存浏览器 cookies。
+
+        expire_hours: Redis 失效时间（小时）。不传则不过期。
+        """
         cookies = self.page.cookies()
-        self.util_redis.set(cookies_redis_key, json.dumps({"cookies": cookies}, ensure_ascii=False))
+        payload = json.dumps({"cookies": cookies}, ensure_ascii=False)
+        if expire_hours is None:
+            self.util_redis.set(cookies_redis_key, payload)
+        else:
+            self.util_redis.set(cookies_redis_key, payload, ex=int(expire_hours * 3600))
 
     def set_page_cookies(self, cookies_redis_key):
         """设置浏览器 cookies。"""

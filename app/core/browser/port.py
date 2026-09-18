@@ -35,6 +35,11 @@ class BrowserPortRegistry:
         del data[profile_name]
         self._save(data)
 
+    def allocated_ports(self):
+        """返回当前已登记的调试端口列表。"""
+        data = self._load()
+        return [int(port) for port in data.values()]
+
     def _load(self):
         if not self.registry_path.exists():
             return {}

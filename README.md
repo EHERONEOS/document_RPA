@@ -70,6 +70,8 @@ cp .env.example .env
 
 ```dotenv
 APP_ENV=local
+QUEUE_ASSIGNMENT_SOURCE=server
+RPA_QUEUES=
 RABBITMQ_CONFIG_SOURCE=nacos
 NACOS_ENABLED=false
 CONTROL_DRAIN_TIMEOUT_SECONDS=1800
@@ -87,6 +89,9 @@ QUEUE_CONCURRENT_NUM=3
 QUEUE_QPS=3
 ACCOUNT_MAX_CONCURRENT=3
 ACCOUNT_IDLE_SECONDS=60
+BROWSER_CLEANUP_ENABLED=true
+BROWSER_CLEANUP_TIME=20:30
+BROWSER_CLEANUP_WAIT_BUSY_SECONDS=1800
 ENABLE_BROWSER=false
 ```
 
@@ -149,14 +154,20 @@ uv run python -m app.main
 状态事件由队列控制客户端回传，经中心 FastAPI 服务写入 MySQL。暂停会停止 RabbitMQ 拉取并等待已接收
 任务完成；恢复和重启会启动新的 Python Worker 进程，因此会加载磁盘上的最新代码。
 
-`RPA_QUEUES` 不再用于启动队列控制客户端。RabbitMQ 仍默认从 Nacos 的 `rabbitmq.yml` 按
-`APP_ENV` 获取。
+默认 `QUEUE_ASSIGNMENT_SOURCE=server`：队列由中心平台下发。控制平台 Redis 不可达时，Agent
+不会退出，而是按 `RPA_QUEUES` 启用本地兜底监听；连接恢复后仍以平台 `sync` 对账为准。
+本地开发或不接控制平台时，可设 `QUEUE_ASSIGNMENT_SOURCE=local`，此时只按 `RPA_QUEUES`
+启动监听。RabbitMQ 仍默认从 Nacos 的 `rabbitmq.yml` 按 `APP_ENV` 获取。
 
 每个队列默认同时处理 3 条消息。同一 `websiteInfo.id + 船司` 即使来自不同队列，在同一设备上也
 最多占用 3 个浏览器槽位：第一条任务使用维护用户目录，后两条使用独立临时目录。首条任务的
 `login()` 返回后才会放行后续任务；若凭据登录失败，仅一条等待任务会被选为下一次登录尝试。
-账号 60 秒无新消息时会关闭临时浏览器并删除临时目录，主浏览器保留。浏览器调试端口由设备级
+账号 60 秒无新消息时会关闭临时浏览器并删除临时目录，主浏览器保留。每天本地时间 `20:30`
+（`BROWSER_CLEANUP_TIME`）会再做一次日清理：先等待忙碌任务结束，再关闭空闲和孤儿 RPA
+浏览器进程，主 profile 目录保留，下次任务会重新拉起浏览器。浏览器调试端口由设备级
 协调器统一分配并只监听 `127.0.0.1`；端口范围决定可管理浏览器的理论数量。
+需要立刻清理时可执行 `uv run python -m app.core.scheduler.browser_cleanup`；该命令不会等待
+忙碌任务，可能打断正在执行的 RPA。
 
 ## 3. Windows 启动方式
 

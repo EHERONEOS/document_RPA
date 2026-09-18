@@ -59,6 +59,7 @@ class HttpHelper:
         is_regex: bool = False,
         required: bool = True,
         request_params: dict[str, Any] | None = None,
+        name: str | None = None,
     ) -> dict[str, Any] | None:
         """监听接口并在触发动作后返回符合请求参数的监听结果。"""
         if not hasattr(self.page, "listen"):
@@ -69,6 +70,7 @@ class HttpHelper:
         listener = self.page.listen
         listener.start(targets=url, is_regex=is_regex, method=method, res_type=res_type)
         deadline = time.monotonic() + timeout
+        display_name = name or url
         try:
             if trigger is not None:
                 trigger()
@@ -77,22 +79,22 @@ class HttpHelper:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     if required:
-                        raise ElementNotFoundError(f"监听接口超时：{url}")
+                        raise ElementNotFoundError(f"监听接口超时：{display_name}")
                     return None
 
                 packet = listener.wait(timeout=remaining)
                 if packet is False:
                     if required:
-                        raise ElementNotFoundError(f"监听接口超时：{url}")
+                        raise ElementNotFoundError(f"监听接口超时：{display_name}")
                     return None
 
                 if request_params and not self._request_params_match(packet, request_params):
                     continue
 
-                log(f"监听到接口响应：{packet.url}")
+                log(f"监听到接口响应：{display_name}")
                 if packet.is_failed:
                     if required:
-                        raise ElementNotFoundError(f"监听接口失败：{packet.url}")
+                        raise ElementNotFoundError(f"监听接口失败：{display_name}")
                     return None
                 return {
                     "response": packet.response.body,
