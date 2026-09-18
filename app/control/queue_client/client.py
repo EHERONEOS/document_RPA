@@ -8,6 +8,7 @@ from typing import Any
 
 from app.control.queue_client.config import QueueClientSettings
 from app.control.queue_client.redis_client import QueueControlRedisClient
+from app.control.deploy_client import DeployClient, build_deploy_client
 from app.control.supervisor import QueueSupervisor
 from app.config.settings import Settings
 from app.core.scheduler.account_session import (
@@ -39,10 +40,15 @@ class QueueControlClient:
             status_observer=self._publish_status,
         )
         atexit.register(self.stop)
+        # 部署消费器复用同一身份，但连接和命令流与原队列控制完全独立。
+        self.deploy_client = build_deploy_client(
+            settings, self.supervisor, self.redis_client
+        )
 
     # 启动本机监管器、发送初始心跳，并进入 Redis 命令消费循环。
     def run_forever(self) -> None:
         self._start_account_session_coordinator()
+        self.deploy_client.start()
         self.supervisor.start()
         self._publish_heartbeat()
         self._heartbeat_thread = threading.Thread(
@@ -66,6 +72,8 @@ class QueueControlClient:
         if self._stop_event.is_set():
             return
         self._stop_event.set()
+        if getattr(self, "deploy_client", None):
+            self.deploy_client.stop()
         self.supervisor.stop()
         if self._account_session_manager is not None:
             try:

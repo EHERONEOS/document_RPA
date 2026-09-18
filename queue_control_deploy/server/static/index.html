@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>船司脚本部署管理台</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1120;
+      --panel: #111a2e;
+      --panel-2: #172138;
+      --line: #2b3a5b;
+      --text: #e7edf8;
+      --muted: #96a4c0;
+      --primary: #4f7dff;
+      --primary-2: #345fd8;
+      --green: #21c07a;
+      --amber: #e6a23c;
+      --red: #e46767;
+      --shadow: 0 12px 34px rgba(0, 0, 0, .24);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; color: var(--text);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 20% 10%, #172b51 0, var(--bg) 32%);
+    }
+    header {
+      position: sticky; top: 0; z-index: 20; display: flex; align-items: center;
+      justify-content: space-between; gap: 16px; min-height: 62px; padding: 0 24px;
+      border-bottom: 1px solid var(--line); background: rgba(9, 14, 27, .92); backdrop-filter: blur(12px);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .logo {
+      width: 36px; height: 36px; flex: 0 0 auto; display: grid; place-items: center;
+      border-radius: 9px; background: linear-gradient(135deg, #518cff, #7a5cff);
+      font-weight: 700; box-shadow: 0 4px 14px rgba(79, 125, 255, .35);
+    }
+    .title { font-size: 17px; font-weight: 700; white-space: nowrap; }
+    .subtitle { font-size: 12px; color: var(--muted); }
+    .connection { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 4px rgba(228,103,103,.12); }
+    .dot.online { background: var(--green); box-shadow: 0 0 0 4px rgba(33,192,122,.13); }
+    main { max-width: 1560px; margin: 0 auto; padding: 22px; }
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px;
+      padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+    }
+    .toolbar h1 { margin: 0; font-size: 20px; }
+    .toolbar p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 390px) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .stack { display: grid; gap: 16px; }
+    .card {
+      min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); overflow: hidden;
+    }
+    .card + .card { margin-top: 0; }
+    .card-header {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      padding: 14px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, rgba(79,125,255,.09), transparent);
+    }
+    .card-header h2 { margin: 0; font-size: 15px; }
+    .card-header small { color: var(--muted); }
+    .card-body { padding: 16px; }
+    .compact { padding: 10px 12px; }
+    label { display: block; margin: 11px 0 5px; color: #bdcbe6; font-size: 12px; font-weight: 600; }
+    label:first-child { margin-top: 0; }
+    input, select, textarea {
+      width: 100%; height: 36px; padding: 7px 10px; outline: none; color: var(--text);
+      border: 1px solid var(--line); border-radius: 8px; background: #0d1526; font: inherit; transition: border-color .15s, box-shadow .15s;
+    }
+    textarea { min-height: 70px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,125,255,.17); }
+    input[type=file] { display: none; }
+    .file-drop {
+      display: grid; place-items: center; min-height: 76px; margin-top: 5px; padding: 10px; cursor: pointer; text-align: center;
+      border: 1px dashed #465a85; border-radius: 8px; background: #0d1526; color: var(--muted); transition: .15s;
+    }
+    .file-drop:hover, .file-drop.dragover { border-color: var(--primary); color: var(--text); background: #12203a; }
+    .file-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 13px;
+      border: 1px solid transparent; border-radius: 8px; cursor: pointer; white-space: nowrap; font-weight: 650; font: inherit;
+      background: var(--panel-2); color: var(--text); transition: .15s;
+    }
+    .button:hover { border-color: #45597e; transform: translateY(-1px); }
+    .button:active { transform: translateY(0); }
+    .button.primary { background: var(--primary); color: #fff; box-shadow: 0 5px 14px rgba(79,125,255,.24); }
+    .button.primary:hover { background: var(--primary-2); }
+    .button.ghost { background: transparent; border-color: var(--line); }
+    .button.danger { background: transparent; border-color: #6c3a44; color: #ffb4b4; }
+    .button.tiny { height: 28px; padding: 0 9px; font-size: 12px; }
+    .button.full { width: 100%; margin-top: 14px; }
+    .button:disabled { cursor: not-allowed; opacity: .48; transform: none; }
+    .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .row-three { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+    .filter-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(100px, .8fr) auto; gap: 8px; align-items: center; }
+    .filter-row label { display: none; }
+    .filter-row input, .filter-row select { margin: 0; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 11px; color: #bdcbe6; font-size: 12px; }
+    .check input { width: 15px; height: 15px; accent-color: var(--primary); }
+    .section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .section-head strong { font-size: 13px; }
+    .section-head .actions { display: flex; align-items: center; gap: 6px; }
+    .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #0c1424; }
+    table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 10px; text-align: left; border-bottom: 1px solid #223050; vertical-align: middle; overflow-wrap: anywhere; }
+    th { position: sticky; top: 0; z-index: 1; color: #9fb1d1; background: #101a2d; font-weight: 700; }
+    tbody tr:hover { background: #132038; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .empty { padding: 20px; text-align: center; color: var(--muted); }
+    .badge {
+      display: inline-flex; align-items: center; padding: 2px 7px; max-width: 100%;
+      border-radius: 99px; background: #223253; color: #cad7ef; font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .badge.ok { background: #143c30; color: #73e0b0; }
+    .badge.warn { background: #45351b; color: #f4c772; }
+    .badge.error { background: #482530; color: #ff9d9d; }
+    .badge.run { background: #1c3565; color: #93b6ff; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: #b5c5e4; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+    .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .muted { color: var(--muted); }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+    .metric { padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: #0d1526; }
+    .metric strong { display: block; font-size: 19px; }
+    .metric span { color: var(--muted); font-size: 11px; }
+    .hint { margin-top: 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .toast-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 100; display: grid; gap: 8px; width: min(380px, calc(100vw - 36px)); }
+    .toast {
+      padding: 11px 13px; border: 1px solid var(--line); border-left: 3px solid var(--primary);
+      border-radius: 8px; background: #152035; box-shadow: var(--shadow); word-break: break-word; animation: slide .18s ease;
+    }
+    .toast.success { border-left-color: var(--green); }
+    .toast.error { border-left-color: var(--red); }
+    .modal-mask { position: fixed; inset: 0; z-index: 80; display: none; place-items: center; padding: 20px; background: rgba(5, 8, 16, .72); }
+    .modal-mask.open { display: grid; }
+    .modal { width: min(900px, 100%); max-height: 86vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .modal-body { padding: 16px; }
+    pre {
+      margin: 0; padding: 12px; overflow: auto; border-radius: 8px; background: #0b1220;
+      color: #c5d3ee; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
+    }
+    @keyframes slide { from { opacity: 0; transform: translateY(8px); } }
+    @media (max-width: 1080px) {
+      .layout { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 680px) {
+      header, .toolbar { padding-left: 14px; padding-right: 14px; }
+      main { padding: 14px; }
+      .row, .row-three, .filter-row { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: 1fr; }
+      .subtitle { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">RPA</div>
+      <div>
+        <div class="title">船司脚本部署管理台</div>
+        <div class="subtitle">queue_control_deploy · 不写入原队列控制库</div>
+      </div>
+    </div>
+    <div class="connection">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">未连接</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <div>
+        <h1>发布与命令控制</h1>
+        <p>管理发布制品、灰度批次、目标设备和独立部署命令流。</p>
+      </div>
+      <div class="actions" style="display:flex;gap:8px">
+        <button class="button ghost" id="refreshAll">刷新数据</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="stack">
+        <section class="card">
+          <div class="card-header"><h2>上传发布制品</h2><small>zip only</small></div>
+          <div class="card-body">
+            <form id="uploadForm">
+              <label for="uploadUnit">发布单元</label>
+              <select id="uploadUnit" required><option value="carrier:ZIM">carrier:ZIM</option><option value="carrier:MSCGW">carrier:MSCGW</option><option value="platform">platform</option></select>
+              <label for="uploadVersion">版本号</label>
+              <input id="uploadVersion" required maxlength="64" placeholder="zim-20260918-001">
+              <label for="uploadQueues">受影响队列（英文逗号分隔）</label>
+              <input id="uploadQueues" required placeholder="QTCT_ZIM_SI,QTCT_ZIM_VGM">
+              <label for="artifactFile">发布制品</label>
+              <label class="file-drop" id="fileDrop" for="artifactFile">
+                <div>
+                  <div class="file-name" id="fileName">点击选择或拖入 .zip 文件</div>
+                  <div style="font-size:11px;margin-top:4px">服务端会重新计算 SHA-256</div>
+                </div>
+              </label>
+              <input id="artifactFile" type="file" accept=".zip,application/zip" required>
+              <label class="check"><input type="checkbox" id="dependencyChanged">依赖发生变化（仅 platform 允许）</label>
+              <button class="button primary full" type="submit" id="uploadButton">登记并上传发布</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><h2>创建 Rollout</h2><small>批次不直接下发</small></div>
+          <div class="card-body">
+            <form id="rolloutForm">
+              <label for="rolloutRelease">发布版本</label>
+              <select id="rolloutRelease" required><option value="">请先刷新发布列表</option></select>
+              <div class="row">
+                <div>
+                  <label for="rolloutMode">模式</label>
+                  <select id="rolloutMode"><option value="canary">canary 灰度</option><option value="all">all 全量</option></select>
+                </div>
+                <div>
+                  <label for="drainTimeout">排空超时 / 秒</label>
+                  <input id="drainTimeout" type="number" min="1" max="86400" value="1800">
+                </div>
+              </div>
+              <label for="deviceIds">目标设备（灰度时填写，英文逗号分隔）</label>
+              <input id="deviceIds" placeholder="DEVICE_1">
+              <label class="check"><input type="checkbox" id="dryRun">Dry Run：只生成批次目标</label>
+              <button class="button primary full" type="submit" id="rolloutButton">创建 Rollout</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><h2>下发升级命令</h2><small>幂等 · Redis 独立流</small></div>
+          <div class="card-body">
+            <form id="commandForm">
+              <label for="commandRollout">Rollout 批次</label>
+              <select id="commandRollout" required><option value="">请先刷新批次列表</option></select>
+              <label for="commandDevice">目标设备</label>
+              <select id="commandDevice" required><option value="">请先选择批次</option></select>
+              <label for="commandDrain">本次命令排空超时 / 秒</label>
+              <input id="commandDrain" type="number" min="1" max="86400" value="1800">
+              <button class="button primary full" type="submit" id="commandButton">下发 upgrade</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><h2>目标计算</h2></div>
+          <div class="card-body compact">
+            <div class="row-three">
+              <select id="targetUnit"><option value="carrier:ZIM">carrier:ZIM</option><option value="carrier:MSCGW">carrier:MSCGW</option><option value="platform">platform</option></select>
+              <span class="muted" style="font-size:12px">按队列绑定计算</span>
+              <button class="button ghost" id="targetButton" type="button">计算</button>
+            </div>
+          </div>
+          <div class="card-body compact">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th style="width:35%">设备</th><th>受影响队列</th></tr></thead>
+                <tbody id="targetTable"><tr><td colspan="2" class="empty">暂无计算结果</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="card">
+          <div class="card-header"><h2>运行概览</h2><small id="lastUpdated">--</small></div>
+          <div class="card-body">
+            <div class="metrics">
+              <div class="metric"><strong id="releaseCount">0</strong><span>发布版本</span></div>
+              <div class="metric"><strong id="rolloutCount">0</strong><span>最近批次</span></div>
+              <div class="metric"><strong id="queuedCount">0</strong><span>待完成命令</span></div>
+            </div>
+            <div class="filter-row">
+              <input id="releaseFilter" placeholder="按发布单元过滤，例如 carrier:ZIM" list="unitOptions">
+              <select id="commandState">
+                <option value="">全部命令状态</option>
+                <option value="PENDING">PENDING</option>
+                <option value="QUEUED">QUEUED</option>
+                <option value="SUCCESS">SUCCESS</option>
+                <option value="FAILED">FAILED</option>
+              </select>
+              <button class="button ghost" id="filterButton" type="button">应用筛选</button>
+            </div>
+            <datalist id="unitOptions"></datalist>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><h2>发布版本</h2><small>最新优先</small></div>
+          <div class="card-body compact">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:18%">单元</th><th style="width:18%">版本</th><th style="width:17%">Commit</th>
+                    <th style="width:9%">大小</th><th style="width:11%">状态</th><th style="width:15%">创建时间</th><th style="width:12%">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="releaseTable"><tr><td colspan="7" class="empty">暂无数据</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><h2>发布批次</h2><small>含目标状态</small></div>
+          <div class="card-body compact">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:20%">版本</th><th style="width:14%">模式</th><th style="width:13%">状态</th>
+                    <th style="width:18%">目标</th><th style="width:20%">创建时间</th><th style="width:15%">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="rolloutTable"><tr><td colspan="6" class="empty">暂无数据</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header"><h2>部署命令审计</h2><small>queue_control_deploy</small></div>
+          <div class="card-body compact">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:22%">Command ID</th><th style="width:14%">设备</th><th style="width:11%">Action</th>
+                    <th style="width:11%">状态</th><th style="width:17%">Redis ID</th><th style="width:15%">时间</th><th style="width:10%">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="commandTable"><tr><td colspan="7" class="empty">暂无数据</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-mask" id="detailModal">
+    <div class="modal">
+      <div class="modal-head">
+        <strong id="modalTitle">详情</strong>
+        <button class="button ghost tiny" id="modalClose">关闭</button>
+      </div>
+      <div class="modal-body"><pre id="modalContent"></pre></div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const state = { units: [], releases: [], rollouts: [], commands: [] };
+
+  const statusDot = $("statusDot");
+  const statusText = $("statusText");
+
+  function toast(message, type = "info") {
+    const node = document.createElement("div");
+    node.className = `toast ${type}`;
+    node.textContent = message;
+    $("toastWrap").appendChild(node);
+    setTimeout(() => node.remove(), type === "error" ? 7000 : 3600);
+  }
+
+  function shortTime(value) {
+    if (!value) return "--";
+    return value.replace("T", " ").slice(0, 19);
+  }
+
+  function shortId(value) {
+    return value ? `${String(value).slice(0, 8)}…` : "--";
+  }
+
+  function formatSize(size) {
+    const number = Number(size || 0);
+    if (number >= 1024 * 1024) return `${(number / 1024 / 1024).toFixed(2)} MB`;
+    if (number >= 1024) return `${(number / 1024).toFixed(1)} KB`;
+    return `${number} B`;
+  }
+
+  function statusClass(value) {
+    const text = String(value || "").toUpperCase();
+    if (["SUCCESS", "OK", "FINISHED", "ACTIVE"].includes(text)) return "ok";
+    if (["FAILED", "ERROR"].includes(text)) return "error";
+    if (["PENDING", "PLANNED", "DRY_RUN", "DISPATCHED"].includes(text)) return "warn";
+    if (["QUEUED", "RUNNING", "DRAINING", "UPGRADING"].includes(text)) return "run";
+    return "";
+  }
+
+  function badge(value) {
+    const span = document.createElement("span");
+    span.className = `badge ${statusClass(value)}`;
+    span.textContent = value || "--";
+    return span;
+  }
+
+  function td(content, className = "") {
+    const cell = document.createElement("td");
+    if (className) cell.className = className;
+    if (content instanceof Node) cell.appendChild(content);
+    else cell.textContent = content ?? "--";
+    return cell;
+  }
+
+  function button(text, className, handler) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `button tiny ${className}`;
+    btn.textContent = text;
+    btn.addEventListener("click", handler);
+    return btn;
+  }
+
+  function setBusy(button, busy, busyText) {
+    if (!button) return;
+    if (busy) {
+      button.dataset.text = button.textContent;
+      button.disabled = true;
+      button.textContent = busyText || "处理中…";
+    } else {
+      button.disabled = false;
+      button.textContent = button.dataset.text || button.textContent;
+    }
+  }
+
+  function setOnline(online, text) {
+    statusDot.classList.toggle("online", !!online);
+    statusText.textContent = text;
+  }
+
+  async function request(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    let body = options.body;
+    if (body instanceof FormData) delete headers["Content-Type"];
+    else if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (body !== undefined && !(body instanceof FormData)) body = JSON.stringify(body);
+
+    let response;
+    try {
+      response = await fetch(path, { ...options, headers, body });
+    } catch (error) {
+      setOnline(false, "网络异常");
+      throw new Error("无法连接部署服务，请检查服务是否运行");
+    }
+    if (response.status === 401) {
+      setOnline(false, "服务拒绝了当前请求");
+      throw new Error("请求被拒绝");
+    }
+    const text = await response.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+    if (!response.ok) {
+      const detail = data?.detail || data?.message || `HTTP ${response.status}`;
+      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    }
+    setOnline(true, "已连接");
+    return data;
+  }
+
+  function fillUnitSelect(select, selectedValue = "") {
+    const previous = selectedValue || select.value;
+    select.innerHTML = "";
+    state.units.forEach(item => {
+      const option = document.createElement("option");
+      option.value = item.releaseUnit;
+      option.textContent = `${item.releaseUnit} (${item.queueCount})`;
+      select.appendChild(option);
+    });
+    ["carrier:ZIM", "carrier:MSCGW", "platform"].forEach(unit => {
+      if (!state.units.some(item => item.releaseUnit === unit)) {
+        const option = document.createElement("option");
+        option.value = unit;
+        option.textContent = unit;
+        select.appendChild(option);
+      }
+    });
+    if (previous) select.value = previous;
+  }
+
+  function fillUnitOptions() {
+    const datalist = $("unitOptions");
+    datalist.innerHTML = "";
+    state.units.forEach(item => {
+      const option = document.createElement("option");
+      option.value = item.releaseUnit;
+      datalist.appendChild(option);
+    });
+  }
+
+  function renderReleases() {
+    const filter = $("releaseFilter").value.trim().toLowerCase();
+    const rows = state.releases.filter(item => !filter || item.releaseUnit.toLowerCase().includes(filter) || item.version.toLowerCase().includes(filter));
+    const tbody = $("releaseTable");
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td("暂无匹配数据", "empty")).colSpan = 7;
+      tbody.appendChild(tr);
+      return;
+    }
+    rows.forEach(release => {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(release.releaseUnit));
+      const version = document.createElement("div");
+      version.className = "ellipsis";
+      version.textContent = release.version;
+      version.title = release.version;
+      tr.appendChild(td(version));
+      tr.appendChild(td(shortId(release.gitCommit), "mono"));
+      tr.appendChild(td(formatSize(release.sizeBytes)));
+      tr.appendChild(td(badge(release.status)));
+      tr.appendChild(td(shortTime(release.createdAt)));
+      const action = button("详情", "ghost", () => showDetail(`Release ${release.releaseUnit}/${release.version}`, release));
+      const cell = td(action);
+      tr.appendChild(cell);
+      tbody.appendChild(tr);
+    });
+    const select = $("rolloutRelease");
+    const current = select.value;
+    select.innerHTML = "";
+    rows.forEach(release => {
+      const option = document.createElement("option");
+      option.value = release.releaseId;
+      option.textContent = `${release.releaseUnit} · ${release.version} · ${shortId(release.releaseId)}`;
+      select.appendChild(option);
+    });
+    if (current) select.value = current;
+    $("releaseCount").textContent = rows.length;
+  }
+
+  function renderRollouts() {
+    const tbody = $("rolloutTable");
+    tbody.innerHTML = "";
+    if (!state.rollouts.length) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td("暂无数据", "empty")).colSpan = 6;
+      tbody.appendChild(tr);
+    }
+    state.rollouts.forEach(rollout => {
+      const tr = document.createElement("tr");
+      const version = document.createElement("div");
+      version.className = "ellipsis";
+      version.textContent = `${rollout.version}`;
+      version.title = `${rollout.releaseUnit} · ${rollout.rolloutId}`;
+      tr.appendChild(td(version));
+      tr.appendChild(td(rollout.mode));
+      tr.appendChild(td(badge(rollout.status)));
+      const summary = document.createElement("div");
+      summary.className = "ellipsis";
+      summary.textContent = rollout.targets.map(item => `${item.deviceId}:${item.status}`).join("，");
+      summary.title = summary.textContent;
+      tr.appendChild(td(summary));
+      tr.appendChild(td(shortTime(rollout.createdAt)));
+      tr.appendChild(td(button("详情", "ghost", () => showDetail(`Rollout ${rollout.rolloutId}`, rollout))));
+      tbody.appendChild(tr);
+    });
+
+    const select = $("commandRollout");
+    const current = select.value;
+    select.innerHTML = "";
+    state.rollouts.filter(item => !["DRY_RUN"].includes(item.status)).forEach(rollout => {
+      const option = document.createElement("option");
+      option.value = rollout.rolloutId;
+      option.textContent = `${rollout.version} · ${rollout.mode} · ${rollout.status}`;
+      select.appendChild(option);
+    });
+    if (current) select.value = current;
+    renderCommandTargets();
+    $("rolloutCount").textContent = state.rollouts.length;
+  }
+
+  function renderCommandTargets() {
+    const rolloutSelect = $("commandRollout");
+    const deviceSelect = $("commandDevice");
+    const rollout = state.rollouts.find(item => item.rolloutId === rolloutSelect.value);
+    deviceSelect.innerHTML = "";
+    if (!rollout) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "请先选择批次";
+      deviceSelect.appendChild(option);
+      return;
+    }
+    rollout.targets.forEach(target => {
+      const option = document.createElement("option");
+      option.value = target.deviceId;
+      option.textContent = `${target.deviceId} · ${target.status}`;
+      deviceSelect.appendChild(option);
+    });
+  }
+
+  function renderCommands() {
+    const tbody = $("commandTable");
+    tbody.innerHTML = "";
+    if (!state.commands.length) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td("暂无数据", "empty")).colSpan = 7;
+      tbody.appendChild(tr);
+    }
+    state.commands.forEach(command => {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(shortId(command.commandId), "mono"));
+      tr.appendChild(td(command.deviceId));
+      tr.appendChild(td(command.action));
+      tr.appendChild(td(badge(command.state)));
+      tr.appendChild(td(shortId(command.redisStreamId), "mono"));
+      tr.appendChild(td(shortTime(command.createdAt)));
+      tr.appendChild(td(button("详情", "ghost", () => showDetail(`Command ${command.commandId}`, command))));
+      tbody.appendChild(tr);
+    });
+    $("queuedCount").textContent = state.commands.filter(item => ["PENDING", "QUEUED", "RUNNING", "DRAINING", "UPGRADING"].includes(item.state)).length;
+  }
+
+  function renderTargets(items) {
+    const tbody = $("targetTable");
+    tbody.innerHTML = "";
+    if (!items?.length) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td("没有可更新目标设备", "empty")).colSpan = 2;
+      tbody.appendChild(tr);
+      return;
+    }
+    items.forEach(item => {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(item.deviceId));
+      tr.appendChild(td(item.affectedQueues.join("，")));
+      tbody.appendChild(tr);
+    });
+  }
+
+  function showDetail(title, data) {
+    $("modalTitle").textContent = title;
+    $("modalContent").textContent = JSON.stringify(data, null, 2);
+    $("detailModal").classList.add("open");
+  }
+
+  async function loadCatalog() {
+    state.units = await request("/api/deploy/catalog/release-units") || [];
+    fillUnitSelect($("uploadUnit"));
+    fillUnitSelect($("targetUnit"), $("targetUnit").value || "carrier:ZIM");
+    fillUnitOptions();
+  }
+
+  async function loadReleases() {
+    const unit = $("releaseFilter").value.trim();
+    const query = unit ? `?releaseUnit=${encodeURIComponent(unit)}` : "";
+    state.releases = await request(`/api/deploy/releases${query}`) || [];
+    renderReleases();
+  }
+
+  async function loadRollouts() {
+    state.rollouts = await request("/api/deploy/rollouts?limit=30") || [];
+    renderRollouts();
+  }
+
+  async function loadCommands() {
+    const params = new URLSearchParams({ limit: "30" });
+    const stateFilter = $("commandState").value;
+    if (stateFilter) params.set("state", stateFilter);
+    state.commands = await request(`/api/deploy/deploy-commands?${params}`) || [];
+    renderCommands();
+  }
+
+  async function refreshAll(showError = true) {
+    try {
+      await Promise.all([loadCatalog(), loadReleases(), loadRollouts(), loadCommands()]);
+      $("lastUpdated").textContent = `更新于 ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`;
+      setOnline(true, "已连接");
+    } catch (error) {
+      if (showError) toast(error.message, "error");
+    }
+  }
+
+  $("refreshAll").addEventListener("click", () => refreshAll());
+  $("filterButton").addEventListener("click", () => refreshAll());
+  $("releaseFilter").addEventListener("keydown", event => { if (event.key === "Enter") refreshAll(); });
+
+  $("artifactFile").addEventListener("change", () => {
+    const file = $("artifactFile").files[0];
+    $("fileName").textContent = file ? file.name : "点击选择或拖入 .zip 文件";
+  });
+  $("fileDrop").addEventListener("dragover", event => { event.preventDefault(); $("fileDrop").classList.add("dragover"); });
+  $("fileDrop").addEventListener("dragleave", () => $("fileDrop").classList.remove("dragover"));
+  $("fileDrop").addEventListener("drop", event => {
+    event.preventDefault();
+    $("fileDrop").classList.remove("dragover");
+    if (event.dataTransfer.files.length) {
+      $("artifactFile").files = event.dataTransfer.files;
+      $("fileName").textContent = event.dataTransfer.files[0].name;
+    }
+  });
+
+  $("uploadForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = $("uploadButton");
+    const file = $("artifactFile").files[0];
+    if (!file) { toast("请选择 zip 制品", "error"); return; }
+    const form = new FormData();
+    form.set("releaseUnit", $("uploadUnit").value);
+    form.set("version", $("uploadVersion").value.trim());
+    form.set("gitCommit", "unknown");
+    form.set("queues", $("uploadQueues").value.trim());
+    form.set("dependencyChanged", $("dependencyChanged").checked ? "true" : "false");
+    form.set("artifact", file);
+    setBusy(button, true, "上传中…");
+    try {
+      const release = await request("/api/deploy/releases", { method: "POST", body: form });
+      toast(`发布登记成功：${release.releaseId}`, "success");
+      $("uploadForm").reset();
+      $("fileName").textContent = "点击选择或拖入 .zip 文件";
+      await refreshAll(false);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally { setBusy(button, false); }
+  });
+
+  $("rolloutMode").addEventListener("change", () => {
+    const all = $("rolloutMode").value === "all";
+    $("deviceIds").disabled = all;
+    if (all) $("deviceIds").value = "";
+  });
+
+  $("rolloutForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const releaseId = $("rolloutRelease").value;
+    if (!releaseId) { toast("请选择发布版本", "error"); return; }
+    const button = $("rolloutButton");
+    const devices = $("deviceIds").value.split(",").map(item => item.trim()).filter(Boolean);
+    const body = {
+      mode: $("rolloutMode").value,
+      deviceIds: devices,
+      drainTimeoutSeconds: Number($("drainTimeout").value || 1800),
+      dryRun: $("dryRun").checked,
+    };
+    setBusy(button, true, "创建中…");
+    try {
+      const result = await request(`/api/deploy/releases/${encodeURIComponent(releaseId)}/rollout`, { method: "POST", body });
+      toast(`Rollout 创建成功：${result.rolloutId}`, "success");
+      $("dryRun").checked = false;
+      await refreshAll(false);
+    } catch (error) { toast(error.message, "error"); }
+    finally { setBusy(button, false); }
+  });
+
+  $("commandRollout").addEventListener("change", renderCommandTargets);
+
+  $("commandForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const rolloutId = $("commandRollout").value;
+    const deviceId = $("commandDevice").value;
+    if (!rolloutId || !deviceId) { toast("请选择 rollout 和目标设备", "error"); return; }
+    const button = $("commandButton");
+    setBusy(button, true, "下发中…");
+    try {
+      const result = await request(`/api/deploy/rollouts/${encodeURIComponent(rolloutId)}/devices/${encodeURIComponent(deviceId)}/command`, {
+        method: "POST",
+        body: { drainTimeoutSeconds: Number($("commandDrain").value || 1800) },
+      });
+      toast(result.created ? "命令已下发到独立 Redis 流" : "命令已存在，未重复下发", "success");
+      await refreshAll(false);
+    } catch (error) { toast(error.message, "error"); }
+    finally { setBusy(button, false); }
+  });
+
+  $("targetButton").addEventListener("click", async () => {
+    const unit = $("targetUnit").value;
+    setBusy($("targetButton"), true, "计算中…");
+    try {
+      const result = await request(`/api/deploy/targets?releaseUnit=${encodeURIComponent(unit)}`);
+      renderTargets(result);
+      toast(`已计算 ${result.length} 个目标设备`, "success");
+    } catch (error) { toast(error.message, "error"); }
+    finally { setBusy($("targetButton"), false); }
+  });
+
+  $("modalClose").addEventListener("click", () => $("detailModal").classList.remove("open"));
+  $("detailModal").addEventListener("click", event => { if (event.target === $("detailModal")) $("detailModal").classList.remove("open"); });
+  document.addEventListener("keydown", event => { if (event.key === "Escape") $("detailModal").classList.remove("open"); });
+
+  refreshAll();
+  setInterval(() => refreshAll(false), 10000);
+})();
+</script>
+</body>
+</html>
