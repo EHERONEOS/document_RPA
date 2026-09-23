@@ -29,6 +29,10 @@ tests/*
 !tests/test_emc_routing.py
 !tests/test_email_otp.py
 !tests/test_mscgw_routing.py
+!tests/test_log_session.py
+!tests/test_log_report_client.py
+!tests/test_base_task_log_service.py
+!tests/test_consumer_log_session.py
 # !tests/test_browser_session_lock.py
 message_list/
 .idea/
@@ -37,3 +41,15 @@ debug-result-dlx.md
 
 # System files
 .DS_Store
+
+# 本地工具缓存与依赖产物（不入库）
+# .pnpm-store：pnpm 包仓库（仓库内这份是 DSH App 沙箱禁写家目录时的回退产物）
+# node_modules：前端依赖（rpa-log-web）；.uv_cache / .ruff_cache：uv / ruff 缓存
+# *.tsbuildinfo：TypeScript 增量编译产物
+.npm-store/
+node_modules/
+.uv_cache/
+.ruff_cache/
+*.tsbuildinfo
+files/
+.npm-cache/

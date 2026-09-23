@@ -6,6 +6,7 @@ from pathlib import Path
 from time import sleep
 
 from app.core.browser.session_lock import build_account_session_key, build_browser_profile_name
+from app.core.logging.log_session import execution_log_session
 from app.core.logging.logger import log
 from app.core.task.dispatcher import dispatch_context
 from app.queue.message import build_task_context
@@ -45,19 +46,23 @@ def skip_test_job(func):
 def handle_message(task, account_session_coordinator=None):
     """处理单条队列消息。"""
     context = build_task_context(task)
-    coordinator = account_session_coordinator or _get_local_account_coordinator()
-    account_key = build_account_session_key(context)
-    lease = coordinator.acquire_slot(
-        account_key,
-        build_browser_profile_name(context),
-        owner_pid=os.getpid(),
-    )
-    context.browser_lease = lease
-    context.account_session_coordinator = coordinator
-    try:
-        return dispatch_context(context)
-    finally:
-        coordinator.release_slot(account_key, lease["lease_id"])
+    # 执行日志会话（§6.3）：queue 模式 + RPA_LOG_SERVICE_ENABLED 开启时创建 RUNNING
+    # 记录并绑定上下文；local 模式/未开启时为 no-op。测试单已在 skip_test_job 过滤，
+    # 不会走到这里，因此不产生任何记录。
+    with execution_log_session(context):
+        coordinator = account_session_coordinator or _get_local_account_coordinator()
+        account_key = build_account_session_key(context)
+        lease = coordinator.acquire_slot(
+            account_key,
+            build_browser_profile_name(context),
+            owner_pid=os.getpid(),
+        )
+        context.browser_lease = lease
+        context.account_session_coordinator = coordinator
+        try:
+            return dispatch_context(context)
+        finally:
+            coordinator.release_slot(account_key, lease["lease_id"])
 
 
 def save_task_message(task, queue_name):

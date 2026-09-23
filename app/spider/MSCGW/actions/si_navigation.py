@@ -160,7 +160,7 @@ class SiNavigationMixin:
                     continue
                 option.click()
                 self.page.run_js("arguments[0].blur();", element)
-                self.logger.info(f"选择{name}")
+                self.logger.info(f"选择{name}: {target_text}")
                 return True
 
         raise ElementNotFoundError(

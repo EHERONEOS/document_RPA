@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPA 执行日志中心 · 产品原型</title>
+<style>
+  /* ============ antd5 风格 Design Token（亮色 / 白色基调） ============ */
+  :root {
+    --primary: #1677ff;
+    --primary-hover: #4096ff;
+    --primary-bg: #e6f4ff;
+    --success: #52c41a;
+    --success-bg: #f6ffed;
+    --success-border: #b7eb8f;
+    --error: #ff4d4f;
+    --error-bg: #fff2f0;
+    --error-border: #ffccc7;
+    --warning: #faad14;
+    --warning-bg: #fffbe6;
+    --warning-border: #ffe58f;
+    --text: rgba(0, 0, 0, 0.88);
+    --text-2: rgba(0, 0, 0, 0.65);
+    --text-3: rgba(0, 0, 0, 0.45);
+    --border: #f0f0f0;
+    --border-strong: #d9d9d9;
+    --bg-layout: #f5f5f5;
+    --bg-container: #ffffff;
+    --shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 14px; color: var(--text); background: var(--bg-layout);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 整体布局：左侧 Sider + 右侧内容 ============ */
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  .sider {
+    width: 216px; flex: none; background: var(--bg-container);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  }
+  .logo {
+    height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-icon {
+    width: 32px; height: 32px; border-radius: 8px; flex: none;
+    background: linear-gradient(135deg, #1677ff, #69b1ff);
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .logo-title { font-size: 16px; font-weight: 600; }
+  .logo-sub { font-size: 12px; color: var(--text-3); }
+  .menu { flex: 1; padding: 8px; overflow-y: auto; }
+  .menu-item {
+    display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px;
+    border-radius: var(--radius); cursor: pointer; color: var(--text); margin-bottom: 4px;
+    transition: all .2s; user-select: none;
+  }
+  .menu-item:hover { background: rgba(0, 0, 0, 0.04); }
+  .menu-item.active { background: var(--primary-bg); color: var(--primary); font-weight: 500; }
+  .menu-item svg { width: 16px; height: 16px; flex: none; }
+  .menu-group { padding: 16px 12px 8px; font-size: 12px; color: var(--text-3); }
+  .sider-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
+
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .header {
+    height: 64px; flex: none; background: var(--bg-container); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+  }
+  .breadcrumb { color: var(--text-3); }
+  .breadcrumb b { color: var(--text); font-weight: 400; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .env-tag {
+    display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px;
+    border-radius: 4px; font-size: 12px; background: var(--success-bg); color: var(--success);
+    border: 1px solid var(--success-border);
+  }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--primary-bg);
+    color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 13px;
+  }
+  .content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 16px; }
+  .page-header h2 { font-size: 20px; font-weight: 600; }
+  .page-header p { color: var(--text-2); margin-top: 4px; }
+
+  /* ============ Card ============ */
+  .card { background: var(--bg-container); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(0,0,0,.03), 0 0 0 1px var(--border); margin-bottom: 16px; }
+  .card-body { padding: 20px 24px; }
+
+  /* ============ 搜索表单 ============ */
+  .search-form { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; }
+  .form-item { display: flex; flex-direction: column; gap: 8px; }
+  .form-item label { color: var(--text-2); font-size: 14px; }
+  .control {
+    height: 32px; min-width: 200px; padding: 0 11px; border: 1px solid var(--border-strong);
+    border-radius: 6px; font-size: 14px; color: var(--text); background: #fff; outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .control:hover { border-color: var(--primary-hover); }
+  .control:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(22,119,255,.1); }
+  select.control { min-width: 140px; cursor: pointer; }
+  .form-actions { display: flex; gap: 8px; }
+
+  /* ============ Button ============ */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px;
+    padding: 0 15px; border-radius: 6px; font-size: 14px; cursor: pointer; border: 1px solid var(--border-strong);
+    background: #fff; color: var(--text); transition: all .2s; user-select: none;
+  }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); color: #fff; }
+
+  /* ============ Table ============ */
+  .table-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .table-title { font-size: 16px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; padding: 12px 16px; background: #fafafa; color: var(--text); font-weight: 500;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--text-2); white-space: nowrap; }
+  tbody tr { transition: background .2s; }
+  tbody tr:hover { background: #fafafa; }
+  td.mono, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  td .cell-main { color: var(--text); }
+  .actions { display: flex; gap: 4px; flex-wrap: wrap; }
+  .link { color: var(--primary); cursor: pointer; padding: 0 6px; background: none; border: none; font-size: 14px; }
+  .link:hover { color: var(--primary-hover); }
+  .link-danger { color: var(--error); }
+  .link[disabled] { color: var(--text-3); cursor: not-allowed; }
+  .divider-v { color: var(--border-strong); }
+
+  /* ============ Tag ============ */
+  .tag { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 4px; font-size: 12px; border: 1px solid; }
+  .tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .tag-success { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+  .tag-error { color: var(--error); background: var(--error-bg); border-color: var(--error-border); }
+  .tag-warning { color: #d48806; background: var(--warning-bg); border-color: var(--warning-border); }
+  .tag-default { color: var(--text-2); background: #fafafa; border-color: var(--border-strong); }
+
+  /* ============ Pagination ============ */
+  .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 16px; color: var(--text-2); }
+  .page-btn {
+    min-width: 32px; height: 32px; padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 6px;
+    background: #fff; cursor: pointer; color: var(--text);
+  }
+  .page-btn.active { border-color: var(--primary); color: var(--primary); }
+
+  /* ============ Drawer 抽屉 ============ */
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 100; }
+  .mask.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 50%; min-width: 680px; background: #fff;
+    box-shadow: var(--shadow); z-index: 101; transform: translateX(100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  .drawer-header .title { font-size: 16px; font-weight: 600; }
+  .icon-btn { width: 28px; height: 28px; border: none; background: none; border-radius: 6px; cursor: pointer; color: var(--text-2); font-size: 16px; }
+  .icon-btn:hover { background: rgba(0,0,0,.04); }
+  .icon-btn.refresh { color: var(--primary); font-size: 15px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .icon-btn.spinning { animation: spin .8s linear infinite; pointer-events: none; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .descriptions { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; }
+  .desc-row { display: flex; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .desc-row:last-child { border-bottom: none; }
+  .desc-label { width: 96px; flex: none; background: #fafafa; padding: 10px 12px; color: var(--text-2); }
+  .desc-value { padding: 10px 12px; color: var(--text); word-break: break-all; }
+  .section-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .drawer-footer { padding: 12px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+
+  /* ============ 日志时间线 ============ */
+  .log-list { display: flex; flex-direction: column; }
+  .log-item { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); align-items: baseline; min-width: 0; }
+  .log-item:last-child { border-bottom: none; }
+  .log-idx { flex: none; min-width: 28px; text-align: right; color: var(--text-3); font-size: 12px; font-family: Menlo, Consolas, monospace; }
+  .log-msg { flex: 1; min-width: 0; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+  .log-time { flex: none; color: var(--text-3); font-size: 12px; font-family: Menlo, Consolas, monospace; }
+  .lv-INFO { color: rgba(0,0,0,.45); }
+  .lv-SUCCESS { color: var(--success); }
+  .lv-ERROR { color: var(--error); }
+  .lv-WARN { color: #d48806; }
+
+  /* ============ Modal ============ */
+  .modal-wrap { position: fixed; inset: 0; z-index: 110; display: flex; align-items: flex-start; justify-content: center; padding: 60px 16px; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .modal-wrap.show { opacity: 1; pointer-events: auto; }
+  .modal { width: 640px; max-width: 100%; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); transform: scale(.9); transition: transform .25s; max-height: calc(100vh - 120px); display: flex; flex-direction: column; }
+  .modal-wrap.show .modal { transform: scale(1); }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  .modal-header .title { font-size: 16px; font-weight: 600; }
+  .modal-body { padding: 20px 24px; overflow-y: auto; }
+  .modal-footer { padding: 12px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .alert-error { display: flex; gap: 10px; background: var(--error-bg); border: 1px solid var(--error-border); border-radius: var(--radius); padding: 12px 16px; color: var(--error); line-height: 1.7; margin-bottom: 16px; word-break: break-all; }
+  .img-frame { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #fafafa; }
+  .img-frame img, .img-frame .video-thumb { display: block; width: 100%; }
+  .file-group { margin-bottom: 20px; }
+  .file-group:last-child { margin-bottom: 0; }
+  .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .file-cell { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .file-cell .meta { padding: 8px 12px; font-size: 12px; color: var(--text-2); display: flex; justify-content: space-between; gap: 8px; }
+  .storage-tag { font-size: 11px; padding: 0 5px; border-radius: 4px; background: var(--primary-bg); color: var(--primary); flex: none; }
+  .storage-tag.lan { background: #fff7e6; color: #d48806; }
+  .video-thumb { position: relative; aspect-ratio: 16/9; }
+  .video-thumb .play {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .video-thumb .play span {
+    width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 18px; padding-left: 4px;
+  }
+
+  /* ============ 统计小卡 ============ */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .stat-card { background: #fff; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); padding: 20px 24px; }
+  .stat-card .label { color: var(--text-2); }
+  .stat-card .value { font-size: 28px; font-weight: 600; margin-top: 8px; }
+  .stat-card .trend { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+
+  .proto-tip {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 50;
+    background: rgba(0,0,0,.72); color: #fff; border-radius: 20px; padding: 8px 18px; font-size: 12px;
+    backdrop-filter: blur(4px); pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ================= 左侧导航 ================= -->
+  <aside class="sider">
+    <div class="logo">
+      <div class="logo-icon">R</div>
+      <div>
+        <div class="logo-title">RPA 日志中心</div>
+        <div class="logo-sub">Execution Log Service</div>
+      </div>
+    </div>
+    <nav class="menu">
+      <div class="menu-group">运行监控</div>
+      <div class="menu-item active" data-page="logs" onclick="showPage('logs', this)">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M290 236.4l43.9-43.9a8.01 8.01 0 0 0-4.7-13.6L169 160c-5.1-.6-9.5 3.7-8.9 8.9L179 329.1c.8 6.6 8.9 9.4 13.6 4.7l43.7-43.7L370 423.7c3.1 3.1 8.2 3.1 11.3 0l42.4-42.3c3.1-3.1 3.1-8.2 0-11.3L290 236.4zM352 632c0 4.4 3.6 8 8 8H400c4.4 0 8-3.6 8-8v-48-32-32c0-4.4-3.6-8-8-8h-40c-4.4 0-8 3.6-8 8v112zm192 0c0 4.4 3.6 8 8 8h140c4.4 0 8-3.6 8-8v-40c0-4.4-3.6-8-8-8H560c-4.4 0-8 3.6-8 8v40zm0-208c0 4.4 3.6 8 8 8h140c4.4 0 8-3.6 8-8v-40c0-4.4-3.6-8-8-8H560c-4.4 0-8 3.6-8 8v40zM880 112H144c-17.7 0-32 14.3-32 32v736c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V144c0-17.7-14.3-32-32-32zm-40 728H184V184h656v656z"/></svg>
+        日志列表
+      </div>
+      <div class="menu-item" data-page="devices" onclick="showPage('devices', this)">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M928 140H96c-17.7 0-32 14.3-32 32v496c0 17.7 14.3 32 32 32h380v112H304c-8.8 0-16 7.2-16 16v48c0 4.4 3.6 8 8 8h432c4.4 0 8-3.6 8-8v-48c0-8.8-7.2-16-16-16H548V700h380c17.7 0 32-14.3 32-32V172c0-17.7-14.3-32-32-32z m-40 488H136V212h752v416z"/></svg>
+        设备列表
+      </div>
+      <div class="menu-item" data-page="queues" onclick="showPage('queues', this)">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M928 276H96c-17.7 0-32-14.3-32-32s14.3-32 32-32h832c17.7 0 32 14.3 32 32s-14.3 32-32 32zm0 268H96c-17.7 0-32-14.3-32-32s14.3-32 32-32h832c17.7 0 32 14.3 32 32s-14.3 32-32 32zm0 268H96c-17.7 0-32-14.3-32-32s14.3-32 32-32h832c17.7 0 32 14.3 32 32s-14.3 32-32 32z"/></svg>
+        队列列表
+      </div>
+    </nav>
+    <div class="sider-footer">v1.0 · 原型 Prototype</div>
+  </aside>
+
+  <!-- ================= 右侧主体 ================= -->
+  <div class="main">
+    <header class="header">
+      <div class="breadcrumb" id="breadcrumb">首页 / <b>日志列表</b></div>
+      <div class="header-right">
+        <span class="env-tag">● 生产环境</span>
+        <div class="avatar">OP</div>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- ============ 页面一：日志列表 ============ -->
+      <section class="page active" id="page-logs">
+        <div class="page-header">
+          <h2>日志列表</h2>
+          <p>按消息维度展示 RPA 任务执行记录，支持按消息 ID / JobId / 队列名 / 执行状态检索</p>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card"><div class="label">今日执行总数</div><div class="value">128</div><div class="trend">较昨日 +12%</div></div>
+          <div class="stat-card"><div class="label">成功</div><div class="value" style="color:var(--success)">103</div><div class="trend">成功率 80.5%</div></div>
+          <div class="stat-card"><div class="label">失败</div><div class="value" style="color:var(--error)">17</div><div class="trend">较昨日 -3</div></div>
+          <div class="stat-card"><div class="label">运行中</div><div class="value" style="color:var(--warning)">8</div><div class="trend">实时刷新</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <div class="search-form">
+              <div class="form-item">
+                <label>消息ID</label>
+                <input class="control" id="f-message" placeholder="请输入消息ID" oninput="applyFilter()">
+              </div>
+              <div class="form-item">
+                <label>JobId</label>
+                <input class="control" id="f-job" placeholder="请输入 JobId / 提单号" oninput="applyFilter()">
+              </div>
+              <div class="form-item">
+                <label>队列名</label>
+                <select class="control" id="f-queue" onchange="applyFilter()">
+                  <option value="">全部队列</option>
+                  <option>QTCT_ZIM_SI</option>
+                  <option>QTCT_ZIM_VGM</option>
+                  <option>QTCT_MSCGW_SI</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label>执行状态</label>
+                <select class="control" id="f-status" onchange="applyFilter()">
+                  <option value="">全部状态</option>
+                  <option value="SUCCESS">成功</option>
+                  <option value="FAILED">失败</option>
+                  <option value="RUNNING">运行中</option>
+                </select>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" onclick="applyFilter()">查询</button>
+                <button class="btn" onclick="resetFilter()">重置</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <div class="table-head">
+              <div class="table-title">执行记录</div>
+              <div style="color:var(--text-3);font-size:13px">共 <span id="row-count">0</span> 条</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>消息ID</th>
+                  <th>JobId</th>
+                  <th>队列名</th>
+                  <th>设备名</th>
+                  <th>执行状态</th>
+                  <th>创建时间</th>
+                  <th>结束时间</th>
+                  <th>耗时</th>
+                  <th style="width:240px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+            </table>
+            <div class="pagination">
+              <span>每页 10 条</span>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <span>共 3 页</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面二：设备列表 ============ -->
+      <section class="page" id="page-devices">
+        <div class="page-header">
+          <h2>设备列表</h2>
+          <p>展示接入日志服务的 RPA 执行机器及最近执行情况</p>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <table>
+              <thead>
+                <tr><th>设备名</th><th>操作系统</th><th>绑定队列数</th><th>今日执行</th><th>成功率</th><th>最近心跳</th><th>状态</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="cell-main">RPA-DEV-01</td><td>Windows Server 2022</td><td>3</td><td>64</td><td>88.2%</td><td>2025-01-15 14:32:10</td><td><span class="tag tag-success">在线</span></td></tr>
+                <tr><td class="cell-main">RPA-DEV-02</td><td>Windows Server 2022</td><td>2</td><td>51</td><td>79.6%</td><td>2025-01-15 14:31:58</td><td><span class="tag tag-success">在线</span></td></tr>
+                <tr><td class="cell-main">RPA-DEV-03</td><td>Windows Server 2019</td><td>1</td><td>13</td><td>69.2%</td><td>2025-01-15 09:12:44</td><td><span class="tag tag-default">离线</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面三：队列列表 ============ -->
+      <section class="page" id="page-queues">
+        <div class="page-header">
+          <h2>队列列表</h2>
+          <p>展示接入日志服务的业务队列及执行统计</p>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <table>
+              <thead>
+                <tr><th>队列名</th><th>客户</th><th>船司</th><th>业务</th><th>今日执行</th><th>成功率</th><th>平均耗时</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="cell-main">QTCT_ZIM_SI</td><td>QTCT</td><td>ZIM</td><td>SI 订舱补料</td><td>46</td><td>85.1%</td><td>2m 38s</td></tr>
+                <tr><td class="cell-main">QTCT_ZIM_VGM</td><td>QTCT</td><td>ZIM</td><td>VGM 申报</td><td>39</td><td>90.3%</td><td>1m 52s</td></tr>
+                <tr><td class="cell-main">QTCT_MSCGW_SI</td><td>QTCT</td><td>MSCGW</td><td>SI 订舱补料</td><td>43</td><td>72.8%</td><td>3m 05s</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 抽屉：执行日志列表 ================= -->
+<div class="mask" id="drawer-mask" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="title" style="display:flex;align-items:center;gap:8px">
+      执行日志
+      <button class="icon-btn refresh" id="drawer-refresh" style="display:none" title="刷新最新日志" onclick="refreshDrawer()">⟳</button>
+    </div>
+    <button class="icon-btn" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="descriptions" id="drawer-desc"></div>
+    <div class="section-title">日志明细 <span style="color:var(--text-3);font-weight:400;font-size:12px">（从新到旧）</span></div>
+    <div class="log-list" id="drawer-logs"></div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn" onclick="closeDrawer()">关 闭</button>
+  </div>
+</div>
+
+<!-- ================= 弹窗：失败原因 ================= -->
+<div class="modal-wrap" id="fail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="title" style="color:var(--error)">失败原因</div>
+      <button class="icon-btn" onclick="closeModal('fail-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert-error" id="fail-remark"></div>
+      <div class="section-title">失败截图</div>
+      <div class="img-frame"><img id="fail-img" alt="失败截图"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('fail-modal')">关 闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 弹窗：记录文件 ================= -->
+<div class="modal-wrap" id="files-modal">
+  <div class="modal" style="width:760px">
+    <div class="modal-header">
+      <div class="title">记录文件</div>
+      <button class="icon-btn" onclick="closeModal('files-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="files-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('files-modal')">关 闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="proto-tip">产品原型 · 点击「查看详情 / 失败原因 / 记录文件」体验交互；运行中的记录可在抽屉内点击 ⟳ 刷新最新日志</div>
+
+<script>
+/* ===================== 模拟截图（SVG 占位，真实环境为完整 OSS 地址） ===================== */
+function svgShot(title, lines, accent) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400">
+    <rect width="720" height="400" fill="#f5f6f8"/>
+    <rect width="720" height="36" fill="#e8eaed"/>
+    <circle cx="18" cy="18" r="5" fill="#ff5f57"/><circle cx="34" cy="18" r="5" fill="#febc2e"/><circle cx="50" cy="18" r="5" fill="#28c840"/>
+    <rect x="80" y="8" width="480" height="20" rx="10" fill="#ffffff"/>
+    <text x="96" y="22" font-size="11" fill="#9aa0a6" font-family="monospace">https://eshipping.zim.com/booking/si/edit</text>
+    <rect x="24" y="60" width="672" height="44" rx="6" fill="#ffffff" stroke="#e5e7eb"/>
+    <text x="40" y="88" font-size="16" font-weight="bold" fill="#1f2329" font-family="sans-serif">${title}</text>
+    <rect x="24" y="120" width="324" height="120" rx="6" fill="#ffffff" stroke="#e5e7eb"/>
+    <rect x="24" y="256" width="324" height="120" rx="6" fill="#ffffff" stroke="#e5e7eb"/>
+    <rect x="372" y="120" width="324" height="256" rx="6" fill="#ffffff" stroke="#e5e7eb"/>
+    <rect x="40" y="140" width="90" height="10" rx="5" fill="#dfe3e8"/><rect x="150" y="138" width="180" height="14" rx="4" fill="${accent}22" stroke="${accent}"/>
+    <rect x="40" y="170" width="90" height="10" rx="5" fill="#dfe3e8"/><rect x="150" y="168" width="180" height="14" rx="4" fill="#f2f3f5" stroke="#e5e7eb"/>
+    <rect x="40" y="200" width="90" height="10" rx="5" fill="#dfe3e8"/><rect x="150" y="198" width="180" height="14" rx="4" fill="#f2f3f5" stroke="#e5e7eb"/>
+    <rect x="388" y="140" width="292" height="180" rx="4" fill="${accent}14"/>
+    ${lines.map((t, i) => `<text x="400" y="${168 + i * 22}" font-size="12" fill="${accent}" font-family="monospace">▶ ${t}</text>`).join("")}
+    <rect x="560" y="344" width="76" height="28" rx="6" fill="${accent}"/>
+    <text x="584" y="363" font-size="12" fill="#fff" font-family="sans-serif">提交</text>
+  </svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+const FAIL_IMG = svgShot("Shipping Instruction 补料", ["Error: 元素不存在 #container-no", "等待 5s 超时", "页面停留在提单编辑页"], "#ff4d4f");
+const OK_IMG  = svgShot("VGM 申报提交成功", ["VGM submit OK", "reference: ZIMVGM20250115"], "#52c41a");
+const RECORD_IMG_1 = svgShot("SI 草稿确认页", ["draft saved", "BL No: ZIMUSBKK123456"], "#1677ff");
+const RECORD_IMG_2 = svgShot("提交结果回执", ["submit success", "code: 200"], "#52c41a");
+const VIDEO_POSTER = svgShot("屏幕录制 · QTCT_ZIM_SI", ["recording 1920x1080", "fps 10 · duration 02:38"], "#1677ff");
+
+/* ===================== 模拟数据 ===================== */
+const ROWS = [
+  {
+    id: 1, messageId: "MSG202501150001", jobId: "ZIMUSBKK123456", queue: "QTCT_ZIM_SI", device: "RPA-DEV-01",
+    status: "FAILED", createdAt: "2025-01-15 10:23:45", finishedAt: "2025-01-15 10:26:57", duration: "3m 12s",
+    remark: "ZIM SI 填单失败：【集装箱数】元素不存在：#container-no；等待=5s",
+    failImg: FAIL_IMG,
+    files: [
+      { type: "SCREEN_RECORDING_FILE", name: "QTCT_ZIM_SI_ZIMUSBKK123456_20250115_102402.mp4", url: "#", storage: "LAN", media: "VIDEO", poster: VIDEO_POSTER, size: "8.6 MB" },
+      { type: "SUBMIT_RESULT_SCREENSHOT", name: "si_submit_error.png", url: FAIL_IMG, storage: "OSS", media: "IMAGE" }
+    ],
+    logs: [
+      { level: "INFO",    msg: "收到队列消息，开始执行任务 queue=QTCT_ZIM_SI", time: "2025-01-15 10:23:45" },
+      { level: "INFO",    msg: "启动浏览器会话 port=10231 profile=qtct_zim", time: "2025-01-15 10:23:51" },
+      { level: "SUCCESS", msg: "登录 ZIM 船司门户成功", time: "2025-01-15 10:24:20" },
+      { level: "INFO",    msg: "进入 Shipping Instruction 列表页", time: "2025-01-15 10:24:35" },
+      { level: "INFO",    msg: "输入提单号 ZIMUSBKK123456", time: "2025-01-15 10:24:41" },
+      { level: "INFO",    msg: "填写基础信息：船名 / 航次 / 收发通", time: "2025-01-15 10:25:02" },
+      { level: "WARN",    msg: "箱号 CSSU1234567 重量字段为空，使用默认值", time: "2025-01-15 10:25:40" },
+      { level: "ERROR",   msg: "【集装箱数】元素不存在：#container-no；等待=5s", time: "2025-01-15 10:26:12" },
+      { level: "ERROR",   msg: "任务执行失败 queue=QTCT_ZIM_SI error=ElementNotFoundError", time: "2025-01-15 10:26:13" },
+      { level: "INFO",    msg: "任务结束，保留浏览器进程以便后续接管", time: "2025-01-15 10:26:57" }
+    ]
+  },
+  {
+    id: 2, messageId: "MSG202501150002", jobId: "ZIMUSBKK123457", queue: "QTCT_ZIM_SI", device: "RPA-DEV-01",
+    status: "SUCCESS", createdAt: "2025-01-15 10:31:02", finishedAt: "2025-01-15 10:33:40", duration: "2m 38s",
+    files: [
+      { type: "SCREEN_RECORDING_FILE", name: "QTCT_ZIM_SI_ZIMUSBKK123457_20250115_103118.mp4", url: "https://oss.cgofish.com/rpa/record/2025/01/QTCT_ZIM_SI_103118.mp4", storage: "OSS", media: "VIDEO", poster: VIDEO_POSTER, size: "7.9 MB" },
+      { type: "SI_DRAFT_SCREENSHOT", name: "si_draft_confirm.png", url: RECORD_IMG_1, storage: "OSS", media: "IMAGE" },
+      { type: "SUBMIT_RESULT_SCREENSHOT", name: "si_submit_result.png", url: RECORD_IMG_2, storage: "OSS", media: "IMAGE" }
+    ],
+    logs: [
+      { level: "INFO",    msg: "收到队列消息，开始执行任务 queue=QTCT_ZIM_SI", time: "2025-01-15 10:31:02" },
+      { level: "SUCCESS", msg: "复用已登录会话，跳过登录", time: "2025-01-15 10:31:10" },
+      { level: "INFO",    msg: "点击【新建 SI】按钮", time: "2025-01-15 10:31:25" },
+      { level: "INFO",    msg: "填写箱货信息：共 2 个集装箱", time: "2025-01-15 10:32:40" },
+      { level: "SUCCESS", msg: "表单校验通过，共校验 18 个字段", time: "2025-01-15 10:33:20" },
+      { level: "SUCCESS", msg: "任务执行成功 queue=QTCT_ZIM_SI", time: "2025-01-15 10:33:35" },
+      { level: "INFO",    msg: "任务结束，保留浏览器进程以便后续接管", time: "2025-01-15 10:33:40" }
+    ]
+  },
+  {
+    id: 3, messageId: "MSG202501150003", jobId: "ZIMUSBKK123458", queue: "QTCT_ZIM_VGM", device: "RPA-DEV-02",
+    status: "RUNNING", createdAt: "2025-01-15 14:30:12", finishedAt: null, duration: null,
+    logs: [
+      { level: "INFO",    msg: "收到队列消息，开始执行任务 queue=QTCT_ZIM_VGM", time: "2025-01-15 14:30:12" },
+      { level: "SUCCESS", msg: "登录 ZIM 船司门户成功", time: "2025-01-15 14:30:48" },
+      { level: "INFO",    msg: "点击 VGM 入口按钮", time: "2025-01-15 14:31:02" },
+      { level: "INFO",    msg: "填写第 1 个箱货-重量", time: "2025-01-15 14:32:07" }
+    ]
+  },
+  {
+    id: 4, messageId: "MSG202501150004", jobId: "MSCGW456001", queue: "QTCT_MSCGW_SI", device: "RPA-DEV-02",
+    status: "FAILED", createdAt: "2025-01-15 09:12:30", finishedAt: "2025-01-15 09:18:14", duration: "5m 44s",
+    remark: "MSCGW 登录失败：验证码识别 3 次均错误，账号已被临时锁定 30 分钟",
+    failImg: svgShot("MSCGW 登录页", ["captcha verify failed x3", "account locked 30min"], "#ff4d4f"),
+    files: [
+      { type: "SCREEN_RECORDING_FILE", name: "QTCT_MSCGW_SI_MSCGW456001_20250115_091231.mp4", url: "http://192.168.1.50:9000/files/2025/01/f3a9c8e2.mp4", storage: "LAN", media: "VIDEO", poster: svgShot("屏幕录制 · QTCT_MSCGW_SI", ["recording 1920x1080", "OSS 上传失败 → 局域网存储"], "#faad14"), size: "9.4 MB" }
+    ],
+    logs: [
+      { level: "INFO",    msg: "收到队列消息，开始执行任务 queue=QTCT_MSCGW_SI", time: "2025-01-15 09:12:30" },
+      { level: "INFO",    msg: "打开 MSCGW 登录页", time: "2025-01-15 09:12:44" },
+      { level: "WARN",    msg: "验证码识别第 1 次校验失败，重试", time: "2025-01-15 09:13:30" },
+      { level: "WARN",    msg: "验证码识别第 2 次校验失败，重试", time: "2025-01-15 09:14:18" },
+      { level: "ERROR",   msg: "验证码识别 3 次均错误，账号已被临时锁定 30 分钟", time: "2025-01-15 09:15:02" },
+      { level: "ERROR",   msg: "任务执行失败 queue=QTCT_MSCGW_SI error=LoginError", time: "2025-01-15 09:15:03" },
+      { level: "WARN",    msg: "录屏 OSS 上传失败，已改存局域网文件服务", time: "2025-01-15 09:15:40" }
+    ]
+  },
+  {
+    id: 5, messageId: "MSG202501150005", jobId: "ZIMUSBKK123459", queue: "QTCT_ZIM_VGM", device: "RPA-DEV-01",
+    status: "SUCCESS", createdAt: "2025-01-15 08:45:10", finishedAt: "2025-01-15 08:47:02", duration: "1m 52s",
+    files: [
+      { type: "SCREEN_RECORDING_FILE", name: "QTCT_ZIM_VGM_ZIMUSBKK123459_20250115_084526.mp4", url: "https://oss.cgofish.com/rpa/record/2025/01/QTCT_ZIM_VGM_084526.mp4", storage: "OSS", media: "VIDEO", poster: svgShot("屏幕录制 · QTCT_ZIM_VGM", ["recording 1920x1080", "duration 01:52"], "#1677ff"), size: "5.2 MB" },
+      { type: "VGM_RESULT_SCREENSHOT", name: "vgm_submit_ok.png", url: OK_IMG, storage: "OSS", media: "IMAGE" }
+    ],
+    logs: [
+      { level: "INFO",    msg: "收到队列消息，开始执行任务 queue=QTCT_ZIM_VGM", time: "2025-01-15 08:45:10" },
+      { level: "SUCCESS", msg: "复用已登录会话，跳过登录", time: "2025-01-15 08:45:16" },
+      { level: "INFO",    msg: "点击全部【删除箱】按钮", time: "2025-01-15 08:45:40" },
+      { level: "INFO",    msg: "填写 3 个箱货信息", time: "2025-01-15 08:46:20" },
+      { level: "SUCCESS", msg: "VGM 申报提交成功，参考号 ZIMVGM20250115", time: "2025-01-15 08:46:58" },
+      { level: "SUCCESS", msg: "任务执行成功 queue=QTCT_ZIM_VGM", time: "2025-01-15 08:47:00" }
+    ]
+  },
+  {
+    id: 6, messageId: "MSG202501140012", jobId: "ZIMUSBKK123460", queue: "QTCT_ZIM_VGM", device: "RPA-DEV-02",
+    status: "SUCCESS", createdAt: "2025-01-14 22:10:05", finishedAt: "2025-01-14 22:12:05", duration: "2m 00s",
+    files: [
+      { type: "SCREEN_RECORDING_FILE", name: "QTCT_ZIM_VGM_ZIMUSBKK123460_20250114_221021.mp4", url: "https://oss.cgofish.com/rpa/record/2025/01/QTCT_ZIM_VGM_221021.mp4", storage: "OSS", media: "VIDEO", poster: svgShot("屏幕录制 · QTCT_ZIM_VGM", ["recording 1920x1080", "duration 02:00"], "#1677ff"), size: "6.1 MB" },
+      { type: "VGM_RESULT_SCREENSHOT", name: "vgm_submit_ok.png", url: OK_IMG, storage: "OSS", media: "IMAGE" }
+    ],
+    logs: [
+      { level: "INFO",    msg: "收到队列消息，开始执行任务 queue=QTCT_ZIM_VGM", time: "2025-01-14 22:10:05" },
+      { level: "SUCCESS", msg: "登录 ZIM 船司门户成功", time: "2025-01-14 22:10:39" },
+      { level: "INFO",    msg: "点击 VGM 入口按钮", time: "2025-01-14 22:10:52" },
+      { level: "WARN",    msg: "箱号 MEDU9876543 的 VOGM 字段为空，使用提单皮重", time: "2025-01-14 22:11:30" },
+      { level: "SUCCESS", msg: "VGM 申报提交成功，参考号 ZIMVGM20250114", time: "2025-01-14 22:11:58" },
+      { level: "SUCCESS", msg: "任务执行成功 queue=QTCT_ZIM_VGM", time: "2025-01-14 22:12:00" }
+    ]
+  }
+];
+
+/* ===================== 状态渲染 ===================== */
+const STATUS_META = {
+  SUCCESS: { text: "成功", cls: "tag-success" },
+  FAILED:  { text: "失败", cls: "tag-error" },
+  RUNNING: { text: "运行中", cls: "tag-warning" }
+};
+
+function renderTable(rows) {
+  const tbody = document.getElementById("table-body");
+  document.getElementById("row-count").textContent = rows.length;
+  tbody.innerHTML = rows.map(r => {
+    const s = STATUS_META[r.status];
+    const failLink = r.status === "FAILED"
+      ? `<button class="link link-danger" onclick="openFailModal(${r.id})">失败原因</button><span class="divider-v">|</span>` : "";
+    const filesLink = (r.status === "SUCCESS" || r.status === "FAILED") && r.files && r.files.length
+      ? `<button class="link" onclick="openFilesModal(${r.id})">记录文件</button>` : "";
+    return `<tr>
+      <td class="mono cell-main">${r.messageId}</td>
+      <td class="mono">${r.jobId}</td>
+      <td class="mono">${r.queue}</td>
+      <td>${r.device}</td>
+      <td><span class="tag ${s.cls}">${s.text}</span></td>
+      <td class="mono">${r.createdAt}</td>
+      <td class="mono">${r.status === "RUNNING" ? "—" : (r.finishedAt || "—")}</td>
+      <td class="mono">${r.status === "RUNNING" ? "—" : (r.duration || "—")}</td>
+      <td>
+        <div class="actions">
+          <button class="link" onclick="openDrawer(${r.id})">查看详情</button>
+          <span class="divider-v">|</span>
+          ${failLink}
+          ${filesLink || (!failLink ? '<button class="link" disabled>记录文件</button>' : "")}
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function applyFilter() {
+  const m = document.getElementById("f-message").value.trim().toLowerCase();
+  const j = document.getElementById("f-job").value.trim().toLowerCase();
+  const q = document.getElementById("f-queue").value;
+  const s = document.getElementById("f-status").value;
+  const rows = ROWS.filter(r =>
+    (!m || r.messageId.toLowerCase().includes(m)) &&
+    (!j || r.jobId.toLowerCase().includes(j)) &&
+    (!q || r.queue === q) &&
+    (!s || r.status === s)
+  );
+  renderTable(rows);
+}
+
+function resetFilter() {
+  ["f-message", "f-job"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("f-queue").value = "";
+  document.getElementById("f-status").value = "";
+  applyFilter();
+}
+
+/* ===================== 抽屉：执行日志 ===================== */
+let currentRow = null;
+const liveLogsByRow = {};
+/* 模拟运行中任务持续产生的新日志（点击刷新按钮逐条拉取） */
+const LIVE_LOGS = [
+  { level: "INFO",    msg: "填写第 2 个箱货-皮重", time: "2025-01-15 14:32:48" },
+  { level: "INFO",    msg: "点击【确认申报】按钮", time: "2025-01-15 14:33:10" },
+  { level: "SUCCESS", msg: "监听到接口响应：/vgm/submit 接口返回 code=200", time: "2025-01-15 14:33:41" },
+  { level: "INFO",    msg: "校验提交结果：2/2 个集装箱已申报", time: "2025-01-15 14:34:02" },
+  { level: "SUCCESS", msg: "任务执行成功 queue=QTCT_ZIM_VGM", time: "2025-01-15 14:34:20" }
+];
+let liveCursor = 0;
+
+function renderDrawerLogs(r) {
+  const all = [...r.logs, ...(liveLogsByRow[r.id] || [])];
+  // 从新到旧展示，下标从 1 开始
+  const logs = [...all].reverse();
+  document.getElementById("drawer-logs").innerHTML = logs.map((l, i) => `
+    <div class="log-item">
+      <span class="log-idx">${i + 1}.</span>
+      <span class="log-msg lv-${l.level}" title="${l.msg}">${l.msg}</span>
+      <span class="log-time">${l.time}</span>
+    </div>`).join("");
+}
+
+function openDrawer(id) {
+  const r = ROWS.find(x => x.id === id);
+  currentRow = r;
+  liveLogsByRow[r.id] = [];
+  const s = STATUS_META[r.status];
+  // 仅运行中状态提供刷新按钮
+  document.getElementById("drawer-refresh").style.display = r.status === "RUNNING" ? "" : "none";
+  document.getElementById("drawer-desc").innerHTML = `
+    <div class="desc-row"><div class="desc-label">消息ID</div><div class="desc-value mono">${r.messageId}</div></div>
+    <div class="desc-row"><div class="desc-label">JobId</div><div class="desc-value mono">${r.jobId}</div></div>
+    <div class="desc-row"><div class="desc-label">队列名</div><div class="desc-value mono">${r.queue}</div></div>
+    <div class="desc-row"><div class="desc-label">设备名</div><div class="desc-value">${r.device}</div></div>
+    <div class="desc-row"><div class="desc-label">执行状态</div><div class="desc-value"><span class="tag ${s.cls}">${s.text}</span></div></div>
+    <div class="desc-row"><div class="desc-label">创建时间</div><div class="desc-value mono">${r.createdAt}</div></div>
+    <div class="desc-row"><div class="desc-label">结束时间</div><div class="desc-value mono">${r.status === "RUNNING" ? "—" : (r.finishedAt || "—")}</div></div>
+    <div class="desc-row"><div class="desc-label">耗时</div><div class="desc-value mono">${r.status === "RUNNING" ? "—" : (r.duration || "—")}</div></div>`;
+  renderDrawerLogs(r);
+  document.getElementById("drawer-mask").classList.add("show");
+  document.getElementById("drawer").classList.add("show");
+}
+
+function refreshDrawer() {
+  if (!currentRow) return;
+  const btn = document.getElementById("drawer-refresh");
+  btn.classList.add("spinning");
+  setTimeout(() => {
+    btn.classList.remove("spinning");
+    if (liveCursor < LIVE_LOGS.length) {
+      (liveLogsByRow[currentRow.id] = liveLogsByRow[currentRow.id] || []).push(LIVE_LOGS[liveCursor++]);
+      renderDrawerLogs(currentRow);
+    }
+  }, 500);
+}
+
+function closeDrawer() {
+  currentRow = null;
+  document.getElementById("drawer-mask").classList.remove("show");
+  document.getElementById("drawer").classList.remove("show");
+}
+
+/* ===================== 弹窗：失败原因 / 记录文件 ===================== */
+function openModal(id) { document.getElementById(id).classList.add("show"); }
+function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+
+function openFailModal(id) {
+  const r = ROWS.find(x => x.id === id);
+  document.getElementById("fail-remark").textContent = "⚠ " + r.remark;
+  document.getElementById("fail-img").src = r.failImg || FAIL_IMG;
+  openModal("fail-modal");
+}
+
+function openFilesModal(id) {
+  const r = ROWS.find(x => x.id === id);
+  const groups = {};
+  (r.files || []).forEach(f => (groups[f.type] = groups[f.type] || []).push(f));
+  const TYPE_NAMES = {
+    SCREEN_RECORDING_FILE: "屏幕录制",
+    SUBMIT_RESULT_SCREENSHOT: "提交结果截图",
+    SI_DRAFT_SCREENSHOT: "SI 草稿截图",
+    VGM_RESULT_SCREENSHOT: "VGM 申报结果"
+  };
+  document.getElementById("files-body").innerHTML = Object.keys(groups).map(type => `
+    <div class="file-group">
+      <div class="section-title">${TYPE_NAMES[type] || type} <span style="color:var(--text-3);font-weight:400;font-size:12px">（${groups[type].length} 个文件）</span></div>
+      <div class="file-grid">
+        ${groups[type].map(f => f.media === "VIDEO" ? `
+          <div class="file-cell">
+            <div class="video-thumb" style="background:url('${f.poster}') center/cover no-repeat">
+              <div class="play"><span>▶</span></div>
+            </div>
+            <div class="meta"><span class="mono" style="overflow:hidden;text-overflow:ellipsis">${f.name}</span><span class="storage-tag ${f.storage === "LAN" ? "lan" : ""}">${f.storage}</span></div>
+            <div class="meta"><span>${f.size || "-"}</span><span class="mono" style="color:var(--text-3)">${f.url === "#" ? "局域网地址" : "可点击播放"}</span></div>
+          </div>` : `
+          <div class="file-cell">
+            <img src="${f.url}" style="width:100%;display:block">
+            <div class="meta"><span class="mono" style="overflow:hidden;text-overflow:ellipsis">${f.name}</span><span class="storage-tag">${f.storage}</span></div>
+          </div>`).join("")}
+      </div>
+    </div>`).join("") || '<div style="text-align:center;color:var(--text-3);padding:32px 0">暂无记录文件</div>';
+  openModal("files-modal");
+}
+
+/* ===================== 导航 ===================== */
+const PAGE_NAMES = { logs: "日志列表", devices: "设备列表", queues: "队列列表" };
+function showPage(name, el) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  document.querySelectorAll(".menu-item").forEach(m => m.classList.remove("active"));
+  el.classList.add("active");
+  document.getElementById("breadcrumb").innerHTML = `首页 / <b>${PAGE_NAMES[name]}</b>`;
+}
+
+/* 点击遮罩关闭弹窗 */
+document.querySelectorAll(".modal-wrap").forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModal(m.id); }));
+
+/* 初始化 */
+applyFilter();
+</script>
+</body>
+</html>

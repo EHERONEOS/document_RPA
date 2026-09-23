@@ -8,6 +8,7 @@ import sys
 _LEVEL_COLORS = {
     "DEBUG": "\033[36m",
     "INFO": "\033[34m",
+    "SUCCESS": "\033[32m",
     "WARN": "\033[33m",
     "WARNING": "\033[33m",
     "ERROR": "\033[31m",
@@ -63,11 +64,28 @@ def log(message, level="INFO"):
         f"[{now}] [{file_path}] [{function}:{line}] [{_colorize(level)}] {message}",
         flush=True,
     )
+    # 执行日志会话存在时旁路上报（无上下文/未开启时为 no-op，绝不影响业务）
+    _report_to_log_service(message, level, file_path, line)
+
+
+def _report_to_log_service(message, level, file_path, line):
+    """把日志交给当前执行的日志会话（懒导入避免循环依赖）。"""
+    try:
+        from app.core.logging.log_session import report_log
+
+        report_log(message, level=level, source_file=file_path, source_line=line)
+    except Exception:
+        pass  # 上报链路任何问题都不影响控制台打印
 
 
 def info(message):
     """打印 INFO 日志。"""
     log(message, level="INFO")
+
+
+def success(message):
+    """打印 SUCCESS 日志（绿色）。"""
+    log(message, level="SUCCESS")
 
 
 def warn(message):
@@ -91,6 +109,10 @@ class Logger:
         """打印 INFO 日志。"""
         self.log(message, level="INFO")
 
+    def success(self, message):
+        """打印 SUCCESS 日志（绿色）。"""
+        self.log(message, level="SUCCESS")
+
     def warn(self, message):
         """打印 WARN 日志。"""
         self.log(message, level="WARN")
@@ -98,3 +120,14 @@ class Logger:
     def error(self, message):
         """打印 ERROR 日志。"""
         self.log(message, level="ERROR")
+
+    def finish_execution(self, *, success, remark="", fail_img="", record_files=None):
+        """日志服务终态上报（§6.4）；无执行会话时为 no-op。"""
+        from app.core.logging.log_session import finish_execution as _finish_execution
+
+        _finish_execution(
+            success=success,
+            remark=remark,
+            fail_img=fail_img,
+            record_files=record_files,
+        )

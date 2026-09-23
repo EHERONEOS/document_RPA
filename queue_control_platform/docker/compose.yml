@@ -10,6 +10,8 @@ services:
       - "3306:3306"
     volumes:
       - queue-control-mysql:/var/lib/mysql
+      # T0.1: rpa_log 库初始化（仅空数据卷首次初始化时执行；老数据卷需手工补跑该 SQL）
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
       interval: 5s

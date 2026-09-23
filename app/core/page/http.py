@@ -45,6 +45,8 @@ class HttpHelper:
                 **kwargs,
             )
             response.raise_for_status()
+            # T2.7：补一行成功结果日志（此前只有失败分支），随执行日志会话自动上报
+            log(f"HTTP {method} {url} 请求成功 status={response.status_code}")
             return response
         except requests.RequestException as exc:
             raise ElementNotFoundError(f"HTTP 请求失败：{method.upper()} {url}，{exc}") from exc

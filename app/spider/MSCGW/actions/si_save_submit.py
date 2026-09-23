@@ -95,7 +95,7 @@ class SiSaveSubmitMixin:
                 self.attachments.append(file_path)
                 break
             time.sleep(1)
-        self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮")
+        self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮",required=False)
         if self.context.rpa_operate == "SUBMIT_DIRECT":
             self.si_shadow.click(selectors.SUBMIT_BTN, name="提交按钮")
             is_submit_success = self.si_shadow._find(

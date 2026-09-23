@@ -1,0 +1,51 @@
+/* 控制台通用样式（对照原型 rpa-log-prototype.html） */
+
+/* 等宽字体：消息ID / JobId / 队列名 / 时间（§8.2） */
+.mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 13px;
+}
+
+/* RUNNING 状态滚动圆点动画（§8.2，参照 antd Badge processing 效果） */
+.running-dot {
+  position: relative;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background-color: #faad14;
+}
+
+.running-dot::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: #faad14;
+  content: '';
+  animation: rpa-running-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rpa-running-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* 可点击统计卡（运行中等快捷筛选） */
+.stat-card-clickable {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+}
+
+.stat-card-clickable:hover {
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.35);
+}

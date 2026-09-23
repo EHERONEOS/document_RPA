@@ -9,6 +9,12 @@ from DrissionPage._elements.none_element import NoneElement
 from DrissionPage._pages.chromium_base import ChromiumBase
 
 
+def _value_text(value, limit: int = 500) -> str:
+    """把填充值压缩成单行短文本，供操作日志记录（填单值留痕）。"""
+    text = " ".join(str(value if value is not None else "").split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
 
 class DomHelper:
     """页面 DOM 操作封装。"""
@@ -173,7 +179,7 @@ class DomHelper:
         for option in self.page.eles(selector, timeout=timeout):
             if str(getattr(option, "text", "") or "").strip() != expected_text:
                 continue
-            log(f"选择{name}")
+            log(f"选择{name}: {_value_text(expected_text)}")
             option.click()
             return True
 
@@ -192,7 +198,7 @@ class DomHelper:
         original_value = str(element.value or "")
         if original_value == expected_value:
             return True
-        log(f"输入{name}")
+        log(f"输入{name}: {_value_text(expected_value)}")
         element.click()
         element.input(expected_value, clear=True)
         if blur:
@@ -219,7 +225,7 @@ class DomHelper:
             return False
 
         try:
-            log(f"选择{name}")
+            log(f"选择{name}: {_value_text(value)}")
             if by == "text":
                 element.select.by_text(value, timeout=timeout)
             elif by == "value":
@@ -249,6 +255,7 @@ class DomHelper:
             if str(getattr(option, "text", "") or "").strip() != str(value).strip():
                 continue
             option.click()
+            log(f"选择{name}: {_value_text(value)}")
             self.page.run_js("arguments[0].blur();", element)
             return True
 
@@ -323,13 +330,13 @@ class DomHelper:
     def search_select_element(self, element, value, option_locator, option_text, name=None,timeout=5):
         """在已定位的可搜索下拉框中输入筛选值并选择精确匹配的候选项。"""
         name = name or option_text
-        log(f"输入{name}")
+        log(f"输入{name}: {_value_text(value)}")
         element.click()
         element.input(value, clear=True)
         time.sleep(0.5)
         for option in self.page.eles(option_locator, timeout=timeout):
             if (option.text or "").strip() == option_text:
-                log(f"选择{name}")
+                log(f"选择{name}: {_value_text(option_text)}")
                 option.click()
                 return True
         raise ElementNotFoundError(f"{name}选项不存在：{option_text}")
@@ -345,7 +352,7 @@ class DomHelper:
         original_value = element.value
         if original_value == value:
             return True
-        log(f"搜索并选择{name}")
+        log(f"搜索并选择{name}: {_value_text(value)}")
         element.click()
         element.input(value, clear=True)
         time.sleep(1)

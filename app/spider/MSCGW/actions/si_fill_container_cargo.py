@@ -78,7 +78,7 @@ class SiFillContainerCargoMixin:
                     f"{index + 1} 集装箱Remarks",
                 )
             self.si_shadow.click(selectors.CARGO_TAB, name=f"{index + 1}集装箱切换货物标签页")
-            time.sleep(2)
+            time.sleep(1)
 
             for cargo_index, cargo in enumerate(container.get("goods", []), start=1):
                 cargo_ele = self.si_shadow._find(
@@ -95,7 +95,7 @@ class SiFillContainerCargoMixin:
                         f"x://*[@class='edit-cargo-list']/div[{cargo_index}]",
                         name=f"{index + 1}集装箱 {cargo_index}货物",
                     )
-
+                time.sleep(2)
                 actual_hs_code = self.si_shadow.get_value(selectors.CARGO_CODE)
                 if actual_hs_code != cargo.get("hsCode"):
                     self.http.wait_api_finished(
@@ -128,7 +128,7 @@ class SiFillContainerCargoMixin:
                             matched = True
                             break
                     if not options or not matched:
-                        raise BusinessError(f"找不到该hscode: {cargo.get('hsCode')}")
+                        raise BusinessError(f"找不到该hscode: {cargo.get('hsCode')} 获取options长度: {len(options)}")
 
                 self.si_shadow.select_by_word(
                     selectors.CARGO_WEIGHT_UNIT,
