@@ -5,7 +5,6 @@ import {
   Form,
   Input,
   Modal,
-  Popconfirm,
   Space,
   Table,
   Tag,
@@ -18,38 +17,21 @@ import PageHeader from '../../components/PageHeader';
 import {
   PlatformDashboard,
   PlatformDevice,
-  PlatformQueueAssignment,
-  assignQueue,
   createDevice,
   fetchDashboard,
-  restartAllQueues,
-  sendQueueCommand,
-  unassignQueue,
 } from '../../api/platform';
 
-const STATE_COLORS: Record<string, string> = {
-  RUNNING: 'green',
-  PAUSED: 'gold',
-  STOPPED: 'default',
-  UNREPORTED: 'default',
-};
-
-/** 把设备列表按 deviceId 分组出各自的队列绑定 */
-function groupByDevice(queues: PlatformQueueAssignment[]): Record<string, PlatformQueueAssignment[]> {
-  return queues.reduce<Record<string, PlatformQueueAssignment[]>>((acc, item) => {
-    (acc[item.deviceId] ??= []).push(item);
-    return acc;
-  }, {});
+/** 统计某设备绑定队列中处于运行态的数量 */
+function runningCount(queues: PlatformDashboard['queues'], deviceId: string): number {
+  return queues.filter((q) => q.deviceId === deviceId && q.state === 'RUNNING').length;
 }
 
-/** 设备管理页：新增设备（一次性注册令牌）+ 队列绑定/命令（平台维护 API） */
+/** 设备管理页：仅负责设备配置（新增设备 + 一次性注册令牌）与设备运行状态查看；队列相关操作见「队列管理」页 */
 export default function DeviceManagePage() {
   const [dashboard, setDashboard] = useState<PlatformDashboard>({ devices: [], queues: [] });
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<{ deviceId: string; displayName: string }>();
-  const [bindTarget, setBindTarget] = useState<PlatformDevice | null>(null);
-  const [bindForm] = Form.useForm<{ queueName: string }>();
   const [enrolled, setEnrolled] = useState<{ deviceId: string; enrollmentToken: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -80,32 +62,6 @@ export default function DeviceManagePage() {
     }
   };
 
-  const submitBind = async () => {
-    if (!bindTarget) return;
-    const values = await bindForm.validateFields();
-    try {
-      await assignQueue(bindTarget.deviceId, values.queueName.trim());
-      message.success(`已投递 assign 命令：${values.queueName.trim()}`);
-      setBindTarget(null);
-      bindForm.resetFields();
-      await load();
-    } catch (error) {
-      message.error((error as Error).message);
-    }
-  };
-
-  const runAction = async (action: () => Promise<unknown>, tip: string) => {
-    try {
-      await action();
-      message.success(tip);
-      await load();
-    } catch (error) {
-      message.error((error as Error).message);
-    }
-  };
-
-  const grouped = groupByDevice(dashboard.queues);
-
   const columns = [
     { title: '设备 ID', dataIndex: 'deviceId', key: 'deviceId' },
     { title: '名称', dataIndex: 'displayName', key: 'displayName' },
@@ -120,86 +76,33 @@ export default function DeviceManagePage() {
     },
     { title: '最近心跳', dataIndex: 'lastSeenAt', key: 'lastSeenAt', render: (v: string | null) => v ?? '—' },
     {
-      title: '队列绑定',
-      key: 'queues',
-      render: (_: unknown, record: PlatformDevice) => (grouped[record.deviceId]?.length ?? 0),
+      title: '绑定队列数',
+      key: 'queueCount',
+      width: 110,
+      render: (_: unknown, record: PlatformDevice) =>
+        dashboard.queues.filter((q) => q.deviceId === record.deviceId).length,
     },
     {
-      title: '操作',
-      key: 'actions',
-      width: 260,
-      render: (_: unknown, record: PlatformDevice) => (
-        <Space>
-          <Button size="small" type="primary" ghost icon={<PlusCircleOutlined />} onClick={() => setBindTarget(record)}>
-            分配队列
-          </Button>
-          <Popconfirm
-            title="向该设备全部队列投递协作式重启？"
-            onConfirm={() => void runAction(() => restartAllQueues(record.deviceId), 'restart_all 命令已投递')}
-          >
-            <Button size="small">全部重启</Button>
-          </Popconfirm>
-        </Space>
-      ),
+      title: '队列运行状态',
+      key: 'queueRunning',
+      width: 130,
+      render: (_: unknown, record: PlatformDevice) => {
+        const bound = dashboard.queues.filter((q) => q.deviceId === record.deviceId).length;
+        const running = runningCount(dashboard.queues, record.deviceId);
+        return (
+          <Tag color={bound === 0 ? 'default' : running > 0 ? 'green' : 'gold'} style={{ marginInlineEnd: 0 }}>
+            {running}/{bound} 运行中
+          </Tag>
+        );
+      },
     },
   ];
-
-  const expandedRowRender = (record: PlatformDevice) => {
-    const queues = grouped[record.deviceId] ?? [];
-    return (
-      <Table
-        rowKey="queueName"
-        size="small"
-        pagination={false}
-        dataSource={queues}
-        columns={[
-          { title: '队列', dataIndex: 'queueName', key: 'queueName' },
-          {
-            title: '期望/实际状态',
-            key: 'state',
-            render: (_: unknown, q: PlatformQueueAssignment) => (
-              <Space>
-                <Tag>{q.desiredState}</Tag>
-                <Tag color={STATE_COLORS[q.state] ?? 'default'}>{q.state}</Tag>
-              </Space>
-            ),
-          },
-          {
-            title: '操作',
-            key: 'ops',
-            width: 320,
-            render: (_: unknown, q: PlatformQueueAssignment) => (
-              <Space size={4}>
-                <Button size="small" onClick={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'pause'), 'pause 已投递')}>
-                  暂停
-                </Button>
-                <Button size="small" onClick={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'resume'), 'resume 已投递')}>
-                  恢复
-                </Button>
-                <Button size="small" onClick={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'restart'), 'restart 已投递')}>
-                  重启
-                </Button>
-                <Popconfirm
-                  title={`解除 ${q.queueName} 绑定？`}
-                  onConfirm={() => void runAction(() => unassignQueue(q.deviceId, q.queueName), '已投递 unassign 并解绑')}
-                >
-                  <Button size="small" danger>
-                    解除绑定
-                  </Button>
-                </Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
-      />
-    );
-  };
 
   return (
     <div>
       <PageHeader
         title="设备管理"
-        description="新增设备并获取一次性注册令牌；为设备分配/解除队列，投递控制命令"
+        description="新增设备并获取一次性注册令牌，查看设备在线与队列运行状态；队列的分配与控制请前往「队列管理」"
       />
       <Card
         extra={
@@ -213,14 +116,7 @@ export default function DeviceManagePage() {
           </Space>
         }
       >
-        <Table
-          rowKey="deviceId"
-          loading={loading}
-          dataSource={dashboard.devices}
-          columns={columns}
-          pagination={false}
-          expandable={{ expandedRowRender }}
-        />
+        <Table rowKey="deviceId" loading={loading} dataSource={dashboard.devices} columns={columns} pagination={false} />
       </Card>
 
       <Modal
@@ -242,26 +138,6 @@ export default function DeviceManagePage() {
           </Form.Item>
           <Form.Item name="displayName" label="设备名称" rules={[{ required: true, message: '请输入设备名称' }]}>
             <Input placeholder="如 2 号机" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal
-        title={`分配队列 → ${bindTarget?.deviceId ?? ''}`}
-        open={bindTarget !== null}
-        onOk={() => void submitBind()}
-        onCancel={() => setBindTarget(null)}
-        okText="分配"
-        cancelText="取消"
-      >
-        <Form form={bindForm} layout="vertical">
-          <Form.Item
-            name="queueName"
-            label="队列名"
-            rules={[{ required: true, message: '请输入完整队列名' }]}
-            extra="队列须已存在于 RabbitMQ（即 task 的 rpaTaskTopic），平台仅做设备绑定"
-          >
-            <Input placeholder="如 QTCT_ZIM_SI" />
           </Form.Item>
         </Form>
       </Modal>

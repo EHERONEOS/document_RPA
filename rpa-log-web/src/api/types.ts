@@ -68,17 +68,6 @@ export interface PageResult<T> {
   list: T[];
 }
 
-/** 设备行（§4.4 /devices） */
-export interface DeviceInfo {
-  deviceName: string;
-  osInfo: string;
-  boundQueueCount: number;
-  todayCount: number;
-  successRate: number | null;
-  lastSeenAt: string | null;
-  online: boolean;
-}
-
 /** 队列行（§4.4 /queues） */
 export interface QueueInfo {
   queueName: string;

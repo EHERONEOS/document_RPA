@@ -4,7 +4,6 @@ import {
   FileTextOutlined,
   HomeOutlined,
   RobotOutlined,
-  SettingOutlined,
 } from '@ant-design/icons';
 import { Breadcrumb, Layout, Menu, Tag, theme } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -14,10 +13,9 @@ const { Sider, Header, Content } = Layout;
 
 // 菜单与路由映射（§8.1：白色 Sider + Header 面包屑 + Content #f5f5f5）
 const MENU_ITEMS = [
-  { key: '/device-manage', icon: <SettingOutlined />, label: '设备管理', breadcrumb: '设备管理' },
+  { key: '/device-manage', icon: <DesktopOutlined />, label: '设备管理', breadcrumb: '设备管理' },
+  { key: '/queue-manage', icon: <ApiOutlined />, label: '队列管理', breadcrumb: '队列管理' },
   { key: '/logs', icon: <FileTextOutlined />, label: '日志列表', breadcrumb: '日志列表' },
-  { key: '/devices', icon: <DesktopOutlined />, label: '设备运行', breadcrumb: '设备运行' },
-  { key: '/queues', icon: <ApiOutlined />, label: '队列运行', breadcrumb: '队列运行' },
 ];
 
 /** T0.3：控制台整体框架（M3 按原型填充各页面）。 */

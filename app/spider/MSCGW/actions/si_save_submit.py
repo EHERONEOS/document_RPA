@@ -25,7 +25,6 @@ class SiSaveSubmitMixin:
 
     def save_submit(self: "FhtMscgwSiTask") -> None:
         if self.splitOrConsolidatedBill:
-            raise BusinessError("并单拆单还未支持保存提交 请通知RPA处理")
             self.si_shadow.click(selectors.FREE_SAVE_BOOKING_BTN, name="保存按钮")
             is_save_success = self.si_shadow._find(
                 selectors.SAVE_SUCCESS_MSG, name="保存成功消息", timeout=10, required=False
@@ -64,6 +63,7 @@ class SiSaveSubmitMixin:
                 )
                 if not is_submit_success:
                     raise BusinessError("截单提交失败")
+            return
 
         self.si_shadow.click(selectors.SAVE_BOOKING_BTN, name="保存按钮")
         is_save_success = self.si_shadow._find(
