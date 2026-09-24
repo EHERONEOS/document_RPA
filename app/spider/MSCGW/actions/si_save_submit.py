@@ -25,24 +25,26 @@ class SiSaveSubmitMixin:
 
     def save_submit(self: "FhtMscgwSiTask") -> None:
         if self.splitOrConsolidatedBill:
+            # raise BusinessError("并单拆单还未支持保存提交 请通知RPA处理")
             self.si_shadow.click(selectors.FREE_SAVE_BOOKING_BTN, name="保存按钮")
             is_save_success = self.si_shadow._find(
-                selectors.SAVE_SUCCESS_MSG, name="保存成功消息", timeout=10, required=False
+                selectors.SAVE_SUCCESS_MSG, name="保存成功消息", timeout=60, required=False
             )
             if not is_save_success:
-                raise BusinessError("拆并单保存失败")
+                raise BusinessError("等待保存成功消息60s失败 拆并单保存失败")
             self.si_shadow.click(selectors.SAVE_SUCCESS_OK, name="保存成功确认按钮")
             self.page.wait.doc_loaded()
             self.si_shadow = self.dom.get_shadow_root(selectors.FREE_ESI_SHADOW, timeout=20)
-            for _ in range(30):
+            for _ in range(120):
                 preview_btn = self.si_shadow._find(selectors.PREVIEW_BTN, name="预览按钮", timeout=1, required=False)
                 if preview_btn and preview_btn.states.is_enabled:
+                    time.sleep(2)
                     preview_btn.click()
                     break
                 time.sleep(1)
             else:
-                raise BusinessError("页面刷新后预览按钮未可用")
-            for _ in range(30):
+                raise BusinessError("保存草稿件成功后等待120s页面刷新后预览按钮未可用 请勿重新发起任务!!!")
+            for _ in range(60):
                 download_preview_btn = self.si_shadow._find(
                     selectors.DOWNLOAD_PREVIEW_BTN, name="下载预览按钮", timeout=1, required=False
                 )
@@ -55,34 +57,37 @@ class SiSaveSubmitMixin:
                     self.attachments.append(file_path)
                     break
                 time.sleep(1)
+            else:
+                raise BusinessError("保存草稿件成功后等待60s下载预览按钮未可用 请勿重新发起任务!!!")
             self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮")
             if self.context.rpa_operate == "SUBMIT_DIRECT":
                 self.si_shadow.click(selectors.SUBMIT_BTN, name="提交按钮")
                 is_submit_success = self.si_shadow._find(
-                    selectors.SUBMIT_SUCCESS_MSG, name="提交成功消息", timeout=30, required=False
+                    selectors.SUBMIT_SUCCESS_MSG, name="提交成功消息", timeout=60, required=False
                 )
                 if not is_submit_success:
-                    raise BusinessError("截单提交失败")
+                    raise BusinessError("等待提交成功消息60s位出现并拆单提交失败  请勿重新发起任务!!!")
             return
 
         self.si_shadow.click(selectors.SAVE_BOOKING_BTN, name="保存按钮")
         is_save_success = self.si_shadow._find(
-            selectors.SAVE_SUCCESS_MSG, name="保存成功消息", timeout=10, required=False
+            selectors.SAVE_SUCCESS_MSG, name="保存成功消息", timeout=60, required=False
         )
         if not is_save_success:
-            raise BusinessError("截单保存失败")
+            raise BusinessError("等待保存成功消息60s失败 截单保存失败")
         self.si_shadow.click(selectors.SAVE_SUCCESS_OK, name="保存成功确认按钮")
         self.page.wait.doc_loaded()
         self.si_shadow = self.dom.get_shadow_root(selectors.SI_SHADOW, timeout=20)
-        for _ in range(30):
+        for _ in range(120):
             preview_btn = self.si_shadow._find(selectors.PREVIEW_BTN, name="预览按钮", timeout=1, required=False)
             if preview_btn and preview_btn.states.is_enabled:
+                time.sleep(2)
                 preview_btn.click()
                 break
             time.sleep(1)
         else:
-            raise BusinessError("页面刷新后预览按钮未可用")
-        for _ in range(30):
+            raise BusinessError("保存草稿件成功后等待120s页面刷新后预览按钮未可用  请勿重新发起任务!!!")
+        for _ in range(60):
             download_preview_btn = self.si_shadow._find(
                 selectors.DOWNLOAD_PREVIEW_BTN, name="下载预览按钮", timeout=1, required=False
             )
@@ -95,6 +100,8 @@ class SiSaveSubmitMixin:
                 self.attachments.append(file_path)
                 break
             time.sleep(1)
+        else:
+            raise BusinessError("保存草稿件成功后等待60s下载预览按钮未可用 请勿重新发起任务!!!")
         self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮",required=False)
         if self.context.rpa_operate == "SUBMIT_DIRECT":
             self.si_shadow.click(selectors.SUBMIT_BTN, name="提交按钮")
@@ -102,4 +109,4 @@ class SiSaveSubmitMixin:
                 selectors.SUBMIT_SUCCESS_MSG, name="提交成功消息", timeout=30, required=False
             )
             if not is_submit_success:
-                raise BusinessError("截单提交失败")
+                raise BusinessError("等待提交成功消息60s未出现截单提交失败  请勿重新发起任务!!!")
