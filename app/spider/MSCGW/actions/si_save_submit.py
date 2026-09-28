@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.task.errors import BusinessError
 from app.spider.MSCGW import selectors
@@ -35,31 +35,34 @@ class SiSaveSubmitMixin:
             self.si_shadow.click(selectors.SAVE_SUCCESS_OK, name="保存成功确认按钮")
             self.page.wait.doc_loaded()
             self.si_shadow = self.dom.get_shadow_root(selectors.FREE_ESI_SHADOW, timeout=20)
-            for _ in range(120):
+            preview_clicked = False
+            for _ in range(40):
                 preview_btn = self.si_shadow._find(selectors.PREVIEW_BTN, name="预览按钮", timeout=1, required=False)
                 if preview_btn and preview_btn.states.is_enabled:
                     time.sleep(2)
                     preview_btn.click()
+                    preview_clicked = True
                     break
                 time.sleep(1)
-            else:
-                raise BusinessError("保存草稿件成功后等待120s页面刷新后预览按钮未可用 请勿重新发起任务!!!")
-            for _ in range(60):
-                download_preview_btn = self.si_shadow._find(
-                    selectors.DOWNLOAD_PREVIEW_BTN, name="下载预览按钮", timeout=1, required=False
-                )
-                if download_preview_btn and download_preview_btn.states.is_enabled:
-                    file_path = self.dom.click_to_download(
-                        download_preview_btn,
-                        rename=self._build_draft_file_stem(),
-                        name="下载预览按钮",
+            if preview_clicked:
+                for _ in range(60):
+                    download_preview_btn = self.si_shadow._find(
+                        selectors.DOWNLOAD_PREVIEW_BTN, name="下载预览按钮", timeout=1, required=False
                     )
-                    self.attachments.append(file_path)
-                    break
-                time.sleep(1)
+                    if download_preview_btn and download_preview_btn.states.is_enabled:
+                        file_path = self.dom.click_to_download(
+                            download_preview_btn,
+                            rename=self._build_draft_file_stem(),
+                            name="下载预览按钮",
+                        )
+                        self.attachments.append(file_path)
+                        break
+                    time.sleep(1)
+                else:
+                    raise BusinessError("保存草稿件成功后等待60s下载预览按钮未可用 请勿重新发起任务!!!")
+                self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮")
             else:
-                raise BusinessError("保存草稿件成功后等待60s下载预览按钮未可用 请勿重新发起任务!!!")
-            self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮")
+                self.get_server_free_draft()
             if self.context.rpa_operate == "SUBMIT_DIRECT":
                 self.si_shadow.click(selectors.SUBMIT_BTN, name="提交按钮")
                 is_submit_success = self.si_shadow._find(
@@ -110,3 +113,31 @@ class SiSaveSubmitMixin:
             )
             if not is_submit_success:
                 raise BusinessError("等待提交成功消息60s未出现截单提交失败  请勿重新发起任务!!!")
+
+    def get_server_free_draft(self):
+        """获取服务草稿件"""
+        account = str(self.website_info.get("websiteAccount") or "").strip()
+        password = str(self.website_info.get("websitePassword") or "").strip()
+        response = self.http.request(
+            "POST",
+            selectors.ATTACHMENT_API_URL,
+            json={
+                "websiteAccount": account,
+                "websitePassword": password,
+                "bookingNumbers": self.content.get("carrierBookingNumber"),
+            },
+            timeout=self.login_wait_seconds,
+        )
+        try:
+            result: dict[str, Any] = response.json()
+        except ValueError as exc:
+            raise BusinessError("获取服务草稿件失败 请勿重新发起任务!!!") from exc
+        if result.get("code") != 200:
+            message = str(result.get("message") or "未知错误")
+            raise BusinessError(f"获取服务草稿件失败 请勿重新发起任务!!! {message}")
+        file_info = result.get("data") or {}
+        self.attachments.append({
+            "fileName": file_info["filename"],
+            "type": "DRAFT",
+            "fileObjectName": file_info["objectName"],
+        })
