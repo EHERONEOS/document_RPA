@@ -372,9 +372,14 @@ class BaseRpaTask:
         return self.get_attachments()
 
     def get_attachments(self):
-        """上传本地草稿件并转换为结果附件格式。"""
+        """上传本地草稿件；远程已上传的 JSON 附件直接原样透传。"""
         attachments = []
         for attachment in self.attachments:
+            # 远程接口预先上传后的草稿件是结构化 JSON，内部包含已上传的 objectName。
+            if isinstance(attachment, dict):
+                attachments.append(attachment.copy())
+                continue
+
             file_info = self.oss_client.oss_upload(attachment)
             attachments.append({
                 "fileName": file_info['filename'],

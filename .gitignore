@@ -37,3 +37,6 @@ debug-result-dlx.md
 
 # System files
 .DS_Store
+.npm-cache/
+rpa-log-web/
+files/
