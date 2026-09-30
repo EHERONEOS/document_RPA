@@ -64,7 +64,8 @@ class SiSaveSubmitMixin:
             else:
                 self.get_server_free_draft()
             if self.context.rpa_operate == "SUBMIT_DIRECT":
-                self.si_shadow.click(selectors.SUBMIT_BTN, name="提交按钮")
+                self.si_shadow.click(selectors.FREE_SUBMIT_BOOKING_BTN, name="提交按钮")
+                self.si_shadow.click(selectors.FREE_SUBMIT_OK, name="提交成功确认按钮")
                 is_submit_success = self.si_shadow._find(
                     selectors.SUBMIT_SUCCESS_MSG, name="提交成功消息", timeout=60, required=False
                 )
