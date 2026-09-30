@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS rpa_execution (
     customer_code    VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
     carrier_code     VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
     business_code    VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
-    status           VARCHAR(16)  NOT NULL DEFAULT 'RUNNING' COMMENT 'RUNNING/SUCCESS/FAILED/TIMEOUT',
+    status           VARCHAR(16)  NOT NULL DEFAULT 'RUNNING' COMMENT 'RUNNING/SUCCESS/FAILED/TIMEOUT/DEPRECATED',
     remark           TEXT         NULL COMMENT '失败原因 = TaskResult.remark（仅失败）',
     fail_img_url     VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '失败截图完整地址 = TaskResult.img + OSS 前缀',
     log_count        INT          NOT NULL DEFAULT 0 COMMENT '日志条数（冗余计数）',
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS rpa_execution (
 ```
 
 - `uk_message_queue` 保证同一消息重复上报幂等（funboost 手动重投/重复消费不产生脏数据）。
-- 执行状态：`RUNNING`（运行中/黄）、`SUCCESS`（成功/绿）、`FAILED`（失败/红）；`TIMEOUT` 为扩展状态（运行超时被定时任务置位，前端同样按红色展示），不在一期必须范围。
+- 执行状态：`RUNNING`（运行中/黄）、`SUCCESS`（成功/绿）、`FAILED`（失败/红）；`TIMEOUT` 为扩展状态（运行超时被定时任务置位，前端同样按红色展示）；`DEPRECATED`（已废弃/灰）表示同一消息ID已生成新执行记录，旧的 RUNNING 记录被自动置为终态。
 
 ### 4.2 `rpa_execution_log` 执行日志明细表（抽屉数据源）
 
@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS rpa_queue (
 | --- | --- |
 | `GET /api/v1/executions` | 列表分页。Params: `rpaMessageId`、`jobId`、`queueName`、`status`、`page`、`pageSize`、`beginTime?`、`endTime?`（模糊匹配消息ID/JobId，队列/状态精确）。返回行含 `createTime`、`finishedAt`（终态）、`durationSeconds`（终态） |
 | `GET /api/v1/execution/detail` | 详情。Params: `executionId`。返回主记录 + 日志明细（`seq DESC`）+ 文件列表 |
+| `POST /api/v1/executions/delete` | 批量删除。Body: `{executionIds:[...]}`；事务内删除执行主记录，并级联删除日志明细与记录文件数据 |
 | `GET /api/v1/devices` | 设备列表 + 统计（今日执行、成功率、最近心跳） |
 | `GET /api/v1/queues` | 队列列表 + 统计（今日执行、成功率、平均耗时） |
 | `GET /api/v1/stats/summary` | 首页统计卡（今日总数/成功/失败/运行中） |
@@ -422,7 +423,7 @@ class FileStorageClient:          # app/core/integrations/file_storage.py（新�
 | Input | 消息ID | 后缀模糊 |
 | Input | JobId | 后缀模糊 |
 | Select（可搜索） | 队列名 | 精确，选项来自 `/api/v1/queues` |
-| Select | 执行状态 | 精确（成功/失败/运行中） |
+| Select | 执行状态 | 精确（成功/失败/运行中/超时/已废弃） |
 
 **表格列**（`Table`，`rowKey=id`，分页 `pageSize=10/20/50`）：
 
@@ -432,10 +433,10 @@ class FileStorageClient:          # app/core/integrations/file_storage.py（新�
 | JobId | 等宽字体 |
 | 队列名 | 等宽字体 |
 | 设备名 | 文本 |
-| 执行状态 | `Tag`：成功=绿（success）/ 失败=红（error）/ 运行中=黄（warning，带滚动圆点动画） |
+| 执行状态 | `Tag`：成功=绿（success）/ 失败=红（error）/ 运行中=黄（warning，带滚动圆点动画）/ 已废弃=灰（default） |
 | 创建时间 | `yyyy-MM-dd HH:mm:ss` |
-| 结束时间 | `yyyy-MM-dd HH:mm:ss`，**仅成功/失败状态展示**，运行中显示 `—` |
-| 耗时 | `durationSeconds` 格式化为 `2m 38s`，**仅成功/失败状态展示**，运行中显示 `—` |
+| 结束时间 | `yyyy-MM-dd HH:mm:ss`，**仅终态展示**，运行中显示 `—` |
+| 耗时 | `durationSeconds` 格式化为 `2m 38s`，**仅终态展示**，运行中显示 `—` |
 | 操作 | 链接按钮组，按状态显隐（见下） |
 
 **操作列显隐规则**：
@@ -444,12 +445,13 @@ class FileStorageClient:          # app/core/integrations/file_storage.py（新�
 | --- | --- | --- |
 | 查看详情 | 恒可见 | 右侧 `Drawer`（width=50%） |
 | 失败原因 | 仅 `FAILED` | `Modal`：错误文案（红色 Alert 样式）+ 失败截图（`Image` 可预览放大，url=failImgUrl） |
-| 记录文件 | `SUCCESS` / `FAILED` 且有文件 | `Modal`：按 `file_type` 分组，图片 `Image.PreviewGroup` 缩略图，视频 `<video controls>`；每个文件带 `OSS/LAN` 存储角标 |
+| 记录文件 | 终态且有文件 | `Modal`：按 `file_type` 分组，图片 `Image.PreviewGroup` 缩略图，视频 `<video controls>`；每个文件带 `OSS/LAN` 存储角标 |
+| 删除 | 恒可见 | 弹窗二次确认；也可勾选多行后在工具栏批量删除。删除会同步清理关联浏览记录日志与记录文件数据 |
 
 **执行日志抽屉**（查看详情）：
 
 - 抽屉宽度为屏宽的 **50%**（`Drawer width="50%"`，小屏退化为 `min(50%, 92vw)`）；
-- 上半部 `Descriptions`：消息ID / JobId / 队列名 / 设备名 / 执行状态 / 创建时间 / 结束时间 / 耗时（结束时间与耗时仅成功/失败展示）；
+- 上半部 `Descriptions`：消息ID / JobId / 队列名 / 设备名 / 执行状态 / 创建时间 / 结束时间 / 耗时（结束时间与耗时仅终态展示）；
 - 下半部日志明细，**从新到旧**（`seq DESC`），行格式严格为：
 
 ```
@@ -458,7 +460,7 @@ class FileStorageClient:          # app/core/integrations/file_storage.py（新�
 
   序号 `i` 从新到旧 1 起编；日志内容按级别着色（§9.4）；**每条日志默认单行展示**（`Typography.Text ellipsis` / CSS `text-overflow: ellipsis`），超出抽屉宽度显示省略号，**鼠标悬浮通过 `Tooltip` 展示完整内容**；**时间列始终完整显示** `yyyy-MM-dd HH:mm:ss`（右对齐灰色等宽字体，不参与截断换行）；
 - 长列表用 antd `List` + `virtual`（5.9+ 内置虚拟滚动），数千条日志不卡顿；
-- `RUNNING` 状态的记录：抽屉标题栏提供**刷新按钮**（`ReloadOutlined`，点击进入旋转加载态），手动点击后调用 `GET /api/v1/execution/detail` 重新拉取该任务**最新日志**并从顶部插入；打开抽屉期间另每 30s 自动轮询（与刷新按钮并存），关闭抽屉即停。终态（成功/失败）不显示刷新按钮。
+- `RUNNING` 状态的记录：抽屉标题栏提供**刷新按钮**（`ReloadOutlined`，点击进入旋转加载态），手动点击后调用 `GET /api/v1/execution/detail` 重新拉取该任务**最新日志**并从顶部插入；打开抽屉期间另每 30s 自动轮询（与刷新按钮并存），关闭抽屉即停。终态不显示刷新按钮。
 
 **辅助能力**：页面顶部统计卡（今日执行/成功/失败/运行中，`/stats/summary`）；`RUNNING` 行整表 30s 轮询自动刷新，可手动暂停。
 

@@ -24,7 +24,7 @@ class SiFillContainerCargoMixin:
         if not self.splitOrConsolidatedBill:
             container_ele = self.dom._find_eles(selectors.CONTAINER_ITEM)
             if len(container_ele) != len(containers):
-                raise FormValidationError("官网 SI 集装箱数量与填写数量不一致")
+                raise FormValidationError(f"官网 SI 集装箱数量与填写数量不一致 官网数量: {len(container_ele)} 填写数量: {len(containers)}")
 
         for index, container in enumerate(containers):
             if self.splitOrConsolidatedBill:

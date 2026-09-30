@@ -67,6 +67,22 @@ def db_cursor() -> Iterator[DictCursor]:
         conn.close()  # PooledDB 语义：close() 即归还池
 
 
+@contextmanager
+def db_transaction() -> Iterator[DictCursor]:
+    """借出连接并开启显式事务；多表写入要么全部提交，要么全部回滚。"""
+    conn = _get_pool().connection()
+    try:
+        conn.begin()
+        with conn.cursor() as cursor:
+            yield cursor
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()  # PooledDB 语义：close() 即归还池
+
+
 def ping() -> bool:
     """健康检查用：SELECT 1 探活。"""
     try:

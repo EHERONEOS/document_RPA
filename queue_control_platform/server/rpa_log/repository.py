@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Iterable
 
-from .db import db_cursor
+from .db import db_cursor, db_transaction
 
 _DT_FORMATS = (
     "%Y-%m-%d %H:%M:%S.%f",
@@ -63,10 +63,13 @@ def create_execution(
     2026-09 调整（用户决定）：取消 (rpa_message_id, queue_name) 唯一键——相同消息
     再次消费时插入新记录，各自持有独立的日志与终态；单条记录的 finish 幂等
     （ALREADY_FINISHED 拒绝）仍保留。
+
+    2026-09 调整：相同消息ID重新生成记录时，把其他 RUNNING 记录置为 DEPRECATED，
+    保证同一消息同一时刻只有最新一条 RUNNING。
     """
     started = parse_datetime(started_at)
     now = datetime.now()  # 统一用服务端应用时钟：MySQL 容器可能是 UTC，NOW() 会差时区
-    with db_cursor() as cur:
+    with db_transaction() as cur:
         cur.execute(
             """
             INSERT INTO rpa_execution
@@ -79,6 +82,20 @@ def create_execution(
              customer_code, carrier_code, business_code, started, now, now),
         )
         execution_id = int(cur.lastrowid)
+
+        # 同一消息重新消费时，保留最新 RUNNING 记录；旧的运行中记录统一废弃。
+        deprecated_at = datetime.now()
+        cur.execute(
+            """
+            UPDATE rpa_execution
+            SET status = 'DEPRECATED',
+                finished_at = %s,
+                duration_seconds = GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, %s)),
+                update_time = %s
+            WHERE rpa_message_id = %s AND id <> %s AND status = 'RUNNING'
+            """,
+            (deprecated_at, deprecated_at, deprecated_at, rpa_message_id, execution_id),
+        )
 
         # 维表 upsert：无需注册流程（§4.4）
         cur.execute(
@@ -140,6 +157,37 @@ def add_logs(execution_id: int, logs: Iterable[dict]) -> int:
             (len(rows), now, execution_id),
         )
     return len(rows)
+
+
+def delete_executions(execution_ids: list[int]) -> dict[str, int]:
+    """批量删除执行记录，并在同一事务中级联删除日志明细与记录文件。"""
+    ids = list(dict.fromkeys(int(execution_id) for execution_id in execution_ids if int(execution_id) > 0))
+    if not ids:
+        return {"requested": 0, "deleted": 0, "deletedLogCount": 0, "deletedFileCount": 0}
+    placeholders = ", ".join(["%s"] * len(ids))
+    with db_transaction() as cur:
+        cur.execute(f"SELECT id FROM rpa_execution WHERE id IN ({placeholders}) FOR UPDATE", ids)
+        rows = cur.fetchall()
+        cur.execute(
+            f"SELECT COUNT(*) AS log_count FROM rpa_execution_log WHERE execution_id IN ({placeholders})",
+            ids,
+        )
+        deleted_log_count = int(cur.fetchone()["log_count"])
+        cur.execute(
+            f"SELECT COUNT(*) AS file_count FROM rpa_execution_file WHERE execution_id IN ({placeholders})",
+            ids,
+        )
+        deleted_file_count = int(cur.fetchone()["file_count"])
+        cur.execute(f"DELETE FROM rpa_execution_log WHERE execution_id IN ({placeholders})", ids)
+        cur.execute(f"DELETE FROM rpa_execution_file WHERE execution_id IN ({placeholders})", ids)
+        cur.execute(f"DELETE FROM rpa_execution WHERE id IN ({placeholders})", ids)
+        deleted_count = int(cur.rowcount)
+    return {
+        "requested": len(ids),
+        "deleted": deleted_count,
+        "deletedLogCount": deleted_log_count,
+        "deletedFileCount": deleted_file_count,
+    }
 
 
 # ---------------------------------------------------------------------------

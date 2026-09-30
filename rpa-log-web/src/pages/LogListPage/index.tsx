@@ -1,7 +1,7 @@
-import { Card, Col, Form, Row, Switch, Tag, message } from 'antd';
+import { Button, Card, Col, Form, Modal, Row, Switch, Tag, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { fetchExecutions } from '../../api/executions';
+import { deleteExecutions, fetchExecutions } from '../../api/executions';
 import { fetchQueues } from '../../api/queues';
 import { fetchStatsSummary } from '../../api/stats';
 import type { Execution, ExecutionStatus, StatsSummary } from '../../api/types';
@@ -54,6 +54,8 @@ export default function LogListPage() {
   const [drawerId, setDrawerId] = useState<number | null>(null);
   const [failRow, setFailRow] = useState<Execution | null>(null);
   const [filesId, setFilesId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchList = useCallback(
     async (silent = false) => {
@@ -118,13 +120,55 @@ export default function LogListPage() {
   const handleSearchChange = useCallback((values: SearchValues) => {
     setFilters(values);
     setPage(1);
+    setSelectedIds([]);
   }, []);
 
   /** 重置：清空隐藏设备筛选（表单由 SearchForm 复位） */
   const handleReset = useCallback(() => {
     setDeviceName(undefined);
     setPage(1);
+    setSelectedIds([]);
   }, []);
+
+  /** 删除执行记录；后端事务内同步清理关联浏览记录日志和记录文件 */
+  const handleDelete = useCallback(
+    async (executionIds: number[]) => {
+      setDeleting(true);
+      try {
+        const result = await deleteExecutions(executionIds);
+        message.success(
+          `已删除 ${result.deleted} 条日志，并同步删除 ${result.deletedLogCount} 条关联浏览记录日志`,
+        );
+        setSelectedIds((prev) => prev.filter((id) => !executionIds.includes(id)));
+        const remainingOnPage = list.filter((row) => !executionIds.includes(row.executionId)).length;
+        if (page > 1 && remainingOnPage === 0) {
+          setPage(page - 1);
+        } else {
+          void fetchList(true);
+        }
+        void fetchStats();
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '删除日志失败');
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [fetchList, fetchStats, list, page],
+  );
+
+  const confirmDelete = useCallback(
+    (executionIds: number[]) => {
+      Modal.confirm({
+        title: '删除日志',
+        content: `将删除选中 ${executionIds.length} 条日志，并同步删除其关联的浏览记录日志与记录文件，删除后不可恢复。`,
+        okText: '删除',
+        okButtonProps: { danger: true, loading: deleting },
+        cancelText: '取消',
+        onOk: () => handleDelete(executionIds),
+      });
+    },
+    [deleting, handleDelete],
+  );
 
   /** 统计卡快捷筛选：再次点击同一状态可取消 */
   const applyStatusFilter = useCallback(
@@ -227,7 +271,17 @@ export default function LogListPage() {
             marginBottom: 16,
           }}
         >
-          <span style={{ fontSize: 16, fontWeight: 600 }}>执行记录</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>执行记录</span>
+            <Button
+              danger
+              disabled={selectedIds.length === 0}
+              loading={deleting}
+              onClick={() => confirmDelete(selectedIds)}
+            >
+              批量删除{selectedIds.length > 0 ? `（${selectedIds.length}）` : ''}
+            </Button>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             {deviceName && (
               <Tag
@@ -269,6 +323,7 @@ export default function LogListPage() {
           pageSize={pageSize}
           loading={loading}
           onPageChange={(next, nextSize) => {
+            setSelectedIds([]);
             if (nextSize !== pageSize) {
               setPage(1);
               setPageSize(nextSize);
@@ -279,6 +334,9 @@ export default function LogListPage() {
           onView={(row) => setDrawerId(row.executionId)}
           onFailReason={(row) => setFailRow(row)}
           onFiles={(row) => setFilesId(row.executionId)}
+          selectedRowKeys={selectedIds}
+          onDelete={(row) => confirmDelete([row.executionId])}
+          onSelectionChange={(keys) => setSelectedIds(keys.map(Number))}
         />
       </Card>
 

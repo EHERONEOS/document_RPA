@@ -126,7 +126,7 @@ class SiSaveSubmitMixin:
                 "websitePassword": password,
                 "bookingNumbers": self.content.get("carrierBookingNumber"),
             },
-            timeout=self.login_wait_seconds,
+            timeout=80,
         )
         try:
             result: dict[str, Any] = response.json()

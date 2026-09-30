@@ -1,5 +1,6 @@
 import { Button, Space, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { Key } from 'react';
 import type { Execution } from '../../api/types';
 import { formatDuration, isFinalStatus } from '../../utils/format';
 import StatusTag from './StatusTag';
@@ -10,6 +11,9 @@ interface ExecutionTableProps {
   page: number;
   pageSize: number;
   loading: boolean;
+  selectedRowKeys: Key[];
+  onDelete: (row: Execution) => void;
+  onSelectionChange: (selectedRowKeys: Key[]) => void;
   onPageChange: (page: number, pageSize: number) => void;
   onView: (row: Execution) => void;
   onFailReason: (row: Execution) => void;
@@ -26,6 +30,9 @@ export default function ExecutionTable({
   page,
   pageSize,
   loading,
+  selectedRowKeys,
+  onDelete,
+  onSelectionChange,
   onPageChange,
   onView,
   onFailReason,
@@ -100,7 +107,7 @@ export default function ExecutionTable({
     {
       title: '操作',
       key: 'actions',
-      width: 200,
+      width: 240,
       fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
@@ -117,6 +124,9 @@ export default function ExecutionTable({
               记录文件
             </Button>
           )}
+          <Button type="link" size="small" danger style={{ padding: 0 }} onClick={() => onDelete(record)}>
+            删除
+          </Button>
         </Space>
       ),
     },
@@ -129,6 +139,10 @@ export default function ExecutionTable({
       loading={loading}
       columns={columns}
       dataSource={dataSource}
+      rowSelection={{
+        selectedRowKeys,
+        onChange: onSelectionChange,
+      }}
       scroll={{ x: 1280 }}
       pagination={{
         current: page,

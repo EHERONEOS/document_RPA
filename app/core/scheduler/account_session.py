@@ -132,6 +132,15 @@ class AccountSessionCoordinator:
         """释放崩溃或被强制停止的 Worker 遗留的租约。"""
         if owner_pid is None:
             return 0
+        browser_pids: list[int] = []
+        with self._condition:
+            for pool in self._pools.values():
+                for slot in pool["slots"]:
+                    if slot["busy"] and slot.get("owner_pid") == int(owner_pid) and slot.get("pid"):
+                        browser_pids.append(int(slot["pid"]))
+        # 强制停止队列时必须连同 Worker 正在使用的浏览器一起结束，
+        # 否则 RPA 页面操作可能继续留在已失去 Worker 的进程中。
+        terminate_browser_pids(browser_pids)
         released = 0
         with self._condition:
             for pool in self._pools.values():
@@ -139,6 +148,7 @@ class AccountSessionCoordinator:
                     if not slot["busy"] or slot.get("owner_pid") != int(owner_pid):
                         continue
                     self._release_slot_locked(pool, slot, slot["lease_id"])
+                    slot["pid"] = None
                     released += 1
             if released:
                 self._condition.notify_all()

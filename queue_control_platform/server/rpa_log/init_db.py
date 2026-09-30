@@ -22,7 +22,7 @@ DDL_STATEMENTS: tuple[str, ...] = (
         customer_code    VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
         carrier_code     VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
         business_code    VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
-        status           VARCHAR(16)  NOT NULL DEFAULT 'RUNNING' COMMENT 'RUNNING/SUCCESS/FAILED/TIMEOUT',
+        status           VARCHAR(16)  NOT NULL DEFAULT 'RUNNING' COMMENT 'RUNNING/SUCCESS/FAILED/TIMEOUT/DEPRECATED',
         remark           TEXT         NULL COMMENT '失败原因 = TaskResult.remark（仅失败）',
         fail_img_url     VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '失败截图完整地址 = TaskResult.img + OSS 前缀',
         log_count        INT          NOT NULL DEFAULT 0 COMMENT '日志条数（冗余计数）',

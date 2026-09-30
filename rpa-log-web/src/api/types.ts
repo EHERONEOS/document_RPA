@@ -1,5 +1,5 @@
-/** 执行状态（§4.1）：运行中 / 成功 / 失败 / 超时 */
-export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'TIMEOUT';
+/** 执行状态（§4.1）：运行中 / 成功 / 失败 / 超时 / 已废弃 */
+export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'TIMEOUT' | 'DEPRECATED';
 
 /** 日志级别（§6.2）：INFO / WARN / ERROR / SUCCESS 四级 */
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
@@ -58,6 +58,14 @@ export interface ExecutionDetail {
   execution: Execution;
   logs: ExecutionLog[];
   files: ExecutionFile[];
+}
+
+/** 删除执行记录结果：包含实际级联清理的数据量 */
+export interface DeleteExecutionsResult {
+  requested: number;
+  deleted: number;
+  deletedLogCount: number;
+  deletedFileCount: number;
 }
 
 /** 通用分页包装 */

@@ -148,7 +148,7 @@ def create_app(repository, bus, processor=None) -> FastAPI:
             return {"db": "error"}
 
     # ---- 唯一前端：rpa-log-web 构建产物（HashRouter，静态托管无需服务端回退）----
-    web_dist = platform_root.parent / "rpa-log-web" / "dist"
+    web_dist = platform_root / "dist"
     if (web_dist / "index.html").is_file():
         # / 挂载放在最后：Starlette 按注册顺序匹配，保证 /api、/files 优先
         app.mount("/", StaticFiles(directory=str(web_dist), html=True), name="web")

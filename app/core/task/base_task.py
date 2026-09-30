@@ -413,11 +413,11 @@ class BaseRpaTask:
         return self.result_save_type
 
     def should_record(self):
-        """仅在 Windows 上按业务开关录制并回传视频。"""
+        """按业务开关录制并回传视频；支持 Windows 与 macOS。"""
         return bool(
             self.enable_record
             and self.context.enable_result_publish
-            and platform.system() == "Windows"
+            and platform.system() in {"Windows", "Darwin"}
         )
 
     def login(self):

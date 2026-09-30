@@ -1,5 +1,5 @@
 import http from './http';
-import type { Execution, ExecutionDetail, ExecutionStatus, PageResult } from './types';
+import type { DeleteExecutionsResult, Execution, ExecutionDetail, ExecutionStatus, PageResult } from './types';
 
 /** 列表查询条件（§5.2：rpaMessageId/jobId 后缀模糊，queueName/deviceName/status 精确） */
 export interface ExecutionQuery {
@@ -20,4 +20,9 @@ export function fetchExecutions(params: ExecutionQuery): Promise<PageResult<Exec
 /** GET /api/v1/execution/detail —— 主记录 + 日志明细（seq DESC）+ 文件列表 */
 export function fetchExecutionDetail(executionId: number): Promise<ExecutionDetail> {
   return http.get<never, ExecutionDetail>('/execution/detail', { params: { executionId } });
+}
+
+/** POST /api/v1/executions/delete —— 批量删除执行记录，并级联删除关联日志与文件 */
+export function deleteExecutions(executionIds: number[]): Promise<DeleteExecutionsResult> {
+  return http.post<never, DeleteExecutionsResult>('/executions/delete', { executionIds });
 }

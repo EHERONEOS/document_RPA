@@ -2,6 +2,7 @@
 
 - ``/executions``        列表分页（消息ID/JobId 后缀模糊，队列/状态精确）
 - ``/execution/detail``  主记录 + 日志（seq DESC）+ 文件列表
+- ``/executions/delete`` 批量删除主记录，事务级联清理日志和文件
 - ``/devices`` ``/queues``  维表列表 + 今日统计
 - ``/stats/summary``     首页统计卡（今日总数/成功/失败/运行中）
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from .. import repository
 
@@ -67,6 +69,18 @@ def execution_detail(executionId: int = Query(..., ge=1)) -> dict:
             "files": repository.list_files(executionId),
         }
     )
+
+
+class ExecutionDeleteRequest(BaseModel):
+    """批量删除执行记录请求；复用一个接口同时支持单条和多条。"""
+
+    executionIds: list[int] = Field(min_length=1, max_length=1000)
+
+
+@router.post("/executions/delete")
+def delete_executions(body: ExecutionDeleteRequest) -> dict:
+    """批量删除执行记录，同步级联删除其日志明细与记录文件。"""
+    return ok(repository.delete_executions(body.executionIds))
 
 
 @router.get("/devices")

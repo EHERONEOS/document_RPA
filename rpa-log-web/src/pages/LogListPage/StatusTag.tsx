@@ -3,7 +3,7 @@ import type { ExecutionStatus } from '../../api/types';
 import { STATUS_TEXT } from '../../utils/format';
 
 interface StatusMeta {
-  color: 'success' | 'error' | 'warning';
+  color: 'success' | 'error' | 'warning' | 'default';
   running?: boolean;
 }
 
@@ -13,6 +13,7 @@ const STATUS_META: Record<ExecutionStatus, StatusMeta> = {
   FAILED: { color: 'error' },
   TIMEOUT: { color: 'error' },
   RUNNING: { color: 'warning', running: true },
+  DEPRECATED: { color: 'default' },
 };
 
 /** 执行状态标签 */

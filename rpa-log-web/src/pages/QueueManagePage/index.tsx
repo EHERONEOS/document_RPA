@@ -152,24 +152,24 @@ export default function QueueManagePage() {
       width: 320,
       render: (_: unknown, q: PlatformQueueAssignment) => (
         <Space size={4}>
-          <Button
-            size="small"
-            onClick={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'pause'), 'pause 已投递')}
+          <Popconfirm
+            title={`立即停止 ${q.queueName} 正在执行的 RPA 任务并暂停？`}
+            onConfirm={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'pause'), 'pause 已投递')}
           >
-            暂停
-          </Button>
+            <Button size="small">暂停</Button>
+          </Popconfirm>
           <Button
             size="small"
             onClick={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'resume'), 'resume 已投递')}
           >
             恢复
           </Button>
-          <Button
-            size="small"
-            onClick={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'restart'), 'restart 已投递')}
+          <Popconfirm
+            title={`立即停止 ${q.queueName} 正在执行的 RPA 任务并重启？`}
+            onConfirm={() => void runAction(() => sendQueueCommand(q.deviceId, q.queueName, 'restart'), 'restart 已投递')}
           >
-            重启
-          </Button>
+            <Button size="small">重启</Button>
+          </Popconfirm>
           <Popconfirm title={`解除 ${q.queueName} 绑定？`} onConfirm={() => void runAction(() => unassignQueue(q.deviceId, q.queueName), '已投递 unassign 并解绑')}>
             <Button size="small" danger>
               解除绑定
@@ -184,7 +184,7 @@ export default function QueueManagePage() {
     <div>
       <PageHeader
         title="队列管理"
-        description="为设备分配/解除队列并投递控制命令，平铺展示全部队列的绑定与运行状态"
+        description="为设备分配/解除队列并投递控制命令；单队列暂停/重启会立即停止正在执行的 RPA 任务"
       />
       <Card
         extra={

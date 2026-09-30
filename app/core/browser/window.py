@@ -85,3 +85,31 @@ def _restore_window(hwnd: int) -> None:
         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
     )
     time.sleep(0.2)
+
+
+def browser_window_rect(
+    page: Any | None = None,
+    *,
+    pid: int | None = None,
+    hwnd: int | None = None,
+) -> tuple[int, int, int, int] | None:
+    """Return the visible browser window rectangle as (x, y, width, height)."""
+    if platform.system() != "Windows":
+        return None
+
+    target_hwnd = hwnd or _find_window_by_pid(pid or browser_pid_from_page(page))
+    if not target_hwnd:
+        return None
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    rect = wintypes.RECT()
+    if not user32.GetWindowRect(target_hwnd, ctypes.byref(rect)):
+        return None
+
+    width = int(rect.right - rect.left)
+    height = int(rect.bottom - rect.top)
+    if width < 16 or height < 16:
+        return None
+    width -= width % 2
+    height -= height % 2
+    return int(rect.left), int(rect.top), width, height

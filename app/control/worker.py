@@ -7,8 +7,19 @@ from typing import Any
 
 
 # 作为独立进程入口，启动并协作式排空一个队列消费者。
-def run_queue_worker(queue_name: str, commands, events, account_session_coordinator=None) -> None:
+def run_queue_worker(
+    queue_name: str,
+    commands,
+    events,
+    account_session_coordinator=None,
+    generation: int = 0,
+) -> None:
     """运行一个队列，直到收到本地排空命令。"""
+
+    def _put_event(events, payload: dict[str, Any]) -> None:
+        """携带 Worker 代际上报，避免旧进程事件覆盖新进程状态。"""
+        events.put({"workerId": int(generation), **payload})
+
     try:
         from app.queue.consumer import create_queue_consumer
 
@@ -20,13 +31,14 @@ def run_queue_worker(queue_name: str, commands, events, account_session_coordina
                 break
         if not consumer.wait_until_ready(timeout=0):
             error = consumer.last_error or "30 秒内未建立 RabbitMQ 消费订阅"
-            events.put({"type": "failed", "queue": queue_name, "error": error})
+            _put_event(events, {"type": "failed", "queue": queue_name, "error": error})
             return
 
-        events.put({"type": "ready", "queue": queue_name})
+        _put_event(events, {"type": "ready", "queue": queue_name})
         while True:
             if consumer.last_error:
-                events.put(
+                _put_event(
+                    events,
                     {"type": "failed", "queue": queue_name, "error": consumer.last_error}
                 )
                 return
@@ -38,7 +50,7 @@ def run_queue_worker(queue_name: str, commands, events, account_session_coordina
             if command.get("type") != "drain":
                 continue
 
-            events.put({"type": "draining", "queue": queue_name})
+            _put_event(events, {"type": "draining", "queue": queue_name})
             consumer.request_drain()
             timeout = max(float(command.get("timeout", 0)), 0)
             deadline = time.monotonic() + timeout
@@ -46,14 +58,15 @@ def run_queue_worker(queue_name: str, commands, events, account_session_coordina
             while not consumer.wait_until_drained(timeout=0.25):
                 if not timeout_reported and timeout and time.monotonic() >= deadline:
                     timeout_reported = True
-                    events.put({"type": "drain_timeout", "queue": queue_name})
+                    _put_event(events, {"type": "drain_timeout", "queue": queue_name})
 
             if consumer.last_error:
-                events.put(
+                _put_event(
+                    events,
                     {"type": "failed", "queue": queue_name, "error": consumer.last_error}
                 )
             else:
-                events.put({"type": "paused", "queue": queue_name})
+                _put_event(events, {"type": "paused", "queue": queue_name})
             return
     except Exception as exc:
-        events.put({"type": "failed", "queue": queue_name, "error": str(exc)})
+        _put_event(events, {"type": "failed", "queue": queue_name, "error": str(exc)})

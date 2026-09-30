@@ -28,6 +28,7 @@ const STATUS_OPTIONS: { value: ExecutionStatus; label: string }[] = [
   { value: 'FAILED', label: '失败' },
   { value: 'RUNNING', label: '运行中' },
   { value: 'TIMEOUT', label: '超时' },
+  { value: 'DEPRECATED', label: '已废弃' },
 ];
 
 /** 去掉首尾空格并丢弃空值 */

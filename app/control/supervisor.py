@@ -34,6 +34,7 @@ class QueueRuntime:
     restart_requested: bool = False
     restart_reason: list[str] = field(default_factory=list)
     remove_requested: bool = False
+    worker_id: int = 0
     process: Any = None
     commands: Any = None
 
@@ -108,7 +109,7 @@ class QueueSupervisor:
         self._stop_event.set()
         with self._lock:
             for runtime in self._runtimes.values():
-                self._terminate_worker(runtime)
+                self._terminate_worker(runtime, retire=True)
 
     # 返回所有队列的运行状态。
     def queue_statuses(self) -> list[dict[str, Any]]:
@@ -180,7 +181,7 @@ class QueueSupervisor:
             self._request_drain(runtime)
             self._state_changed()
 
-    # 请求指定 Worker 停止拉取消息并完成已接收任务。
+    # 立即终止指定 Worker，使未确认消息回到队列。
     def pause(self, queue_name: str) -> None:
         with self._lock:
             runtime = self._runtime(queue_name)
@@ -189,8 +190,9 @@ class QueueSupervisor:
             runtime.desired_state = "PAUSED"
             runtime.restart_requested = False
             runtime.restart_reason = []
-            runtime.state = "DRAINING"
-            self._request_drain(runtime)
+            self._terminate_worker(runtime, retire=True)
+            runtime.state = "PAUSED"
+            runtime.stopped_at = _utcnow()
             self._state_changed()
 
     # 使用新进程恢复指定队列。
@@ -209,7 +211,7 @@ class QueueSupervisor:
                 return
             raise ValueError(f"队列 {runtime.name} 当前状态为 {runtime.state}，不能恢复")
 
-    # 排空或强制替换指定队列 Worker，使其加载磁盘中的新代码。
+    # 立即替换指定队列 Worker，使其加载磁盘中的新代码。
     def restart(self, queue_name: str, *, force: bool = False) -> None:
         with self._lock:
             runtime = self._runtime(queue_name)
@@ -217,14 +219,12 @@ class QueueSupervisor:
                 runtime.desired_state = "RUNNING"
                 self._start_worker(runtime)
             elif runtime.state in RUNNING_STATES:
-                if force:
-                    self._terminate_worker(runtime)
-                    runtime.restart_requested = False
-                    self._start_worker(runtime)
-                else:
-                    self._restart_runtime(runtime, ["手动重启"])
+                self._terminate_worker(runtime, retire=True)
+                runtime.restart_requested = False
+                runtime.restart_reason = ["手动重启"]
+                self._start_worker(runtime)
             elif runtime.state == "FAILED":
-                self._terminate_worker(runtime)
+                self._terminate_worker(runtime, retire=True)
                 runtime.desired_state = "RUNNING"
                 runtime.restart_requested = False
                 runtime.restart_reason = ["故障恢复"]
@@ -270,13 +270,16 @@ class QueueSupervisor:
         process = runtime.process
         if process is not None and process.is_alive():
             return
+        runtime.worker_id += 1
         runtime.commands = self._context.Queue()
         worker_args = (runtime.name, runtime.commands, self._events)
+        worker_kwargs = {"generation": runtime.worker_id}
         if self.account_session_coordinator is not None:
-            worker_args += (self.account_session_coordinator,)
+            worker_kwargs["account_session_coordinator"] = self.account_session_coordinator
         runtime.process = self._context.Process(
             target=self.worker_target,
             args=worker_args,
+            kwargs=worker_kwargs,
             name=f"queue-worker-{runtime.name.lower()}",
         )
         runtime.state = "STARTING"
@@ -288,15 +291,20 @@ class QueueSupervisor:
         runtime.pid = runtime.process.pid
         runtime.restart_requested = False
 
-    # 终止并回收指定 Worker 进程。
-    def _terminate_worker(self, runtime: QueueRuntime) -> None:
+    # 终止并回收指定 Worker 进程；显式停止时同时废弃旧进程引用。
+    def _terminate_worker(self, runtime: QueueRuntime, *, retire: bool = False) -> None:
         process = runtime.process
         worker_pid = runtime.pid or (process.pid if process is not None else None)
         if process is not None and process.is_alive():
             process.terminate()
             process.join(timeout=3)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=3)
         self._release_worker_slots(worker_pid)
         runtime.pid = None
+        if retire:
+            runtime.process = None
 
     def _release_worker_slots(self, worker_pid: int | None) -> None:
         if worker_pid is None or self.account_session_coordinator is None:
@@ -331,6 +339,10 @@ class QueueSupervisor:
             runtime = self._runtimes.get(queue_name)
             if runtime is None:
                 return
+            # 立即替换 Worker 后，旧进程可能仍有事件尚未被监管线程消费。
+            # 只允许当前进程代际的事件修改运行时状态。
+            if event.get("workerId") != runtime.worker_id:
+                return
             event_type = event.get("type")
             if event_type == "ready":
                 runtime.state = "RUNNING"
@@ -341,9 +353,11 @@ class QueueSupervisor:
                 runtime.state = "RESTARTING" if runtime.restart_requested else "PAUSED"
                 # Funboost 持有后台辅助线程。消费者已关闭 AMQP 通道且完成排空，
                 # 在此回收进程，避免这些线程使暂停的 Worker 持续存活。
-                self._terminate_worker(runtime)
+                self._terminate_worker(runtime, retire=True)
                 if runtime.remove_requested:
                     del self._runtimes[runtime.name]
+                elif runtime.restart_requested and runtime.desired_state == "RUNNING":
+                    self._start_worker(runtime)
             elif event_type == "drain_timeout":
                 runtime.state = "DRAINING"
                 runtime.last_error = "等待当前任务完成超时；队列仍在排空中"
@@ -351,7 +365,7 @@ class QueueSupervisor:
                 runtime.state = "FAILED"
                 runtime.last_error = str(event.get("error") or "队列 Worker 异常退出")
                 runtime.stopped_at = _utcnow()
-                self._terminate_worker(runtime)
+                self._terminate_worker(runtime, retire=True)
             self._state_changed()
 
     # 检测异常退出的 Worker，并在需要时创建替代进程。

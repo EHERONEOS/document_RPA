@@ -14,11 +14,12 @@ export const STATUS_TEXT: Record<ExecutionStatus, string> = {
   SUCCESS: '成功',
   FAILED: '失败',
   TIMEOUT: '超时',
+  DEPRECATED: '已废弃',
 };
 
-const FINAL_STATUSES: readonly ExecutionStatus[] = ['SUCCESS', 'FAILED', 'TIMEOUT'];
+const FINAL_STATUSES: readonly ExecutionStatus[] = ['SUCCESS', 'FAILED', 'TIMEOUT', 'DEPRECATED'];
 
-/** 是否终态（成功/失败/超时）：终态才展示结束时间与耗时 */
+/** 是否终态（成功/失败/超时/已废弃）：终态才展示结束时间与耗时 */
 export function isFinalStatus(status: ExecutionStatus): boolean {
   return FINAL_STATUSES.includes(status);
 }
