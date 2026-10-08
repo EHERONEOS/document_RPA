@@ -38,6 +38,24 @@ def _service_token() -> str:
     return os.getenv("RPA_LOG_SERVICE_TOKEN", "").strip()
 
 
+def _normalize_record_file(item: dict[str, Any]) -> dict[str, Any]:
+    """拍平 Agent 侧记录文件，保证 finish 请求体始终带齐服务端字段。
+
+    视频 OSS 成功只带 objectName（无 url）；OSS 失败只带 remark + storage=LOCAL。
+    二者都不能缺字段，否则服务端 Pydantic 会 422。
+    """
+    return {
+        "type": str(item.get("type") or ""),
+        "mediaType": str(item.get("mediaType") or "IMAGE"),
+        "fileName": str(item.get("fileName") or ""),
+        "url": str(item.get("url") or ""),
+        "objectName": str(item.get("objectName") or ""),
+        "remark": str(item.get("remark") or ""),
+        "storage": str(item.get("storage") or "OSS"),
+        "fileSize": int(item.get("fileSize") or 0),
+    }
+
+
 class LogReportClient:
     """批量异步上报器：所有公开方法都不会抛错、不会阻塞业务。"""
 
@@ -113,7 +131,7 @@ class LogReportClient:
                 "failImgUrl": fail_img_url or "",
                 "finishedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "durationSeconds": None,  # 服务端按 started_at 补算
-                "recordFiles": list(record_files or []),
+                "recordFiles": [_normalize_record_file(item) for item in (record_files or [])],
             },
         )
 

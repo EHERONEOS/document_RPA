@@ -61,8 +61,10 @@ DDL_STATEMENTS: tuple[str, ...] = (
         file_type     VARCHAR(64)   NOT NULL COMMENT 'type: SCREEN_RECORDING_FILE / 业务截图类型',
         media_type    VARCHAR(10)   NOT NULL COMMENT 'VIDEO / IMAGE（按后缀推断）',
         file_name     VARCHAR(255)  NOT NULL,
-        url           VARCHAR(1024) NOT NULL COMMENT '完整访问地址（OSS 或局域网）',
-        storage       VARCHAR(10)   NOT NULL DEFAULT 'OSS' COMMENT 'OSS / LAN',
+        url           VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '完整访问地址（OSS 或局域网）；视频 OSS 成功时为空，改用 object_name',
+        object_name   VARCHAR(512)  NOT NULL DEFAULT '' COMMENT 'OSS objectName；查看页经 /v1/file/url 换临时地址',
+        remark        VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '上传失败等说明（如本地路径）',
+        storage       VARCHAR(10)   NOT NULL DEFAULT 'OSS' COMMENT 'OSS / LAN / LOCAL',
         file_size     BIGINT        NOT NULL DEFAULT 0,
         create_time   DATETIME(6)   NOT NULL,
         INDEX idx_exec (execution_id)
@@ -93,12 +95,36 @@ DDL_STATEMENTS: tuple[str, ...] = (
 
 TABLE_NAMES = ("rpa_execution", "rpa_execution_log", "rpa_execution_file", "rpa_device", "rpa_queue")
 
+# CREATE TABLE IF NOT EXISTS 不会给存量表加列，启动时补齐 2026-09-30 的 objectName 直存字段。
+_FILE_COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("object_name", "ALTER TABLE rpa_execution_file ADD COLUMN object_name VARCHAR(512) NOT NULL DEFAULT '' COMMENT 'OSS objectName' AFTER url"),
+    ("remark", "ALTER TABLE rpa_execution_file ADD COLUMN remark VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '上传失败等说明' AFTER object_name"),
+)
+
+
+def _ensure_file_columns(cursor) -> None:
+    """给已存在的 rpa_execution_file 补 object_name / remark（幂等）。"""
+    cursor.execute(
+        """
+        SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rpa_execution_file'
+        """
+    )
+    existing = {
+        str(row.get("COLUMN_NAME") or row.get("column_name") or list(row.values())[0]).lower()
+        for row in cursor.fetchall()
+    }
+    for column, ddl in _FILE_COLUMN_MIGRATIONS:
+        if column.lower() not in existing:
+            cursor.execute(ddl)
+
 
 def initialize_schema() -> list[str]:
     """逐条执行幂等 DDL，返回已确认存在的表名。"""
     with db_cursor() as cursor:
         for ddl in DDL_STATEMENTS:
             cursor.execute(ddl)
+        _ensure_file_columns(cursor)
         cursor.execute("SHOW TABLES")
         return sorted(row[list(row)[0]] for row in cursor.fetchall())
 

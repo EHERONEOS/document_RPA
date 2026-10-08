@@ -7,8 +7,8 @@ export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
 /** 文件媒体类型（§4.3） */
 export type FileMediaType = 'VIDEO' | 'IMAGE';
 
-/** 文件存储来源（§7）：OSS / 局域网 */
-export type FileStorage = 'OSS' | 'LAN';
+/** 文件存储来源（§7 / §9）：OSS / 局域网 / 本地保留（视频 OSS 失败） */
+export type FileStorage = 'OSS' | 'LAN' | 'LOCAL';
 
 /** 执行记录主表行（§4.1，列表页数据源） */
 export interface Execution {
@@ -48,6 +48,8 @@ export interface ExecutionFile {
   mediaType: FileMediaType;
   fileName: string;
   url: string;
+  objectName?: string;
+  remark?: string;
   storage: FileStorage;
   fileSize: number | null;
   createTime: string;

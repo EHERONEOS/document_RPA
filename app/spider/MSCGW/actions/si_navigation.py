@@ -132,7 +132,7 @@ class SiNavigationMixin:
             raise ElementNotFoundError(f"{name}目标值为空")
 
         normalize = lambda text: re.sub(r"\s+", " ", str(text or "")).strip().casefold()
-        words = re.findall(r"[^\W_]+", target_text, flags=re.UNICODE)
+        words = target_text.split()
         if not words:
             raise ElementNotFoundError(f"{name}目标值不包含可搜索单词：{target_text}")
 

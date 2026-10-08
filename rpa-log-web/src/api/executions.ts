@@ -22,6 +22,16 @@ export function fetchExecutionDetail(executionId: number): Promise<ExecutionDeta
   return http.get<never, ExecutionDetail>('/execution/detail', { params: { executionId } });
 }
 
+/** 经日志服务代理：用 OSS objectName 换带签名的临时访问地址（设计文档 §9） */
+export async function fetchOssFileUrl(objectName: string): Promise<string> {
+  const data = await http.get<never, { url?: string }>('/files/oss-url', { params: { objectName } });
+  const url = data?.url || '';
+  if (!url) {
+    throw new Error(`未拿到 objectName=${objectName} 的临时地址`);
+  }
+  return url;
+}
+
 /** POST /api/v1/executions/delete —— 批量删除执行记录，并级联删除关联日志与文件 */
 export function deleteExecutions(executionIds: number[]): Promise<DeleteExecutionsResult> {
   return http.post<never, DeleteExecutionsResult>('/executions/delete', { executionIds });

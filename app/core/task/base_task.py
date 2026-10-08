@@ -7,7 +7,6 @@ from DrissionPage._pages.chromium_base import ChromiumBase
 
 from app.core.integrations.notifier import ProcessingNotifier
 from app.core.integrations.oss import OssClient
-from app.core.integrations.file_storage import FileStorageClient, infer_media_type
 from app.core.integrations.publisher import ResultPublisher
 from app.core.integrations.redis_client import get_redis_db_client
 from app.core.page.recorder import Recorder
@@ -21,6 +20,14 @@ from app.core.task.context import TaskContext
 from app.core.logging.logger import Logger
 from app.core.browser.manager import BrowserManager
 
+
+
+VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+
+
+def infer_media_type(file_path) -> str:
+    """按后缀推断 mediaType：视频后缀 → VIDEO，否则 IMAGE。"""
+    return "VIDEO" if Path(file_path).suffix.lower() in VIDEO_SUFFIXES else "IMAGE"
 
 
 class BaseRpaTask:
@@ -50,7 +57,6 @@ class BaseRpaTask:
         notifier=None,
         publisher=None,
         oss_client=None,
-        file_storage=None,
     ):
         self.context = context or TaskContext()
         self.job_no = self.context.content.get("jobNo") or self.context.content.get("blNo") or ""
@@ -67,14 +73,17 @@ class BaseRpaTask:
         self.result_save_type = 1
         # 日志服务终态/记录文件采集（§6.4，仅旁路上报，不影响回传协议）
         self.fail_img_url = ""          # 失败截图完整地址（上传响应 file_info.url）
-        self.log_record_files = []      # 拍平的记录文件 [{type, mediaType, fileName, url, storage, fileSize}]
+        # 拍平的记录文件 [{type, mediaType, fileName, objectName|remark, storage, fileSize}]
+        # 视频存 objectName（查看页面经 /v1/file/url?objectName= 换临时地址）；
+        # 上传失败的视频存 remark=“上传oss失败 视频本地路径:xxx” 且 storage=LOCAL。
+        self.log_record_files = []
 
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
         self.logger = Logger()
         self.notifier = notifier or ProcessingNotifier() #通知消息实例
         self.publisher = publisher or ResultPublisher() #发布消息实例
         self.oss_client = oss_client or OssClient() #oss客户端实例
-        self.file_storage = file_storage or FileStorageClient() #记录文件降级链（OSS→局域网）
+        # 截图/视频统一仅 OSS 上传；失败一律保留本地文件，不再降级局域网。
         self.util_redis = get_redis_db_client(self.REDIS_MAIN) # 配置cookies redis客户端实例
         self.redis_client = get_redis_db_client(self.REDIS_HEART_BEAT) # 配置proxy redis客户端实例
 
@@ -199,28 +208,38 @@ class BaseRpaTask:
             record_file_path = self.recorder.stop()
             if record_file_path is None:
                 return record_files
+            record_file_path = Path(record_file_path)
             upload = self._upload_execute_video(record_file_path)
             if upload is None:
-                return record_files
-            # 结果回传协议保持现状：仅 OSS 上传成功的录屏进入 executeRecordFiles
-            if upload.get("objectName"):
-                record_files.append({
-                    "type": "SCREEN_RECORDING_FILE",
-                    "files": [{
-                        "fileObjectName": upload["objectName"],
-                        "fileName": upload.get("fileName") or record_file_path.name,
-                    }],
-                })
-            # 日志服务旁路记录：OSS / LAN 成功的都带完整 url 记一份（§6.4 拍平）
-            if upload.get("url"):
+                # OSS 上传失败：视频保留本地（不降级局域网），失败信息记入日志服务，
+                # 查看页面可凭本地路径人工补取。
                 self.log_record_files.append({
                     "type": "SCREEN_RECORDING_FILE",
                     "mediaType": infer_media_type(record_file_path),
-                    "fileName": upload.get("fileName") or record_file_path.name,
-                    "url": upload["url"],
-                    "storage": upload["storage"],
-                    "fileSize": upload.get("fileSize", 0),
+                    "fileName": record_file_path.name,
+                    "storage": "LOCAL",
+                    "fileSize": self._safe_file_size(record_file_path),
+                    "remark": f"上传oss失败 视频本地路径:{record_file_path}",
                 })
+                return record_files
+            # 结果回传协议保持现状：仅 OSS 上传成功的录屏进入 executeRecordFiles
+            record_files.append({
+                "type": "SCREEN_RECORDING_FILE",
+                "files": [{
+                    "fileObjectName": upload["objectName"],
+                    "fileName": upload.get("fileName") or record_file_path.name,
+                }],
+            })
+            # 日志服务旁路记录：存 objectName（不再存 url）；查看页面经
+            # /v1/file/url?objectName={objectName} 换取带签名的临时访问地址。
+            self.log_record_files.append({
+                "type": "SCREEN_RECORDING_FILE",
+                "mediaType": infer_media_type(record_file_path),
+                "fileName": upload.get("fileName") or record_file_path.name,
+                "objectName": upload["objectName"],
+                "storage": "OSS",
+                "fileSize": upload.get("fileSize", 0),
+            })
             return record_files
         except Exception as exc:
             self.logger.error(f"录屏停止或上传失败，继续回传业务结果：{exc}")
@@ -248,17 +267,17 @@ class BaseRpaTask:
     def _collect_business_record_files(self):
         """按记录类型上传业务过程文件，保持结果协议的 files 分组结构。
 
-        上传链路（§7）：OSS 优先；OSS 失败降级局域网文件服务（仅进日志服务记录，
-        不改动结果回传协议）；两端都失败则 WARN + 本地保留。
+        上传链路：仅 OSS；OSS 失败则文件保留本地（不降级局域网），
+        失败信息记入日志服务记录，不进结果回传协议。
         """
         grouped_files = {}
         for record_type, file_path in self.business_record_files:
             file_size = self._safe_file_size(file_path)
-            file_info = None
             try:
                 file_info = self.oss_client.oss_upload(file_path)
             except Exception as exc:
-                self.logger.error(f"上传业务过程文件失败 type={record_type} error={exc}，尝试局域网上传")
+                self.logger.error(f"上传业务过程文件失败 type={record_type} error={exc}，文件保留本地")
+                file_info = None
 
             if isinstance(file_info, dict) and file_info.get("objectName"):
                 grouped_files.setdefault(record_type, []).append({
@@ -275,16 +294,15 @@ class BaseRpaTask:
                 })
                 continue
 
-            lan_info = self.file_storage.upload_lan(file_path)
-            if lan_info:
-                self.log_record_files.append({
-                    "type": record_type,
-                    "mediaType": infer_media_type(file_path),
-                    "fileName": Path(file_path).name,
-                    "url": lan_info.get("url") or "",
-                    "storage": "LAN",
-                    "fileSize": lan_info.get("fileSize") or file_size,
-                })
+            # OSS 失败：本地保留，仅记日志服务（不进结果回传协议）
+            self.log_record_files.append({
+                "type": record_type,
+                "mediaType": infer_media_type(file_path),
+                "fileName": Path(file_path).name,
+                "storage": "LOCAL",
+                "fileSize": file_size,
+                "remark": f"上传oss失败 文件本地路径:{file_path}",
+            })
         return [
             {"type": record_type, "files": files}
             for record_type, files in grouped_files.items()
@@ -299,11 +317,11 @@ class BaseRpaTask:
             return 0
 
     def _upload_execute_video(self, record_file_path):
-        """录屏上传降级链（§6.4/§7）：OSS 优先（成功才删本地）；OSS 失败或超 10MB
-        降级局域网；两端都失败 WARN + 本地保留，返回 None。
+        """录屏上传：仅 OSS（成功才删本地）；失败或超 10MB 不再降级局域网。
 
-        返回 ``{objectName, fileName, url, storage, fileSize}``；objectName 仅 OSS
-        成功时存在，url 为完整访问地址（OSS 或 LAN）。
+        视频保留在本地，由调用方把失败信息（上传oss失败 视频本地路径:xxx）
+        记入日志服务记录；返回 ``{objectName, fileName, url, storage, fileSize}``，
+        失败返回 None。
         """
         record_file_path = Path(record_file_path)
         file_name = record_file_path.name
@@ -313,46 +331,33 @@ class BaseRpaTask:
             self.logger.error(f"读取录屏文件大小失败，本地录屏已保留：{exc}")
             return None
 
-        oss_file_info = None
         if file_size > self.MAX_RECORDING_UPLOAD_SIZE:
             self.logger.warn(
                 f"录屏文件超过 {self.MAX_RECORDING_UPLOAD_SIZE / (1024 * 1024):g}MB，"
-                f"跳过 OSS，尝试局域网上传：{record_file_path}"
+                f"跳过 OSS 上传，视频保留本地：{record_file_path}"
             )
-        else:
-            try:
-                # OSS 返回有效 objectName 才算成功；否则走局域网兜底
-                candidate = self.oss_client.oss_upload(record_file_path, is_remove=False)
-                if isinstance(candidate, dict) and candidate.get("objectName"):
-                    oss_file_info = candidate
-                else:
-                    self.logger.error("上传流程视频 OSS 未返回 objectName，尝试局域网上传")
-            except Exception as exc:
-                self.logger.error(f"上传流程视频 OSS 失败，尝试局域网上传：{exc}")
+            self.logger.error(f"上传oss失败 视频本地路径:{record_file_path}")
+            return None
 
-        if oss_file_info:
-            self._remove_local_file(record_file_path)
-            return {
-                "objectName": oss_file_info["objectName"],
-                "fileName": oss_file_info.get("filename") or file_name,
-                "url": oss_file_info.get("url") or "",
-                "storage": "OSS",
-                "fileSize": file_size,
-            }
+        try:
+            oss_file_info = self.oss_client.oss_upload(record_file_path, is_remove=False)
+            if not (isinstance(oss_file_info, dict) and oss_file_info.get("objectName")):
+                self.logger.error(f"上传流程视频 OSS 未返回 objectName，视频保留本地：{record_file_path}")
+                self.logger.error(f"上传oss失败 视频本地路径:{record_file_path}")
+                return None
+        except Exception as exc:
+            self.logger.error(f"上传流程视频 OSS 失败：{exc}")
+            self.logger.error(f"上传oss失败 视频本地路径:{record_file_path}")
+            return None
 
-        lan_info = self.file_storage.upload_lan(record_file_path)
-        if lan_info:
-            # LAN 成功仍保留本地录屏（设计 §7：本地文件可人工补取）
-            return {
-                "objectName": "",
-                "fileName": lan_info.get("fileName") or file_name,
-                "url": lan_info.get("url") or "",
-                "storage": "LAN",
-                "fileSize": lan_info.get("fileSize") or file_size,
-            }
-
-        self.logger.warn(f"录屏 OSS 与局域网上传均失败，本地文件已保留：{record_file_path}")
-        return None
+        self._remove_local_file(record_file_path)
+        return {
+            "objectName": oss_file_info["objectName"],
+            "fileName": oss_file_info.get("filename") or file_name,
+            "url": oss_file_info.get("url") or "",
+            "storage": "OSS",
+            "fileSize": file_size,
+        }
 
     def _remove_local_file(self, file_path):
         """上传成功后清理本地文件；删除失败仅告警。"""
@@ -366,8 +371,8 @@ class BaseRpaTask:
     def _upload_error_screenshot(self):
         """尽力上传失败截图，不覆盖触发任务失败的原始异常。
 
-        同时把上传响应的完整地址（file_info.url，OSS 或 LAN）记到 ``self.fail_img_url``，
-        供日志服务终态上报（§6.4）；``TaskResult.img`` 仍返回 objectName，协议零改动。
+        仅 OSS 上传；失败则截图保留本地并返回空串（``fail_img_url`` 同样置空）；
+        ``TaskResult.img`` 返回 objectName，协议零改动。
         """
         self.fail_img_url = ""
         if self.screenshot is None:
@@ -388,16 +393,12 @@ class BaseRpaTask:
         try:
             file_info = self.oss_client.oss_upload(file_path)
         except Exception as exc:
-            self.logger.error(f"失败截图 OSS 上传失败，尝试局域网：{exc}")
-            file_info = None
+            self.logger.error(f"失败截图 OSS 上传失败，截图保留本地：{exc}")
+            return ""
 
         if isinstance(file_info, dict) and file_info.get("objectName"):
             self.fail_img_url = file_info.get("url") or ""
             return file_info.get("objectName") or ""
-
-        lan_info = self.file_storage.upload_lan(file_path)
-        if lan_info:
-            self.fail_img_url = lan_info.get("url") or ""
         return ""
 
     def _get_attachments_safely(self, execute_record_files):

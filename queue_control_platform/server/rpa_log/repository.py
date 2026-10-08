@@ -215,8 +215,10 @@ def finish_execution(
             item.get("type", ""),
             item.get("media_type", "IMAGE"),
             item.get("file_name", ""),
-            item.get("url", ""),
-            item.get("storage", "OSS"),
+            item.get("url", "") or "",
+            item.get("object_name", "") or "",
+            item.get("remark", "") or "",
+            item.get("storage", "OSS") or "OSS",
             int(item.get("file_size", 0) or 0),
         )
         for item in record_files
@@ -241,14 +243,15 @@ def finish_execution(
         )
         if cur.rowcount == 0:  # 并发下被抢先 finish
             return {"result": "ALREADY_FINISHED"}
-        cur.executemany(
-            """
-            INSERT INTO rpa_execution_file
-                (execution_id, file_type, media_type, file_name, url, storage, file_size, create_time)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            [file_row + (datetime.now(),) for file_row in files],
-        )
+        if files:
+            cur.executemany(
+                """
+                INSERT INTO rpa_execution_file
+                    (execution_id, file_type, media_type, file_name, url, object_name, remark, storage, file_size, create_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                [file_row + (datetime.now(),) for file_row in files],
+            )
     return {"result": "FINISHED", "status": status, "durationSeconds": int(duration_seconds)}
 
 
@@ -365,7 +368,7 @@ def list_files(execution_id: int) -> list[dict]:
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT id, file_type, media_type, file_name, url, storage, file_size, create_time
+            SELECT id, file_type, media_type, file_name, url, object_name, remark, storage, file_size, create_time
             FROM rpa_execution_file
             WHERE execution_id = %s
             ORDER BY id
@@ -378,7 +381,9 @@ def list_files(execution_id: int) -> list[dict]:
                 "type": row["file_type"],
                 "mediaType": row["media_type"],
                 "fileName": row["file_name"],
-                "url": row["url"],
+                "url": row["url"] or "",
+                "objectName": row["object_name"] or "",
+                "remark": row["remark"] or "",
                 "storage": row["storage"],
                 "fileSize": int(row["file_size"]),
                 "createTime": format_datetime(row["create_time"]),

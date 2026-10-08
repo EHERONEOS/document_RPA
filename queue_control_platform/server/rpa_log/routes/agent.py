@@ -63,7 +63,9 @@ class RecordFile(BaseModel):
     type: str = Field(max_length=64)
     mediaType: str = Field(default="IMAGE", max_length=10)
     fileName: str = Field(default="", max_length=255)
-    url: str = Field(max_length=1024)
+    url: str = Field(default="", max_length=1024)
+    objectName: str = Field(default="", max_length=512)
+    remark: str = Field(default="", max_length=1024)
     storage: str = Field(default="OSS", max_length=10)
     fileSize: int = 0
 
@@ -138,6 +140,8 @@ def finish_execution(body: ExecutionFinish, _: None = Depends(verify_token)) -> 
                 "media_type": item.mediaType,
                 "file_name": item.fileName,
                 "url": item.url,
+                "object_name": item.objectName,
+                "remark": item.remark,
                 "storage": item.storage,
                 "file_size": item.fileSize,
             }

@@ -94,3 +94,23 @@ def test_upload_size_limit_413(client, clean_db, monkeypatch):
         headers=AUTH,
     )
     assert resp.status_code == 413
+
+
+def test_resolve_oss_url_proxies_signed_link(client, monkeypatch):
+    from queue_control_platform.server.rpa_log.routes import files as files_route
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"code": 0, "data": {"url": "https://oss.example/signed.mp4"}}
+
+    monkeypatch.setattr(
+        files_route.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+    resp = client.get("/api/v1/files/oss-url", params={"objectName": "original/a.mp4"})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["url"] == "https://oss.example/signed.mp4"

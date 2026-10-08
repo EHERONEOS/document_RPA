@@ -110,6 +110,40 @@ def test_finish_writes_record_files(client, clean_db, uid):
     assert files[0]["storage"] == "LAN"
 
 
+def test_finish_accepts_object_name_and_local_video(client, clean_db, uid):
+    """视频 OSS 成功只带 objectName、失败只带 remark：二者都不能再因缺 url 被 422。"""
+    execution_id = create_execution(client, uid)["executionId"]
+    body = {
+        "executionId": execution_id,
+        "status": "SUCCESS",
+        "recordFiles": [
+            {
+                "type": "SCREEN_RECORDING_FILE",
+                "mediaType": "VIDEO",
+                "fileName": "ok.mp4",
+                "objectName": "original/ok.mp4",
+                "storage": "OSS",
+                "fileSize": 2048,
+            },
+            {
+                "type": "SCREEN_RECORDING_FILE",
+                "mediaType": "VIDEO",
+                "fileName": "fail.mp4",
+                "storage": "LOCAL",
+                "fileSize": 1024,
+                "remark": "上传oss失败 视频本地路径:/tmp/fail.mp4",
+            },
+        ],
+    }
+    resp = client.post("/api/v1/executions/finish", json=body, headers=AUTH)
+    assert resp.status_code == 200, resp.text
+    files = client.get("/api/v1/execution/detail", params={"executionId": execution_id}).json()["data"]["files"]
+    assert files[0]["objectName"] == "original/ok.mp4"
+    assert files[0]["url"] == ""
+    assert files[1]["storage"] == "LOCAL"
+    assert "上传oss失败" in files[1]["remark"]
+
+
 def test_recreate_same_message_inserts_new_record(client, clean_db, uid):
     """相同消息再次消费：插入新记录（2026-09 调整：取消消息ID唯一键）。
 

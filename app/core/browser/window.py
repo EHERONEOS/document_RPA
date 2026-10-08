@@ -29,6 +29,18 @@ def browser_pid_from_page(page: Any) -> int | None:
     return None
 
 
+def browser_hwnd_from_page(page: Any) -> int | None:
+    """查找浏览器顶层窗口 HWND，不前置、不抢焦点。
+
+    WGC（Windows Graphics Capture）按窗口表面采集，遮挡/置底不影响画面，
+    因此不需要像 GDI 采集那样把窗口恢复到前台——多浏览器并行录屏时尤其
+    重要：每个 recorder 启动时抢一次前台会互相打架。
+    """
+    if platform.system() != "Windows":
+        return None
+    return _find_window_by_pid(browser_pid_from_page(page))
+
+
 def ensure_browser_window_ready(
     page: Any | None = None,
     *,

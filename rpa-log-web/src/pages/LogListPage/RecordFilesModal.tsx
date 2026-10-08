@@ -1,6 +1,6 @@
-import { Button, Empty, Image, Modal, Spin, Typography } from 'antd';
+import { Alert, Button, Empty, Image, Modal, Spin, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { fetchExecutionDetail } from '../../api/executions';
+import { fetchExecutionDetail, fetchOssFileUrl } from '../../api/executions';
 import type { ExecutionFile } from '../../api/types';
 import StorageBadge from '../../components/StorageBadge';
 import { formatFileSize } from '../../utils/format';
@@ -17,15 +17,20 @@ interface RecordFilesModalProps {
   onClose: () => void;
 }
 
+interface PreviewFile extends ExecutionFile {
+  previewUrl: string;
+  previewError: string;
+}
+
 /**
- * 记录文件弹窗（§8.2，SUCCESS/FAILED 终态）：
+ * 记录文件弹窗（§8.2 / §9）：
  * 按 type 分组；图片 Image.PreviewGroup 缩略图；视频 <video controls>；
- * 每个文件带 OSS/LAN 存储角标；无文件显示 Empty。
+ * OSS 视频用 objectName 换临时地址；LOCAL 展示失败信息与本地路径。
  */
 export default function RecordFilesModal({ executionId, onClose }: RecordFilesModalProps) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [files, setFiles] = useState<ExecutionFile[]>([]);
+  const [files, setFiles] = useState<PreviewFile[]>([]);
 
   useEffect(() => {
     if (executionId == null) {
@@ -37,8 +42,9 @@ export default function RecordFilesModal({ executionId, onClose }: RecordFilesMo
     setLoading(true);
     setLoadError(false);
     fetchExecutionDetail(executionId)
-      .then((data) => {
-        if (!cancelled) setFiles(data.files);
+      .then(async (data) => {
+        const resolved = await Promise.all(data.files.map(resolvePreview));
+        if (!cancelled) setFiles(resolved);
       })
       .catch(() => {
         if (!cancelled) setLoadError(true);
@@ -53,7 +59,7 @@ export default function RecordFilesModal({ executionId, onClose }: RecordFilesMo
 
   // 按 type 分组（保持服务端返回顺序）
   const groups = useMemo(() => {
-    const map = new Map<string, ExecutionFile[]>();
+    const map = new Map<string, PreviewFile[]>();
     files.forEach((file) => {
       const bucket = map.get(file.type);
       if (bucket) bucket.push(file);
@@ -108,22 +114,7 @@ export default function RecordFilesModal({ executionId, onClose }: RecordFilesMo
                       key={file.fileId}
                       style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}
                     >
-                      {file.mediaType === 'VIDEO' ? (
-                        <video
-                          controls
-                          preload="metadata"
-                          src={file.url}
-                          style={{ width: '100%', display: 'block', background: '#000', aspectRatio: '16 / 9' }}
-                        />
-                      ) : (
-                        <Image
-                          src={file.url}
-                          alt={file.fileName}
-                          width="100%"
-                          height={150}
-                          style={{ objectFit: 'cover' }}
-                        />
-                      )}
+                      <FilePreview file={file} />
                       <div
                         style={{
                           padding: '8px 12px',
@@ -155,4 +146,59 @@ export default function RecordFilesModal({ executionId, onClose }: RecordFilesMo
       </Spin>
     </Modal>
   );
+}
+
+function FilePreview({ file }: { file: PreviewFile }) {
+  if (file.storage === 'LOCAL' || (!file.previewUrl && file.remark)) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message={file.remark || '视频保留在本地，无在线地址'}
+        style={{ margin: 12 }}
+      />
+    );
+  }
+  if (file.previewError) {
+    return <Alert type="error" showIcon message={file.previewError} style={{ margin: 12 }} />;
+  }
+  if (!file.previewUrl) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无可预览地址" style={{ margin: 12 }} />;
+  }
+  if (file.mediaType === 'VIDEO') {
+    return (
+      <video
+        controls
+        preload="metadata"
+        src={file.previewUrl}
+        style={{ width: '100%', display: 'block', background: '#000', aspectRatio: '16 / 9' }}
+      />
+    );
+  }
+  return (
+    <Image
+      src={file.previewUrl}
+      alt={file.fileName}
+      width="100%"
+      height={150}
+      style={{ objectFit: 'cover' }}
+    />
+  );
+}
+
+async function resolvePreview(file: ExecutionFile): Promise<PreviewFile> {
+  if (file.storage === 'LOCAL') {
+    return { ...file, previewUrl: '', previewError: '' };
+  }
+  if (file.url) {
+    return { ...file, previewUrl: file.url, previewError: '' };
+  }
+  if (file.objectName) {
+    try {
+      return { ...file, previewUrl: await fetchOssFileUrl(file.objectName), previewError: '' };
+    } catch {
+      return { ...file, previewUrl: '', previewError: `换取临时地址失败：${file.objectName}` };
+    }
+  }
+  return { ...file, previewUrl: '', previewError: file.remark || '' };
 }

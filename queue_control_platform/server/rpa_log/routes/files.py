@@ -10,10 +10,13 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+import requests
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
 from ..settings import get_settings
 from .agent import ok, verify_token
+
+OSS_FILE_URL_ENDPOINT = "https://fec.cgofish.com/v1/file/url"
 
 router = APIRouter(tags=["files"])
 
@@ -66,3 +69,22 @@ async def upload_file(
     host = request.headers.get("host") or (request.client.host if request.client else "localhost")
     url = f"http://{host}/files/{rel_dir.as_posix()}/{target_path.name}"
     return ok({"url": url, "storage": "LAN", "fileName": original_name, "fileSize": written})
+
+
+@router.get("/files/oss-url")
+def resolve_oss_url(objectName: str = Query(..., min_length=1, max_length=512)) -> dict:
+    """用 OSS objectName 换带签名的临时地址（设计文档 §9）；由服务端代发，避免浏览器跨域。"""
+    try:
+        response = requests.get(
+            OSS_FILE_URL_ENDPOINT,
+            params={"objectName": objectName},
+            timeout=10,
+        )
+        response.raise_for_status()
+        envelope = response.json()
+    except Exception as exc:  # noqa: BLE001 - 上游失败转 502，前端展示换地址失败
+        raise HTTPException(status_code=502, detail=f"resolve oss url failed: {exc}") from exc
+    url = str((envelope.get("data") or {}).get("url") or "")
+    if not url:
+        raise HTTPException(status_code=404, detail=f"oss url not found for objectName={objectName}")
+    return ok({"url": url, "objectName": objectName})

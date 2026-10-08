@@ -1,12 +1,17 @@
 import { Tag } from 'antd';
 import type { FileStorage } from '../api/types';
 
-/** OSS/LAN 存储角标（§8.2 记录文件弹窗：每个文件标注存储来源） */
+/** OSS/LAN/LOCAL 存储角标（§8.2 记录文件弹窗：每个文件标注存储来源） */
+const STORAGE_COLOR: Record<string, string> = {
+  LAN: 'gold',
+  LOCAL: 'default',
+  OSS: 'geekblue',
+};
+
 export default function StorageBadge({ storage }: { storage: FileStorage | string }) {
-  const isLan = storage === 'LAN';
   return (
     <Tag
-      color={isLan ? 'gold' : 'geekblue'}
+      color={STORAGE_COLOR[storage] ?? 'geekblue'}
       style={{
         marginInlineEnd: 0,
         flex: 'none',
