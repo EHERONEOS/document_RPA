@@ -13,7 +13,6 @@ user_data*/
 .env.*
 .env
 !.env.example
-uv.lock
 docs/
 runtime/
 launch.json
@@ -21,24 +20,17 @@ launch.json
 
 # AI Rules
 .trae/rules/*.json
-tests/*
-!tests/test_browser_profile_name.py
-!tests/test_element_names.py
-!tests/test_recording_lifecycle.py
-!tests/test_recorder.py
-!tests/test_account_session_coordinator.py
-!tests/test_emc_routing.py
-!tests/test_email_otp.py
-!tests/test_mscgw_routing.py
-!tests/test_log_session.py
-!tests/test_log_report_client.py
-!tests/test_base_task_log_service.py
-!tests/test_consumer_log_session.py
-# !tests/test_browser_session_lock.py
+# tests 与 scripts 整目录不入库（已跟踪文件不受影响，仅阻止新文件进入版本库）
+tests/
+scripts/
 message_list/
 .idea/
+.vscode/
 nacos-data/*
 debug-result-dlx.md
+doc/
+capturesdk/
+queue_sender.py
 
 # System files
 .DS_Store
