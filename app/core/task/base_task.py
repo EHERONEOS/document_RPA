@@ -72,10 +72,10 @@ class BaseRpaTask:
         self.business_record_files = []
         self.result_save_type = 1
         # 日志服务终态/记录文件采集（§6.4，仅旁路上报，不影响回传协议）
-        self.fail_img_url = ""          # 失败截图完整地址（上传响应 file_info.url）
+        self.fail_img_object_name = "" # 失败截图 objectName（查看页经 /v1/file/url 换临时地址）
         # 拍平的记录文件 [{type, mediaType, fileName, objectName|remark, storage, fileSize}]
-        # 视频存 objectName（查看页面经 /v1/file/url?objectName= 换临时地址）；
-        # 上传失败的视频存 remark=“上传oss失败 视频本地路径:xxx” 且 storage=LOCAL。
+        # 录屏与截图统一存 objectName（查看页面经 /v1/file/url?objectName= 换临时地址）；
+        # 上传失败的文件存 remark=“上传oss失败 xxx本地路径:xxx” 且 storage=LOCAL。
         self.log_record_files = []
 
         # 附件属于单次任务，不能与同一进程中的其他任务共享。
@@ -153,7 +153,7 @@ class BaseRpaTask:
             self.logger.finish_execution(
                 success=success,
                 remark=remark,
-                fail_img=self.fail_img_url,
+                fail_img_object_name=self.fail_img_object_name,
                 record_files=self.log_record_files,
             )
             attachments = None
@@ -284,11 +284,13 @@ class BaseRpaTask:
                     "fileObjectName": file_info["objectName"],
                     "fileName": Path(file_path).name,
                 })
+                # 日志服务旁路记录：截图与录屏一致存 objectName（不再存 url）；
+                # 查看页面经 /v1/file/url?objectName={objectName} 换临时地址。
                 self.log_record_files.append({
                     "type": record_type,
                     "mediaType": infer_media_type(file_path),
                     "fileName": Path(file_path).name,
-                    "url": file_info.get("url") or "",
+                    "objectName": file_info["objectName"],
                     "storage": "OSS",
                     "fileSize": file_size,
                 })
@@ -371,10 +373,11 @@ class BaseRpaTask:
     def _upload_error_screenshot(self):
         """尽力上传失败截图，不覆盖触发任务失败的原始异常。
 
-        仅 OSS 上传；失败则截图保留本地并返回空串（``fail_img_url`` 同样置空）；
-        ``TaskResult.img`` 返回 objectName，协议零改动。
+        仅 OSS 上传；失败则截图保留本地并返回空串（``fail_img_object_name`` 同样置空）；
+        ``TaskResult.img`` 与日志服务 ``failImgObjectName`` 均存 objectName，
+        查看页面经 /v1/file/url?objectName= 换临时地址，回传协议零改动。
         """
-        self.fail_img_url = ""
+        self.fail_img_object_name = ""
         if self.screenshot is None:
             self.logger.warn("截图工具未初始化，跳过失败截图")
             return ""
@@ -397,8 +400,8 @@ class BaseRpaTask:
             return ""
 
         if isinstance(file_info, dict) and file_info.get("objectName"):
-            self.fail_img_url = file_info.get("url") or ""
-            return file_info.get("objectName") or ""
+            self.fail_img_object_name = file_info["objectName"]
+            return file_info["objectName"]
         return ""
 
     def _get_attachments_safely(self, execute_record_files):

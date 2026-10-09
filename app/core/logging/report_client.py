@@ -3,7 +3,7 @@
 - 单例 ``get_report_client()``；内部 ``queue.Queue`` + 单 daemon 线程攒批上报
   （满 50 条或 1s flush）→ ``POST /api/v1/logs/batch``；
 - 任何异常仅本地打印 WARN，**绝不向上抛、绝不阻塞业务线程**；
-- ``RPA_LOG_SERVICE_ENABLED=false`` 或 URL 为空时整体 no-op，行为与现状一致；
+- ``RPA_LOG_SERVICE_ENABLED=false`` 或 URL 为空时整体 no-op（任何模式都不上报），行为与现状一致；
 - 进程退出 ``atexit`` 兜底 flush。
 """
 
@@ -41,7 +41,7 @@ def _service_token() -> str:
 def _normalize_record_file(item: dict[str, Any]) -> dict[str, Any]:
     """拍平 Agent 侧记录文件，保证 finish 请求体始终带齐服务端字段。
 
-    视频 OSS 成功只带 objectName（无 url）；OSS 失败只带 remark + storage=LOCAL。
+    录屏/截图 OSS 成功只带 objectName（无 url）；OSS 失败只带 remark + storage=LOCAL。
     二者都不能缺字段，否则服务端 Pydantic 会 422。
     """
     return {
@@ -116,10 +116,13 @@ class LogReportClient:
         execution_id: int | None,
         status: str,
         remark: str = "",
-        fail_img_url: str = "",
+        fail_img_object_name: str = "",
         record_files: list[dict] | None = None,
     ) -> None:
-        """终态上报（服务端以首次为准幂等）；失败仅 WARN。"""
+        """终态上报（服务端以首次为准幂等）；失败仅 WARN。
+
+        ``fail_img_object_name``：失败截图 OSS objectName，查看页经 /v1/file/url 换临时地址。
+        """
         if not self.enabled or execution_id is None:
             return
         self._post(
@@ -128,7 +131,7 @@ class LogReportClient:
                 "executionId": int(execution_id),
                 "status": status,
                 "remark": remark or "",
-                "failImgUrl": fail_img_url or "",
+                "failImgObjectName": fail_img_object_name or "",
                 "finishedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "durationSeconds": None,  # 服务端按 started_at 补算
                 "recordFiles": [_normalize_record_file(item) for item in (record_files or [])],

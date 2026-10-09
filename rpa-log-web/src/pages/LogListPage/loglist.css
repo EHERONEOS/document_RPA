@@ -1,1 +1,12 @@
 /* 日志列表页局部补充样式（通用 .mono/.running-dot 见 src/components/console.css） */
+
+/*
+ * 记录文件弹窗 - 截图放大预览（antd Image.PreviewGroup 全屏预览层）：
+ * 预览图宽度固定为屏幕 60%；object-fit 保持纵横比，
+ * 避免超高截图触发默认 max-height: 70% 时被压扁。
+ * 仅作用于挂了 record-file-preview 根类名的预览，不影响其它 Image 预览。
+ */
+.ant-image-preview-root.record-file-preview .ant-image-preview-img {
+  width: 60vw;
+  object-fit: contain;
+}

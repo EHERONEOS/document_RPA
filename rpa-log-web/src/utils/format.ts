@@ -1,4 +1,15 @@
+import dayjs from 'dayjs';
 import type { ExecutionStatus, LogLevel } from '../api/types';
+
+/**
+ * ISO 时间字符串 → "YYYY-MM-DD HH:mm:ss"（本地时区）；
+ * 空值或无法解析显示 "—"
+ */
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : '—';
+}
 
 /** 日志级别 → 文本色（§9.4：灰 / 绿 / 黄 / 红） */
 export const LOG_LEVEL_COLORS: Record<LogLevel, string> = {

@@ -1,6 +1,7 @@
 """执行日志会话（设计文档 §6.1–§6.4 / T2.2）：ContextVar 绑定 + 懒创建执行记录 + 终态上报。
 
-- ``log_service_enabled(runtime_mode)``：队列模式且 ``RPA_LOG_SERVICE_ENABLED`` 开启才记录；
+- ``log_service_enabled(runtime_mode)``：``RPA_LOG_SERVICE_ENABLED`` 开启才记录；
+  该变量关闭/未设置时**任何模式（含队列监听）都不上报**；
   ``app.dev.local_runner``（runtime_mode='local'）**强制关闭**——即使开发机误配环境变量也不上报；
 - ``execution_log_session(context)``：队列入口绑定会话，开启时创建 RUNNING 记录；
   退出时若尚未 finish（异常路径）兜底 ``finish_execution(FAILED)``；
@@ -25,7 +26,10 @@ TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
 def log_service_enabled(runtime_mode: str = "queue") -> bool:
-    """队列模式且环境变量开启时才记录；local 的 runtime_mode='local' 强制关闭（双保险）。"""
+    """RPA_LOG_SERVICE_ENABLED 开启才记录；关闭/未设置时任何模式（含队列）都不上报。
+
+    local 的 runtime_mode='local' 强制关闭（双保险）。
+    """
     if runtime_mode != "queue":
         return False
     return os.getenv("RPA_LOG_SERVICE_ENABLED", "").strip().lower() in TRUE_VALUES
@@ -149,8 +153,11 @@ def report_log(message, level: str = "INFO", source_file: str = "", source_line:
     )
 
 
-def finish_execution(*, success: bool, remark: str = "", fail_img: str = "", record_files=None) -> None:
-    """终态上报（§6.4）；无会话/已终态时 no-op，全部降级安全。"""
+def finish_execution(*, success: bool, remark: str = "", fail_img_object_name: str = "", record_files=None) -> None:
+    """终态上报（§6.4）；无会话/已终态时 no-op，全部降级安全。
+
+    ``fail_img_object_name``：失败截图 OSS objectName（查看页经 /v1/file/url 换临时地址）。
+    """
     context = _current_context.get()
     if context is None or context.finished:
         return
@@ -159,6 +166,6 @@ def finish_execution(*, success: bool, remark: str = "", fail_img: str = "", rec
         execution_id=context.execution_id,
         status="SUCCESS" if success else "FAILED",
         remark=remark,
-        fail_img_url=fail_img,
+        fail_img_object_name=fail_img_object_name,
         record_files=list(record_files or []),
     )

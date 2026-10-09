@@ -23,7 +23,10 @@ export interface Execution {
   businessCode: string | null;
   status: ExecutionStatus;
   remark: string | null;
+  /** 存量字段：旧记录的失败截图完整地址（可能已过期） */
   failImgUrl: string | null;
+  /** 失败截图 OSS objectName；经 /files/oss-url 换带签名的临时地址展示 */
+  failImgObjectName?: string | null;
   logCount: number;
   startedAt: string;
   finishedAt: string | null;
@@ -55,11 +58,10 @@ export interface ExecutionFile {
   createTime: string;
 }
 
-/** 执行详情：主记录 + 日志明细 + 文件列表（§5.2） */
+/** 执行详情：主记录 + 日志明细（§5.2）；文件列表走独立的 /execution/files 接口 */
 export interface ExecutionDetail {
   execution: Execution;
   logs: ExecutionLog[];
-  files: ExecutionFile[];
 }
 
 /** 删除执行记录结果：包含实际级联清理的数据量 */

@@ -74,7 +74,12 @@ def test_logs_batch_limit_and_count(client, clean_db, uid):
 def test_finish_idempotent_first_wins(client, clean_db, uid):
     execution_id = create_execution(client, uid)["executionId"]
 
-    body = {"executionId": execution_id, "status": "FAILED", "remark": "元素不存在", "failImgUrl": "http://x/f.png"}
+    body = {
+        "executionId": execution_id,
+        "status": "FAILED",
+        "remark": "元素不存在",
+        "failImgObjectName": "rpa/f.png",  # 失败截图存 objectName（同录屏方案）
+    }
     assert client.post("/api/v1/executions/finish", json=body, headers=AUTH).status_code == 200
 
     # 重复 finish 以首次为准（§9.2）：拒绝
@@ -86,6 +91,7 @@ def test_finish_idempotent_first_wins(client, clean_db, uid):
     detail = client.get("/api/v1/execution/detail", params={"executionId": execution_id}).json()["data"]
     assert detail["execution"]["status"] == "FAILED"
     assert detail["execution"]["remark"] == "元素不存在"
+    assert detail["execution"]["failImgObjectName"] == "rpa/f.png"
     assert detail["execution"]["durationSeconds"] is not None  # 服务端补算
 
     # 不存在的执行
@@ -101,13 +107,17 @@ def test_finish_writes_record_files(client, clean_db, uid):
         "recordFiles": [
             {"type": "SCREEN_RECORDING_FILE", "mediaType": "VIDEO", "fileName": "a.mp4", "url": "http://x/a.mp4",
              "storage": "LAN", "fileSize": 1024},
-            {"type": "SUBMIT_RESULT_SCREENSHOT", "mediaType": "IMAGE", "fileName": "b.png", "url": "http://x/b.png"},
+            {"type": "SUBMIT_RESULT_SCREENSHOT", "mediaType": "IMAGE", "fileName": "b.png",
+             "objectName": "rpa/b.png", "storage": "OSS"},
         ],
     }
     assert client.post("/api/v1/executions/finish", json=body, headers=AUTH).status_code == 200
-    files = client.get("/api/v1/execution/detail", params={"executionId": execution_id}).json()["data"]["files"]
+    files = client.get("/api/v1/execution/files", params={"executionId": execution_id}).json()["data"]
     assert [f["fileName"] for f in files] == ["a.mp4", "b.png"]
     assert files[0]["storage"] == "LAN"
+    # 截图与录屏同方案：存 objectName，查看页经 /files/oss-url 换临时地址
+    assert files[1]["objectName"] == "rpa/b.png"
+    assert files[1]["url"] == ""
 
 
 def test_finish_accepts_object_name_and_local_video(client, clean_db, uid):
@@ -137,7 +147,7 @@ def test_finish_accepts_object_name_and_local_video(client, clean_db, uid):
     }
     resp = client.post("/api/v1/executions/finish", json=body, headers=AUTH)
     assert resp.status_code == 200, resp.text
-    files = client.get("/api/v1/execution/detail", params={"executionId": execution_id}).json()["data"]["files"]
+    files = client.get("/api/v1/execution/files", params={"executionId": execution_id}).json()["data"]
     assert files[0]["objectName"] == "original/ok.mp4"
     assert files[0]["url"] == ""
     assert files[1]["storage"] == "LOCAL"

@@ -62,11 +62,11 @@ def client():
 
 @pytest.fixture()
 def clean_db():
-    """每条用例前清空测试库的 RPA 日志业务表。"""
+    """每条用例前清空测试库的 RPA 日志业务表（2026-10 精简后仅 3 张）。"""
     from queue_control_platform.server.rpa_log.db import db_cursor
 
     with db_cursor() as cursor:
-        for table in ("rpa_execution_log", "rpa_execution_file", "rpa_execution", "rpa_device", "rpa_queue"):
+        for table in ("rpa_execution_log", "rpa_execution_file", "rpa_execution"):
             cursor.execute(f"TRUNCATE TABLE {table}")
     yield
 

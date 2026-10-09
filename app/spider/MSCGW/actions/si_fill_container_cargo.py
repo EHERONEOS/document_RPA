@@ -29,6 +29,7 @@ class SiFillContainerCargoMixin:
         for index, container in enumerate(containers):
             if self.splitOrConsolidatedBill:
                 self.si_shadow.click(selectors.FREE_ADD_CONTAINER_BTN, name="集装箱添加按钮")
+                time.sleep(1)
                 self.si_shadow.select_by_word(
                     selectors.CONTAINER_TYPE_INPUT,
                     container.get("containerType"),

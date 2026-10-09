@@ -1,7 +1,8 @@
 """Web 控制台查询接口（设计文档 §5.2）：GET params，无路径参数，`{code, message, data}` 包装。
 
 - ``/executions``        列表分页（消息ID/JobId 后缀模糊，队列/状态精确）
-- ``/execution/detail``  主记录 + 日志（seq DESC）+ 文件列表
+- ``/execution/detail``  主记录 + 日志（seq DESC）
+- ``/execution/files``   记录文件列表（与详情拆分，按需加载）
 - ``/executions/delete`` 批量删除主记录，事务级联清理日志和文件
 - ``/devices`` ``/queues``  维表列表 + 今日统计
 - ``/stats/summary``     首页统计卡（今日总数/成功/失败/运行中）
@@ -58,7 +59,7 @@ def list_executions(
 
 @router.get("/execution/detail")
 def execution_detail(executionId: int = Query(..., ge=1)) -> dict:
-    """详情：主记录 + 日志明细（seq DESC，从新到旧）+ 文件列表（§5.2 / §8.2）。"""
+    """详情：主记录 + 日志明细（seq DESC，从新到旧）（§5.2 / §8.2）；文件列表见 /execution/files。"""
     execution = repository.get_execution(executionId)
     if execution is None:
         raise HTTPException(status_code=404, detail=f"execution {executionId} not found")
@@ -66,9 +67,17 @@ def execution_detail(executionId: int = Query(..., ge=1)) -> dict:
         {
             "execution": execution,
             "logs": repository.list_logs(executionId),
-            "files": repository.list_files(executionId),
         }
     )
+
+
+@router.get("/execution/files")
+def execution_files(executionId: int = Query(..., ge=1)) -> dict:
+    """记录文件列表：与详情拆分的独立接口，记录文件弹窗按需加载，不附带主记录与日志。"""
+    execution = repository.get_execution(executionId)
+    if execution is None:
+        raise HTTPException(status_code=404, detail=f"execution {executionId} not found")
+    return ok(repository.list_files(executionId))
 
 
 class ExecutionDeleteRequest(BaseModel):

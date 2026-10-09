@@ -74,7 +74,8 @@ class ExecutionFinish(BaseModel):
     executionId: int
     status: Literal["SUCCESS", "FAILED", "TIMEOUT"]
     remark: str = ""
-    failImgUrl: str = Field(default="", max_length=1024)
+    failImgUrl: str = Field(default="", max_length=1024)  # 存量字段：旧版 Agent 上报的完整地址
+    failImgObjectName: str = Field(default="", max_length=512)  # 失败截图 objectName；查看页经 /files/oss-url 换临时地址
     finishedAt: Optional[str] = None
     durationSeconds: Optional[int] = None
     recordFiles: List[RecordFile] = []
@@ -134,6 +135,7 @@ def finish_execution(body: ExecutionFinish, _: None = Depends(verify_token)) -> 
         status=body.status,
         remark=body.remark,
         fail_img_url=body.failImgUrl,
+        fail_img_object_name=body.failImgObjectName,
         record_files=[
             {
                 "type": item.type,

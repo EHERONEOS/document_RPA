@@ -1,8 +1,11 @@
-"""幂等建表：RPA 日志模块 5 张 rpa_* 表（DDL 与设计文档 §4.1–4.4 一致）。
+"""幂等建表：RPA 日志模块 3 张 rpa_* 表（DDL 与设计文档 §4.1–4.3 一致）。
 
 可重复执行（CREATE TABLE IF NOT EXISTS），与平台 initialize_schema 同模式。
 目标库 = QUEUE_CONTROL_MYSQL_URL 指向的统一库（rpa_platform，库由
 queue_control_platform/docker/initdb/01-init.sql 初始化）。
+
+2026-10 表结构精简：删除 rpa_device / rpa_queue 两张维表——
+设备/队列统计页改由 rpa_execution 聚合推导，启动时自动清理旧表（数据为可再生的缓存）。
 """
 
 from __future__ import annotations
@@ -24,7 +27,8 @@ DDL_STATEMENTS: tuple[str, ...] = (
         business_code    VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '由队列名解析',
         status           VARCHAR(16)  NOT NULL DEFAULT 'RUNNING' COMMENT 'RUNNING/SUCCESS/FAILED/TIMEOUT/DEPRECATED',
         remark           TEXT         NULL COMMENT '失败原因 = TaskResult.remark（仅失败）',
-        fail_img_url     VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '失败截图完整地址 = TaskResult.img + OSS 前缀',
+        fail_img_url     VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '失败截图完整地址（存量字段；新记录改用 fail_img_object_name）',
+        fail_img_object_name VARCHAR(512) NOT NULL DEFAULT '' COMMENT '失败截图 OSS objectName；查看页经 /v1/file/url 换临时地址',
         log_count        INT          NOT NULL DEFAULT 0 COMMENT '日志条数（冗余计数）',
         started_at       DATETIME(6)  NOT NULL COMMENT '消息接收时间',
         finished_at      DATETIME(6)  NULL COMMENT '结果回传时间（终态写入）',
@@ -70,30 +74,13 @@ DDL_STATEMENTS: tuple[str, ...] = (
         INDEX idx_exec (execution_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RPA 执行记录文件'
     """,
-    # §4.4 设备维表
-    """
-    CREATE TABLE IF NOT EXISTS rpa_device (
-        device_name    VARCHAR(128) PRIMARY KEY,
-        os_info        VARCHAR(128) NOT NULL DEFAULT '',
-        last_seen_at   DATETIME(6)  NULL,
-        create_time    DATETIME(6)  NOT NULL,
-        update_time    DATETIME(6)  NOT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    """,
-    # §4.4 队列维表
-    """
-    CREATE TABLE IF NOT EXISTS rpa_queue (
-        queue_name     VARCHAR(128) PRIMARY KEY,
-        customer_code  VARCHAR(32)  NOT NULL DEFAULT '',
-        carrier_code   VARCHAR(32)  NOT NULL DEFAULT '',
-        business_code  VARCHAR(32)  NOT NULL DEFAULT '',
-        create_time    DATETIME(6)  NOT NULL,
-        update_time    DATETIME(6)  NOT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    """,
+    # §4.4 设备/队列维表已删除（2026-10）：统计改由 rpa_execution 聚合，见 repository.list_device_stats。
 )
 
-TABLE_NAMES = ("rpa_execution", "rpa_execution_log", "rpa_execution_file", "rpa_device", "rpa_queue")
+TABLE_NAMES = ("rpa_execution", "rpa_execution_log", "rpa_execution_file")
+
+# 2026-10 精简：设备/队列维表降级为派生数据，启动时清理旧表（幂等）。
+_DROP_LEGACY_TABLES: tuple[str, ...] = ("rpa_device", "rpa_queue")
 
 # CREATE TABLE IF NOT EXISTS 不会给存量表加列，启动时补齐 2026-09-30 的 objectName 直存字段。
 _FILE_COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
@@ -101,22 +88,51 @@ _FILE_COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("remark", "ALTER TABLE rpa_execution_file ADD COLUMN remark VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '上传失败等说明' AFTER object_name"),
 )
 
+# 2026-10-09：截图链路对齐录屏——失败截图不再存完整 url，改存 objectName 换临时地址。
+_EXECUTION_COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    (
+        "fail_img_object_name",
+        "ALTER TABLE rpa_execution ADD COLUMN fail_img_object_name VARCHAR(512) NOT NULL DEFAULT '' "
+        "COMMENT '失败截图 OSS objectName' AFTER fail_img_url",
+    ),
+)
 
-def _ensure_file_columns(cursor) -> None:
-    """给已存在的 rpa_execution_file 补 object_name / remark（幂等）。"""
+
+def _existing_columns(cursor, table: str) -> set[str]:
+    """查表已存在的列名集合（小写）。"""
     cursor.execute(
         """
         SELECT COLUMN_NAME FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rpa_execution_file'
-        """
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+        """,
+        (table,),
     )
-    existing = {
+    return {
         str(row.get("COLUMN_NAME") or row.get("column_name") or list(row.values())[0]).lower()
         for row in cursor.fetchall()
     }
+
+
+def _ensure_file_columns(cursor) -> None:
+    """给已存在的 rpa_execution_file 补 object_name / remark（幂等）。"""
+    existing = _existing_columns(cursor, "rpa_execution_file")
     for column, ddl in _FILE_COLUMN_MIGRATIONS:
         if column.lower() not in existing:
             cursor.execute(ddl)
+
+
+def _ensure_execution_columns(cursor) -> None:
+    """给已存在的 rpa_execution 补 fail_img_object_name（幂等）。"""
+    existing = _existing_columns(cursor, "rpa_execution")
+    for column, ddl in _EXECUTION_COLUMN_MIGRATIONS:
+        if column.lower() not in existing:
+            cursor.execute(ddl)
+
+
+def _drop_legacy_dimension_tables(cursor) -> None:
+    """删除 rpa_device / rpa_queue 旧维表（幂等；数据可由执行记录再推导）。"""
+    for table in _DROP_LEGACY_TABLES:
+        cursor.execute(f"DROP TABLE IF EXISTS {table}")
 
 
 def initialize_schema() -> list[str]:
@@ -125,6 +141,8 @@ def initialize_schema() -> list[str]:
         for ddl in DDL_STATEMENTS:
             cursor.execute(ddl)
         _ensure_file_columns(cursor)
+        _ensure_execution_columns(cursor)
+        _drop_legacy_dimension_tables(cursor)
         cursor.execute("SHOW TABLES")
         return sorted(row[list(row)[0]] for row in cursor.fetchall())
 

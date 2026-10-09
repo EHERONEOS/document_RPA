@@ -1,9 +1,10 @@
 import { Alert, Button, Empty, Image, Modal, Spin, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { fetchExecutionDetail, fetchOssFileUrl } from '../../api/executions';
+import { fetchExecutionFiles, fetchOssFileUrl } from '../../api/executions';
 import type { ExecutionFile } from '../../api/types';
 import StorageBadge from '../../components/StorageBadge';
 import { formatFileSize } from '../../utils/format';
+import './loglist.css';
 
 const TYPE_NAMES: Record<string, string> = {
   SCREEN_RECORDING_FILE: '屏幕录制',
@@ -25,7 +26,9 @@ interface PreviewFile extends ExecutionFile {
 /**
  * 记录文件弹窗（§8.2 / §9）：
  * 按 type 分组；图片 Image.PreviewGroup 缩略图；视频 <video controls>；
- * OSS 视频用 objectName 换临时地址；LOCAL 展示失败信息与本地路径。
+ * OSS 视频/截图均用 objectName 换临时地址（截图与录屏同方案）；
+ * LOCAL 展示失败信息与本地路径。
+ * 截图放大预览宽度固定为屏幕 60%（见 loglist.css .record-file-preview）。
  */
 export default function RecordFilesModal({ executionId, onClose }: RecordFilesModalProps) {
   const [loading, setLoading] = useState(false);
@@ -41,9 +44,9 @@ export default function RecordFilesModal({ executionId, onClose }: RecordFilesMo
     let cancelled = false;
     setLoading(true);
     setLoadError(false);
-    fetchExecutionDetail(executionId)
-      .then(async (data) => {
-        const resolved = await Promise.all(data.files.map(resolvePreview));
+    fetchExecutionFiles(executionId)
+      .then(async (files) => {
+        const resolved = await Promise.all(files.map(resolvePreview));
         if (!cancelled) setFiles(resolved);
       })
       .catch(() => {
@@ -104,11 +107,11 @@ export default function RecordFilesModal({ executionId, onClose }: RecordFilesMo
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
                   gap: 12,
                 }}
               >
-                <Image.PreviewGroup>
+                <Image.PreviewGroup preview={{ rootClassName: 'record-file-preview' }}>
                   {groupFiles.map((file) => (
                     <div
                       key={file.fileId}
@@ -190,15 +193,17 @@ async function resolvePreview(file: ExecutionFile): Promise<PreviewFile> {
   if (file.storage === 'LOCAL') {
     return { ...file, previewUrl: '', previewError: '' };
   }
-  if (file.url) {
-    return { ...file, previewUrl: file.url, previewError: '' };
-  }
+  // 新记录（录屏/截图）只存 objectName：优先换临时地址；
+  // 存量记录回退 url 完整地址（LAN 文件或旧版 OSS 直存）。
   if (file.objectName) {
     try {
       return { ...file, previewUrl: await fetchOssFileUrl(file.objectName), previewError: '' };
     } catch {
       return { ...file, previewUrl: '', previewError: `换取临时地址失败：${file.objectName}` };
     }
+  }
+  if (file.url) {
+    return { ...file, previewUrl: file.url, previewError: '' };
   }
   return { ...file, previewUrl: '', previewError: file.remark || '' };
 }

@@ -62,6 +62,30 @@ export async function createDevice(deviceId: string, displayName: string): Promi
   return platformHttp.post('/devices', { deviceId, displayName }) as never;
 }
 
+/** 删除设备（服务端级联清除绑定与命令，并通知 Agent 停止全部队列监听） */
+export async function deleteDevice(deviceId: string): Promise<unknown> {
+  return platformHttp.delete(`/devices/${encodeURIComponent(deviceId)}`) as never;
+}
+
+/** 修改设备 ID 与名称（ID 变更后机器侧需同步更新 QUEUE_CONTROL_DEVICE_ID 并重启） */
+export async function updateDevice(
+  deviceId: string,
+  newDeviceId: string,
+  displayName: string,
+): Promise<unknown> {
+  return platformHttp.put(`/devices/${encodeURIComponent(deviceId)}`, {
+    deviceId: newDeviceId,
+    displayName,
+  }) as never;
+}
+
+/** 查看设备明文令牌（历史设备由 Agent 心跳自动回填明文，回填前返回 null） */
+export async function fetchDeviceToken(
+  deviceId: string,
+): Promise<{ ok: boolean; deviceId: string; enrollmentToken: string | null }> {
+  return platformHttp.get(`/devices/${encodeURIComponent(deviceId)}/token`) as never;
+}
+
 /** 分配队列到设备（服务端会投递 assign 命令） */
 export async function assignQueue(deviceId: string, queueName: string): Promise<unknown> {
   return platformHttp.post(`/devices/${encodeURIComponent(deviceId)}/queues`, { queueName });

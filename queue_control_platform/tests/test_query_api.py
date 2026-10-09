@@ -40,6 +40,18 @@ def test_detail_not_found(client, clean_db):
     assert client.get("/api/v1/execution/detail", params={"executionId": 424242}).status_code == 404
 
 
+def test_detail_and_files_are_separate(client, clean_db, uid):
+    """详情与记录文件接口拆分：detail 只含主记录+日志，文件走 /execution/files 按需加载。"""
+    execution_id = create_execution(client, uid)["executionId"]
+
+    detail = client.get("/api/v1/execution/detail", params={"executionId": execution_id}).json()["data"]
+    assert set(detail.keys()) == {"execution", "logs"}, "详情接口不应再附带文件列表"
+
+    files = client.get("/api/v1/execution/files", params={"executionId": execution_id}).json()["data"]
+    assert files == []
+    assert client.get("/api/v1/execution/files", params={"executionId": 424242}).status_code == 404
+
+
 def test_devices_queues_stats(client, clean_db, uid):
     create_execution(client, uid, queue="QT_ZIM_SI", device="DEV-A")
     second = create_execution(client, f"{uid}X", queue="QT_MSC_SI", device="DEV-A")["executionId"]

@@ -16,6 +16,7 @@ import {
 import { PlusCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
+import { formatDateTime } from '../../utils/format';
 import {
   PlatformDashboard,
   PlatformQueueAssignment,
@@ -32,6 +33,21 @@ const STATE_COLORS: Record<string, string> = {
   STOPPED: 'default',
   UNREPORTED: 'default',
 };
+
+/** 队列状态 → 中文文案（对照 doc/队列状态维护架构说明.md §9） */
+const STATE_TEXT: Record<string, string> = {
+  RUNNING: '运行中',
+  STARTING: '启动中',
+  DRAINING: '排空中',
+  RESTARTING: '重启中',
+  PAUSED: '已暂停',
+  STOPPED: '已停止',
+  FAILED: '异常',
+  UNREPORTED: '未上报',
+  REMOVED: '已移除',
+};
+
+const stateText = (v: string) => STATE_TEXT[v] ?? v;
 
 /** 队列管理页：为设备分配/解除队列、投递暂停/恢复/重启命令，并以平铺列表直接查看全部队列 */
 export default function QueueManagePage() {
@@ -92,43 +108,49 @@ export default function QueueManagePage() {
       dataIndex: 'queueName',
       key: 'queueName',
       render: (v: string) => (
-        <span className="mono" style={{ fontWeight: 600 }}>
+        <span className="mono" style={{ fontWeight: 200 }}>
           {v}
         </span>
       ),
     },
-    { title: '所属设备', dataIndex: 'deviceId', key: 'deviceId', width: 140 },
+    { title: '所属设备', dataIndex: 'deviceId', key: 'deviceId', width: 300 },
     {
       title: '期望状态',
       dataIndex: 'desiredState',
       key: 'desiredState',
-      width: 100,
-      render: (v: string) => <Tag style={{ marginInlineEnd: 0 }}>{v}</Tag>,
+      width: 150,
+      render: (v: string) => (
+        <Tooltip title={v}>
+          <Tag style={{ marginInlineEnd: 0 }}>{stateText(v)}</Tag>
+        </Tooltip>
+      ),
     },
     {
       title: '实际状态',
       dataIndex: 'state',
       key: 'state',
-      width: 110,
+      width: 150,
       render: (v: string) => (
-        <Tag color={STATE_COLORS[v] ?? 'default'} style={{ marginInlineEnd: 0 }}>
-          {v}
-        </Tag>
+        <Tooltip title={v}>
+          <Tag color={STATE_COLORS[v] ?? 'default'} style={{ marginInlineEnd: 0 }}>
+            {stateText(v)}
+          </Tag>
+        </Tooltip>
       ),
     },
     {
       title: '进程 PID',
       dataIndex: 'pid',
       key: 'pid',
-      width: 90,
+      width: 150,
       render: (v: number | null) => <span className="mono">{v ?? '—'}</span>,
     },
     {
       title: '启动时间',
       dataIndex: 'startedAt',
       key: 'startedAt',
-      width: 170,
-      render: (v: string | null) => <span className="mono">{v ?? '—'}</span>,
+      width: 240,
+      render: (v: string | null) => <span className="mono">{formatDateTime(v)}</span>,
     },
     {
       title: '最近错误',
@@ -149,7 +171,7 @@ export default function QueueManagePage() {
     {
       title: '操作',
       key: 'ops',
-      width: 320,
+      width: 300,
       render: (_: unknown, q: PlatformQueueAssignment) => (
         <Space size={4}>
           <Popconfirm

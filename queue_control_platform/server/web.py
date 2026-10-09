@@ -67,6 +67,55 @@ def create_app(repository, bus, processor=None) -> FastAPI:
         except ValueError as exc:
             return _conflict(str(exc))
 
+    @app.put("/api/devices/{device_id}")
+    # 修改设备 ID 与名称；ID 变更会同步子表，但机器侧 Agent 需更新 QUEUE_CONTROL_DEVICE_ID。
+    def update_device(device_id: str, payload: dict | None = Body(default=None)):
+        try:
+            payload = payload or {}
+            return {
+                "ok": True,
+                **repository.update_device(
+                    device_id,
+                    str(payload.get("deviceId") or ""),
+                    str(payload.get("displayName") or ""),
+                ),
+            }
+        except ValueError as exc:
+            return _conflict(str(exc))
+
+    @app.get("/api/devices/{device_id}/token")
+    # 查看设备明文令牌；明文启用前的历史设备返回空，需先重置。
+    def get_device_token(device_id: str):
+        try:
+            return {"ok": True, **repository.get_device_token(device_id)}
+        except ValueError as exc:
+            return _conflict(str(exc))
+
+    @app.post("/api/devices/{device_id}/token")
+    # 重置设备令牌并返回新明文，旧令牌立即失效。
+    def reset_device_token(device_id: str):
+        try:
+            return {"ok": True, **repository.reset_device_token(device_id)}
+        except ValueError as exc:
+            return _conflict(str(exc))
+
+    @app.delete("/api/devices/{device_id}")
+    # 删除设备并级联清除其队列绑定与命令记录，随后通知 Agent 停止全部队列监听。
+    def delete_device(device_id: str):
+        try:
+            unassigned_queues = repository.delete_device(device_id)
+            # 命令走 Redis Stream，不依赖数据库行；设备删除后 Agent 回执会被事件流安全丢弃。
+            for queue_name in unassigned_queues:
+                bus.send_command(
+                    device_id,
+                    {"action": "unassign", "queueName": queue_name},
+                )
+            return JSONResponse(
+                {"ok": True, "unassignedQueues": unassigned_queues}, status_code=200
+            )
+        except ValueError as exc:
+            return _conflict(str(exc))
+
     @app.post("/api/devices/{device_id}/queues")
     # 绑定一个队列到设备，并向该设备投递启动监听命令。
     def assign_queue(device_id: str, payload: dict | None = Body(default=None)):

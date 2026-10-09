@@ -121,13 +121,13 @@ class Logger:
         """打印 ERROR 日志。"""
         self.log(message, level="ERROR")
 
-    def finish_execution(self, *, success, remark="", fail_img="", record_files=None):
+    def finish_execution(self, *, success, remark="", fail_img_object_name="", record_files=None):
         """日志服务终态上报（§6.4）；无执行会话时为 no-op。"""
         from app.core.logging.log_session import finish_execution as _finish_execution
 
         _finish_execution(
             success=success,
             remark=remark,
-            fail_img=fail_img,
+            fail_img_object_name=fail_img_object_name,
             record_files=record_files,
         )

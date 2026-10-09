@@ -1,4 +1,4 @@
-"""数据访问层：执行记录 / 日志明细 / 记录文件 / 设备队列维表（设计文档 §4、§5）。
+"""数据访问层：执行记录 / 日志明细 / 记录文件（设计文档 §4、§5；2026-10 起设备/队列统计由本模块聚合推导）。
 
 时间约定：对外字段一律 ``yyyy-MM-dd HH:mm:ss`` 字符串（§5.2，服务端格式化），
 入库使用 MySQL DATETIME(3/6)。
@@ -58,7 +58,7 @@ def create_execution(
     carrier_code: str = "",
     business_code: str = "",
 ) -> int:
-    """创建一条新的执行记录（每次消费独立成条，不按消息ID去重），顺带 upsert 设备与队列维表。
+    """创建一条新的执行记录（每次消费独立成条，不按消息ID去重）。
 
     2026-09 调整（用户决定）：取消 (rpa_message_id, queue_name) 唯一键——相同消息
     再次消费时插入新记录，各自持有独立的日志与终态；单条记录的 finish 幂等
@@ -66,6 +66,9 @@ def create_execution(
 
     2026-09 调整：相同消息ID重新生成记录时，把其他 RUNNING 记录置为 DEPRECATED，
     保证同一消息同一时刻只有最新一条 RUNNING。
+
+    2026-10 调整：设备/队列维表已删除，统计页改由本表聚合推导
+    （见 list_device_stats / list_queue_stats），上报时不再维护维表。
     """
     started = parse_datetime(started_at)
     now = datetime.now()  # 统一用服务端应用时钟：MySQL 容器可能是 UTC，NOW() 会差时区
@@ -95,29 +98,6 @@ def create_execution(
             WHERE rpa_message_id = %s AND id <> %s AND status = 'RUNNING'
             """,
             (deprecated_at, deprecated_at, deprecated_at, rpa_message_id, execution_id),
-        )
-
-        # 维表 upsert：无需注册流程（§4.4）
-        cur.execute(
-            """
-            INSERT INTO rpa_device (device_name, last_seen_at, create_time, update_time)
-            VALUES (%s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE last_seen_at = VALUES(last_seen_at), update_time = VALUES(update_time)
-            """,
-            (device_name, now, now, now),
-        )
-        cur.execute(
-            """
-            INSERT INTO rpa_queue
-                (queue_name, customer_code, carrier_code, business_code, create_time, update_time)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE
-                customer_code = VALUES(customer_code),
-                carrier_code  = VALUES(carrier_code),
-                business_code = VALUES(business_code),
-                update_time   = VALUES(update_time)
-            """,
-            (queue_name, customer_code, carrier_code, business_code, now, now),
         )
     return execution_id
 
@@ -200,6 +180,7 @@ def finish_execution(
     status: str,
     remark: str = "",
     fail_img_url: str = "",
+    fail_img_object_name: str = "",
     record_files: Iterable[dict] = (),
     finished_at: str | datetime | None = None,
     duration_seconds: int | None = None,
@@ -235,11 +216,12 @@ def finish_execution(
         cur.execute(
             """
             UPDATE rpa_execution
-            SET status = %s, remark = %s, fail_img_url = %s,
+            SET status = %s, remark = %s, fail_img_url = %s, fail_img_object_name = %s,
                 finished_at = %s, duration_seconds = %s, update_time = %s
             WHERE id = %s AND status = 'RUNNING'
             """,
-            (status, remark or None, fail_img_url or "", finished, int(duration_seconds), datetime.now(), execution_id),
+            (status, remark or None, fail_img_url or "", fail_img_object_name or "", finished,
+             int(duration_seconds), datetime.now(), execution_id),
         )
         if cur.rowcount == 0:  # 并发下被抢先 finish
             return {"result": "ALREADY_FINISHED"}
@@ -323,6 +305,7 @@ def _format_execution_row(row: dict) -> dict:
         "status": row["status"],
         "remark": row["remark"],
         "failImgUrl": row["fail_img_url"],
+        "failImgObjectName": row["fail_img_object_name"] or "",
         "logCount": int(row["log_count"]),
         "startedAt": format_datetime(row["started_at"]),
         "finishedAt": format_datetime(row["finished_at"]),
@@ -394,9 +377,10 @@ def list_files(execution_id: int) -> list[dict]:
 
 # ---------------------------------------------------------------------------
 # 维表统计（§5.2 / §8.3：今日执行、成功率、平均耗时）
+# 2026-10 起 rpa_device / rpa_queue 维表删除，统计直接从 rpa_execution 聚合推导。
 # ---------------------------------------------------------------------------
 
-_ONLINE_WINDOW = timedelta(minutes=5)  # 最近 5 分钟有心跳视为在线
+_ONLINE_WINDOW = timedelta(minutes=5)  # 最近 5 分钟有执行活动视为在线
 
 
 def _success_rate(success: int | None, failed: int | None) -> float | None:
@@ -407,28 +391,31 @@ def _success_rate(success: int | None, failed: int | None) -> float | None:
 
 
 def list_device_stats(today_start: datetime) -> list[dict]:
-    """设备列表 + 统计：今日执行 / 成功率 / 绑定队列数 / 最近心跳 / 在线状态。"""
+    """设备列表 + 统计：今日执行 / 成功率 / 队列数 / 最近活动 / 在线状态。
+
+    设备清单 = 历史上报过执行记录的 device_name（等价于原 rpa_device 维表的 upsert 结果）；
+    lastSeenAt = 最近一次执行记录创建时间（原维表 last_seen_at 同口径）。
+    """
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT d.device_name, d.os_info, d.last_seen_at,
-                   COUNT(e.id)                            AS today_total,
-               SUM(e.status = 'SUCCESS')               AS today_success,
-               SUM(e.status IN ('FAILED', 'TIMEOUT'))  AS today_failed,
-               COUNT(DISTINCT e.queue_name)            AS queue_count
-            FROM rpa_device d
-            LEFT JOIN rpa_execution e
-                   ON e.device_name = d.device_name AND e.create_time >= %s
-            GROUP BY d.device_name, d.os_info, d.last_seen_at
-            ORDER BY d.last_seen_at DESC
+            SELECT device_name,
+                   MAX(create_time) AS last_seen_at,
+                   SUM(create_time >= %s) AS today_total,
+                   SUM(create_time >= %s AND status = 'SUCCESS') AS today_success,
+                   SUM(create_time >= %s AND status IN ('FAILED', 'TIMEOUT')) AS today_failed,
+                   COUNT(DISTINCT CASE WHEN create_time >= %s THEN queue_name END) AS queue_count
+            FROM rpa_execution
+            GROUP BY device_name
+            ORDER BY last_seen_at DESC
             """,
-            (today_start,),
+            (today_start, today_start, today_start, today_start),
         )
         now = datetime.now()
         return [
             {
                 "deviceName": row["device_name"],
-                "osInfo": row["os_info"],
+                "osInfo": "",  # 原维表 os_info 从未实际写入，保留字段兼容前端
                 "boundQueueCount": int(row["queue_count"] or 0),
                 "todayCount": int(row["today_total"] or 0),
                 "successRate": _success_rate(row["today_success"], row["today_failed"]),
@@ -440,23 +427,27 @@ def list_device_stats(today_start: datetime) -> list[dict]:
 
 
 def list_queue_stats(today_start: datetime) -> list[dict]:
-    """队列列表 + 统计：今日执行 / 成功率 / 平均耗时（终态行）。"""
+    """队列列表 + 统计：今日执行 / 成功率 / 平均耗时（今日终态行）。
+
+    三段业务编码取该队列执行记录的 MAX（编码由队列名确定性解析，同队列恒定）。
+    """
     with db_cursor() as cur:
         cur.execute(
             """
-            SELECT q.queue_name, q.customer_code, q.carrier_code, q.business_code,
-                   COUNT(e.id)                           AS today_total,
-               SUM(e.status = 'SUCCESS')            AS today_success,
-               SUM(e.status IN ('FAILED', 'TIMEOUT')) AS today_failed,
-               AVG(CASE WHEN e.status IN ('SUCCESS', 'FAILED', 'TIMEOUT')
-                        THEN e.duration_seconds END)   AS avg_duration
-            FROM rpa_queue q
-            LEFT JOIN rpa_execution e
-                   ON e.queue_name = q.queue_name AND e.create_time >= %s
-            GROUP BY q.queue_name, q.customer_code, q.carrier_code, q.business_code
-            ORDER BY today_total DESC, q.queue_name
+            SELECT queue_name,
+                   MAX(customer_code) AS customer_code,
+                   MAX(carrier_code) AS carrier_code,
+                   MAX(business_code) AS business_code,
+                   SUM(create_time >= %s) AS today_total,
+                   SUM(create_time >= %s AND status = 'SUCCESS') AS today_success,
+                   SUM(create_time >= %s AND status IN ('FAILED', 'TIMEOUT')) AS today_failed,
+                   AVG(CASE WHEN create_time >= %s AND status IN ('SUCCESS', 'FAILED', 'TIMEOUT')
+                            THEN duration_seconds END) AS avg_duration
+            FROM rpa_execution
+            GROUP BY queue_name
+            ORDER BY today_total DESC, queue_name
             """,
-            (today_start,),
+            (today_start, today_start, today_start, today_start),
         )
         rows = []
         for row in cur.fetchall():

@@ -37,7 +37,7 @@ def _as_iso(value: datetime | None) -> str | None:
 
 
 class MySQLControlRepository:
-    """保存设备、队列分配、命令和最新运行状态。"""
+    """保存设备、队列分配（含观测状态）、命令和事件流水。"""
 
     # 保存 MySQL 连接地址，连接在实际查询时按需创建。
     def __init__(self, mysql_url: str):
@@ -81,6 +81,19 @@ class MySQLControlRepository:
         finally:
             connection.close()
 
+    # 2026-10 表结构精简：queue_statuses 的观测列并入 queue_assignments，
+    # 一行一个队列同时持有"中心意图（desired_state）"与"设备观测值（actual_*）"。
+    # JSON 列无法设字面量默认值，观测列全部可空，由应用层保证语义。
+    _REPORTED_COLUMNS: tuple[tuple[str, str], ...] = (
+        ("actual_state", "ALTER TABLE queue_assignments ADD COLUMN actual_state VARCHAR(32) NOT NULL DEFAULT 'UNREPORTED' AFTER assignment_version"),
+        ("process_id", "ALTER TABLE queue_assignments ADD COLUMN process_id BIGINT NULL AFTER actual_state"),
+        ("started_at", "ALTER TABLE queue_assignments ADD COLUMN started_at DATETIME(6) NULL AFTER process_id"),
+        ("stopped_at", "ALTER TABLE queue_assignments ADD COLUMN stopped_at DATETIME(6) NULL AFTER started_at"),
+        ("last_error", "ALTER TABLE queue_assignments ADD COLUMN last_error TEXT NULL AFTER stopped_at"),
+        ("restart_reason", "ALTER TABLE queue_assignments ADD COLUMN restart_reason JSON NULL AFTER last_error"),
+        ("observed_at", "ALTER TABLE queue_assignments ADD COLUMN observed_at DATETIME(6) NULL AFTER restart_reason"),
+    )
+
     # 创建平台所需全部表和索引，可重复安全执行。
     def initialize_schema(self) -> None:
         statements = (
@@ -89,6 +102,7 @@ class MySQLControlRepository:
                 device_id VARCHAR(128) PRIMARY KEY,
                 display_name VARCHAR(255) NOT NULL,
                 token_hash CHAR(64) NOT NULL,
+                token VARCHAR(128) NULL,
                 status VARCHAR(32) NOT NULL DEFAULT 'OFFLINE',
                 last_seen_at DATETIME(6) NULL,
                 created_at DATETIME(6) NOT NULL,
@@ -101,29 +115,18 @@ class MySQLControlRepository:
                 device_id VARCHAR(128) NOT NULL,
                 desired_state VARCHAR(32) NOT NULL DEFAULT 'RUNNING',
                 assignment_version BIGINT NOT NULL DEFAULT 1,
+                actual_state VARCHAR(32) NOT NULL DEFAULT 'UNREPORTED',
+                process_id BIGINT NULL,
+                started_at DATETIME(6) NULL,
+                stopped_at DATETIME(6) NULL,
+                last_error TEXT NULL,
+                restart_reason JSON NULL,
+                observed_at DATETIME(6) NULL,
                 created_at DATETIME(6) NOT NULL,
                 updated_at DATETIME(6) NOT NULL,
                 CONSTRAINT fk_assignment_device FOREIGN KEY (device_id)
                     REFERENCES devices(device_id) ON DELETE CASCADE,
                 INDEX idx_assignment_device (device_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS queue_statuses (
-                device_id VARCHAR(128) NOT NULL,
-                queue_name VARCHAR(255) NOT NULL,
-                actual_state VARCHAR(32) NOT NULL,
-                desired_state VARCHAR(32) NOT NULL,
-                process_id BIGINT NULL,
-                started_at DATETIME(6) NULL,
-                stopped_at DATETIME(6) NULL,
-                last_error TEXT NOT NULL,
-                restart_reason JSON NOT NULL,
-                observed_at DATETIME(6) NOT NULL,
-                PRIMARY KEY (device_id, queue_name),
-                CONSTRAINT fk_status_device FOREIGN KEY (device_id)
-                    REFERENCES devices(device_id) ON DELETE CASCADE,
-                INDEX idx_status_queue (queue_name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """,
             """
@@ -157,22 +160,73 @@ class MySQLControlRepository:
         with self._transaction() as cursor:
             for statement in statements:
                 cursor.execute(statement)
-            # 旧库保留该列及其历史数据，但状态上报不再写入源码变更信息。
-            cursor.execute(
-                """
-                SELECT is_nullable FROM information_schema.columns
-                WHERE table_schema = DATABASE() AND table_name = 'queue_statuses'
-                  AND column_name = 'source_changes'
-                """
-            )
-            legacy_column = cursor.fetchone()
-            if legacy_column is not None:
-                # information_schema 在不同 MySQL/连接配置下可能返回大小写不同的列名。
-                is_nullable = legacy_column.get("IS_NULLABLE", legacy_column.get("is_nullable"))
-                if is_nullable == "NO":
-                    cursor.execute(
-                        "ALTER TABLE queue_statuses MODIFY COLUMN source_changes JSON NULL"
-                    )
+            self._ensure_device_token_column(cursor)
+            self._merge_legacy_queue_statuses(cursor)
+
+    # 2026-10 新增：设备令牌明文列（用户选择"可随时查看"，替代仅创建时展示一次）。
+    # 旧库启动时自动补列；历史设备的明文为空（哈希不可逆），可通过重置令牌补齐。
+    _DEVICE_TOKEN_COLUMN: tuple[tuple[str, str], ...] = (
+        ("token", "ALTER TABLE devices ADD COLUMN token VARCHAR(128) NULL AFTER token_hash"),
+    )
+
+    # 旧库迁移：devices 补明文令牌列（幂等）。
+    def _ensure_device_token_column(self, cursor) -> None:
+        existing = self._existing_columns(cursor, "devices")
+        for column, ddl in self._DEVICE_TOKEN_COLUMN:
+            if column.lower() not in existing:
+                cursor.execute(ddl)
+
+    # 旧库迁移：存量 queue_assignments 补观测列；queue_statuses 搬数据后删除（幂等）。
+    def _merge_legacy_queue_statuses(self, cursor) -> None:
+        existing = self._existing_columns(cursor, "queue_assignments")
+        for column, ddl in self._REPORTED_COLUMNS:
+            if column.lower() not in existing:
+                cursor.execute(ddl)
+        if not self._table_exists(cursor, "queue_statuses"):
+            return
+        cursor.execute(
+            """
+            UPDATE queue_assignments a
+            JOIN queue_statuses s
+              ON s.device_id = a.device_id AND s.queue_name = a.queue_name
+            SET a.actual_state = s.actual_state,
+                a.process_id = s.process_id,
+                a.started_at = s.started_at,
+                a.stopped_at = s.stopped_at,
+                a.last_error = s.last_error,
+                a.restart_reason = s.restart_reason,
+                a.observed_at = s.observed_at
+            """
+        )
+        cursor.execute("DROP TABLE queue_statuses")
+
+    # 查表已存在的列名集合（小写），用于幂等补列。
+    @staticmethod
+    def _existing_columns(cursor, table: str) -> set[str]:
+        cursor.execute(
+            """
+            SELECT COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+            """,
+            (table,),
+        )
+        return {
+            str(row.get("COLUMN_NAME") or row.get("column_name") or list(row.values())[0]).lower()
+            for row in cursor.fetchall()
+        }
+
+    # 判断当前库是否存在指定表。
+    @staticmethod
+    def _table_exists(cursor, table: str) -> bool:
+        cursor.execute(
+            """
+            SELECT 1 FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+            LIMIT 1
+            """,
+            (table,),
+        )
+        return cursor.fetchone() is not None
 
     # 创建一个可在页面上管理的设备，并返回仅显示一次的注册令牌。
     def create_device(self, device_id: str, display_name: str) -> dict[str, str]:
@@ -186,16 +240,103 @@ class MySQLControlRepository:
                 cursor.execute(
                     """
                     INSERT INTO devices
-                    (device_id, display_name, token_hash, status, created_at, updated_at)
-                    VALUES (%s, %s, %s, 'OFFLINE', %s, %s)
+                    (device_id, display_name, token_hash, token, status, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, 'OFFLINE', %s, %s)
                     """,
-                    (normalized_id, display_name.strip(), self._hash_token(token), now, now),
+                    (normalized_id, display_name.strip(), self._hash_token(token), token, now, now),
                 )
         except Exception as exc:
             if "Duplicate entry" in str(exc):
                 raise ValueError(f"设备 ID 已存在：{normalized_id}") from exc
             raise
         return {"deviceId": normalized_id, "enrollmentToken": token}
+
+    # 修改设备 ID 与名称：同一事务内显式同步子表 device_id（外键无 ON UPDATE，
+    # 且经旧结构迁移的库可能缺失外键），注册令牌保持不变。
+    def update_device(self, device_id: str, new_device_id: str, display_name: str) -> dict[str, Any]:
+        normalized_old = self._normalize_device_id(device_id)
+        normalized_new = self._normalize_device_id(new_device_id)
+        normalized_name = display_name.strip()
+        if not normalized_name:
+            raise ValueError("设备名称不能为空")
+        try:
+            with self._transaction() as cursor:
+                self._require_device(cursor, normalized_old)
+                if normalized_new != normalized_old:
+                    cursor.execute(
+                        "SELECT 1 FROM devices WHERE device_id = %s", (normalized_new,)
+                    )
+                    if cursor.fetchone() is not None:
+                        raise ValueError(f"设备 ID 已存在：{normalized_new}")
+                    # 子表在前、主表在后；外键检查临时关闭，事务提交时数据已一致。
+                    cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+                    for table in ("queue_assignments", "queue_commands", "queue_events"):
+                        cursor.execute(
+                            f"UPDATE {table} SET device_id = %s WHERE device_id = %s",
+                            (normalized_new, normalized_old),
+                        )
+                    cursor.execute(
+                        "UPDATE devices SET device_id = %s WHERE device_id = %s",
+                        (normalized_new, normalized_old),
+                    )
+                cursor.execute(
+                    """
+                    UPDATE devices SET display_name = %s, updated_at = %s
+                    WHERE device_id = %s
+                    """,
+                    (normalized_name, _utcnow(), normalized_new),
+                )
+        except Exception as exc:
+            if "Duplicate entry" in str(exc):
+                raise ValueError(f"设备 ID 已存在：{normalized_new}") from exc
+            raise
+        return {"deviceId": normalized_new, "displayName": normalized_name}
+
+    # 返回设备明文令牌；明文启用前的历史设备（且未重置过）返回 None。
+    def get_device_token(self, device_id: str) -> dict[str, str | None]:
+        normalized_id = self._normalize_device_id(device_id)
+        with self._transaction() as cursor:
+            cursor.execute(
+                "SELECT token FROM devices WHERE device_id = %s", (normalized_id,)
+            )
+            row = cursor.fetchone()
+        if row is None:
+            raise ValueError(f"未注册设备：{normalized_id}")
+        return {"deviceId": normalized_id, "enrollmentToken": row["token"] or None}
+
+    # 重置设备令牌：哈希与明文一并更新，旧令牌立即失效。
+    def reset_device_token(self, device_id: str) -> dict[str, str]:
+        normalized_id = self._normalize_device_id(device_id)
+        token = secrets.token_urlsafe(32)
+        with self._transaction() as cursor:
+            self._require_device(cursor, normalized_id)
+            cursor.execute(
+                """
+                UPDATE devices SET token_hash = %s, token = %s, updated_at = %s
+                WHERE device_id = %s
+                """,
+                (self._hash_token(token), token, _utcnow(), normalized_id),
+            )
+        return {"deviceId": normalized_id, "enrollmentToken": token}
+
+    # 删除设备及其全部运行数据（绑定、命令、事件流水）；
+    # 返回删除前绑定的队列名，供调用方向 Agent 投递停止监听命令。
+    # 子表显式删除而非依赖外键级联：经旧结构迁移的库可能缺失 FK 约束。
+    def delete_device(self, device_id: str) -> list[str]:
+        normalized_id = self._normalize_device_id(device_id)
+        with self._transaction() as cursor:
+            self._require_device(cursor, normalized_id)
+            cursor.execute(
+                "SELECT queue_name FROM queue_assignments WHERE device_id = %s ORDER BY queue_name",
+                (normalized_id,),
+            )
+            queue_names = [row["queue_name"] for row in cursor.fetchall()]
+            for table in ("queue_assignments", "queue_commands", "queue_events"):
+                cursor.execute(
+                    f"DELETE FROM {table} WHERE device_id = %s", (normalized_id,)
+                )
+            cursor.execute("DELETE FROM devices WHERE device_id = %s", (normalized_id,))
+        return queue_names
 
     # 返回设备及其最后心跳，供维护页面展示。
     def list_devices(self) -> list[dict[str, Any]]:
@@ -296,7 +437,7 @@ class MySQLControlRepository:
             "assignmentVersion": assignment["assignment_version"],
         }
 
-    # 解除队列与设备的绑定，并删除该设备的最新状态快照。
+    # 解除队列与设备的绑定（观测状态随绑定行一并消失，无需单独清理）。
     def unassign_queue(self, device_id: str, queue_name: str) -> None:
         normalized_id = self._normalize_device_id(device_id)
         normalized_queue = self._normalize_queue_name(queue_name)
@@ -310,10 +451,6 @@ class MySQLControlRepository:
             )
             if cursor.rowcount == 0:
                 raise ValueError(f"设备 {normalized_id} 未维护队列 {normalized_queue}")
-            cursor.execute(
-                "DELETE FROM queue_statuses WHERE device_id = %s AND queue_name = %s",
-                (normalized_id, normalized_queue),
-            )
 
     # 更新已分配队列的期望状态，供 Agent 重连同步时恢复暂停意图。
     def set_assignment_desired_state(
@@ -396,6 +533,15 @@ class MySQLControlRepository:
         now = _utcnow()
         with self._transaction() as cursor:
             self._require_device(cursor, device_id, token)
+            # 历史设备明文回填：令牌校验通过且明文为空时用上报令牌补齐
+            # （哈希不可逆，明文功能启用前创建的设备仅能通过在线 Agent 上报补齐）。
+            cursor.execute(
+                """
+                UPDATE devices SET token = %s
+                WHERE device_id = %s AND (token IS NULL OR token = '')
+                """,
+                (token, device_id),
+            )
             cursor.execute(
                 """
                 INSERT IGNORE INTO queue_events
@@ -414,24 +560,22 @@ class MySQLControlRepository:
                 (now, now, device_id),
             )
             if event_type in {"status", "heartbeat"}:
-                self._upsert_statuses(cursor, device_id, event.get("queues") or [], now)
+                self._update_reported_states(cursor, device_id, event.get("queues") or [], now)
             elif event_type == "command_result":
                 self._update_command_result(cursor, device_id, event, now)
         return True
 
-    # 返回维护页面需要的设备、绑定队列和最新运行状态。
+    # 返回维护页面需要的设备、绑定队列和最新运行状态（单表查询，无联表）。
     def dashboard(self) -> dict[str, list[dict[str, Any]]]:
         devices = self.list_devices()
         with self._transaction() as cursor:
             cursor.execute(
                 """
-                SELECT a.device_id, a.queue_name, a.desired_state, a.assignment_version,
-                       s.actual_state, s.process_id, s.started_at, s.stopped_at,
-                       s.last_error, s.restart_reason, s.observed_at
-                FROM queue_assignments a
-                LEFT JOIN queue_statuses s
-                  ON s.device_id = a.device_id AND s.queue_name = a.queue_name
-                ORDER BY a.device_id, a.queue_name
+                SELECT device_id, queue_name, desired_state, assignment_version,
+                       actual_state, process_id, started_at, stopped_at,
+                       last_error, restart_reason, observed_at
+                FROM queue_assignments
+                ORDER BY device_id, queue_name
                 """
             )
             rows = cursor.fetchall()
@@ -478,58 +622,41 @@ class MySQLControlRepository:
         if cursor.fetchone() is None:
             raise ValueError(f"设备 {device_id} 未维护队列 {queue_name}")
 
-    # 将 Agent 上报的每个队列状态写入最新状态表。
-    def _upsert_statuses(
+    # 将 Agent 上报的每个队列观测状态写回其绑定行（UPDATE 天然跳过未绑定队列）。
+    def _update_reported_states(
         self, cursor, device_id: str, queues: list[dict[str, Any]], observed_at: datetime
     ) -> None:
         reported_queue_names = set()
         for queue in queues:
             queue_name = self._normalize_queue_name(str(queue.get("name") or ""))
             reported_queue_names.add(queue_name)
-            cursor.execute(
-                """
-                SELECT 1 FROM queue_assignments
-                WHERE device_id = %s AND queue_name = %s
-                """,
-                (device_id, queue_name),
-            )
-            if cursor.fetchone() is None:
-                continue
-            # Agent 上报只更新观测状态，不能反写中心控制意图。
+            # Agent 上报只更新观测列，绝不能反写中心控制意图 desired_state。
             # 否则 resume/pause 后紧随而来的旧心跳会把 desired_state 盖回去，
             # 随后 heartbeat 触发的 sync 又会把设备端打回原状态。
             cursor.execute(
                 """
-                INSERT INTO queue_statuses
-                (device_id, queue_name, actual_state, desired_state, process_id, started_at,
-                 stopped_at, last_error, restart_reason, observed_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    actual_state = VALUES(actual_state), desired_state = VALUES(desired_state),
-                    process_id = VALUES(process_id), started_at = VALUES(started_at),
-                    stopped_at = VALUES(stopped_at), last_error = VALUES(last_error),
-                    restart_reason = VALUES(restart_reason),
-                    observed_at = VALUES(observed_at)
+                UPDATE queue_assignments
+                SET actual_state = %s, process_id = %s, started_at = %s,
+                    stopped_at = %s, last_error = %s, restart_reason = %s,
+                    observed_at = %s
+                WHERE device_id = %s AND queue_name = %s
                 """,
                 (
-                    device_id,
-                    queue_name,
                     str(queue.get("state") or "UNREPORTED"),
-                    str(queue.get("desiredState") or "RUNNING"),
                     queue.get("pid"),
                     self._parse_time(queue.get("startedAt")),
                     self._parse_time(queue.get("stoppedAt")),
                     str(queue.get("lastError") or ""),
                     _serialize(queue.get("restartReason") or []),
                     observed_at,
+                    device_id,
+                    queue_name,
                 ),
             )
-        self._mark_missing_statuses(
-            cursor, device_id, reported_queue_names, observed_at
-        )
+        self._mark_unreported(cursor, device_id, reported_queue_names, observed_at)
 
-    # 将完整快照中缺失的旧状态标记为等待 Agent 恢复分配，避免展示过期 PID。
-    def _mark_missing_statuses(
+    # 将完整快照中缺失的绑定队列标记为等待 Agent 恢复分配，避免展示过期 PID。
+    def _mark_unreported(
         self,
         cursor,
         device_id: str,
@@ -540,18 +667,15 @@ class MySQLControlRepository:
         missing_condition = ""
         if reported_queue_names:
             placeholders = ", ".join(["%s"] * len(reported_queue_names))
-            missing_condition = f" AND s.queue_name NOT IN ({placeholders})"
+            missing_condition = f" AND queue_name NOT IN ({placeholders})"
             parameters.extend(sorted(reported_queue_names))
         cursor.execute(
             f"""
-            UPDATE queue_statuses s
-            INNER JOIN queue_assignments a
-              ON a.device_id = s.device_id AND a.queue_name = s.queue_name
-            SET s.actual_state = 'UNREPORTED', s.process_id = NULL, s.started_at = NULL,
-                s.stopped_at = NULL, s.last_error = '等待设备同步队列分配',
-                s.restart_reason = JSON_ARRAY(),
-                s.observed_at = %s
-            WHERE s.device_id = %s{missing_condition}
+            UPDATE queue_assignments
+            SET actual_state = 'UNREPORTED', process_id = NULL, started_at = NULL,
+                stopped_at = NULL, last_error = '等待设备同步队列分配',
+                restart_reason = JSON_ARRAY(), observed_at = %s
+            WHERE device_id = %s{missing_condition}
             """,
             parameters,
         )

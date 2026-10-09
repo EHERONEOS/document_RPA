@@ -2,7 +2,8 @@ services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: queue_control
+      # 2026-10 起：默认库即统一库（旧默认 queue_control 库已废弃，清理见 cleanup_legacy_databases.sql）
+      MYSQL_DATABASE: rpa_platform
       MYSQL_USER: queue_control
       MYSQL_PASSWORD: queue_control
       MYSQL_ROOT_PASSWORD: root_password
@@ -10,7 +11,7 @@ services:
       - "3306:3306"
     volumes:
       - queue-control-mysql:/var/lib/mysql
-      # T0.1: rpa_log 库初始化（仅空数据卷首次初始化时执行；老数据卷需手工补跑该 SQL）
+      # 统一库初始化（仅空数据卷首次初始化时执行；老数据卷由服务启动时的幂等迁移补齐）
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
