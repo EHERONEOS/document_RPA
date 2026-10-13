@@ -147,8 +147,12 @@ class BaseRpaTask:
             if self.context.enable_result_publish:
                 screenshot_img = self._upload_error_screenshot()
         finally:
-            # 收集录屏文件
-            execute_record_files = self._collect_record_files()
+            # 收集录屏文件；任务失败时不回传过程文件，仅清理本地文件
+            if success:
+                execute_record_files = self._collect_record_files()
+            else:
+                self._discard_record_files()
+                execute_record_files = []
             # 日志服务终态上报（§6.4）：无会话时 no-op，内部全降级，不影响回传
             self.logger.finish_execution(
                 success=success,
@@ -244,6 +248,32 @@ class BaseRpaTask:
         except Exception as exc:
             self.logger.error(f"录屏停止或上传失败，继续回传业务结果：{exc}")
             return record_files
+
+    def _discard_record_files(self):
+        """任务失败时丢弃过程记录：不回传文件，仅停止录屏并删除本地文件。"""
+        if self.recorder is not None:
+            record_file_path = self.recorder.file_path
+            try:
+                stopped_path = self.recorder.stop()
+                if stopped_path is not None:
+                    record_file_path = stopped_path
+            except Exception as exc:
+                self.logger.error(f"失败任务停止录屏异常：{exc}")
+            finally:
+                self._remove_local_file(Path(record_file_path))
+                self.recorder = None
+        for record_type, file_path in self.business_record_files:
+            self._remove_local_file(Path(file_path))
+        self.business_record_files = []
+
+    def _remove_local_file(self, file_path):
+        """尽力删除本地文件，删除失败仅记录日志。"""
+        try:
+            file_path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            self.logger.error(f"删除本地文件失败 path={file_path} error={exc}")
 
     def add_business_record_file(self, record_type, file_path):
         """登记业务过程文件，任务结束时统一上传并写入执行记录。"""
