@@ -79,12 +79,9 @@ class SiFillContainerCargoMixin:
                     f"{index + 1} 集装箱Remarks",
                 )
             self.si_shadow.click(selectors.CARGO_TAB, name=f"{index + 1}集装箱切换货物标签页")
-            time.sleep(1)
 
             for cargo_index, cargo in enumerate(container.get("goods", []), start=1):
-                cargo_ele = self.si_shadow._find(
-                    f"x://*[@class='edit-cargo-list']/div[{cargo_index}]", required=False
-                )
+                cargo_ele = self._find_existing_cargo_item(index + 1, cargo_index)
                 if cargo_ele:
                     cargo_ele.click()
                 else:
@@ -93,7 +90,7 @@ class SiFillContainerCargoMixin:
                         name=f"{index + 1}集装箱 {cargo_index}添加货物",
                     )
                     self.si_shadow.click(
-                        f"x://*[@class='edit-cargo-list']/div[{cargo_index}]",
+                        selectors.CARGO_LIST_ITEM.format(cargo_index),
                         name=f"{index + 1}集装箱 {cargo_index}货物",
                     )
                 time.sleep(2)
@@ -183,6 +180,26 @@ class SiFillContainerCargoMixin:
             if not self._wait_for_container_save():
                 raise BusinessError(f"集装箱 {index + 1} 保存失败")
 
+    def _find_existing_cargo_item(
+        self: "FhtMscgwSiTask", container_number: int, cargo_number: int, timeout: int = 15
+    ):
+        """等待货物列表渲染完成后查找指定序号的已有货物条目。
+
+        网络慢时切换 Cargo 标签页后列表可能延迟渲染，若直接按不存在处理
+        会误点 Add Cargo 变成新增货物。这里先等列表容器出现（加载完成
+        信号），再查具体条目，超时仍未找到才返回 False 走新增流程。
+        """
+        name = f"第{container_number}个集装箱第{cargo_number}条已有货物"
+        if not self.si_shadow._find(
+            selectors.CARGO_LIST, required=False, timeout=timeout,
+            name=f"第{container_number}个集装箱货物列表",
+        ):
+            return False
+        return self.si_shadow._find(
+            selectors.CARGO_LIST_ITEM.format(cargo_number), required=False, timeout=10,
+            name=name,
+        )
+
     def _wait_for_container_save(self: "FhtMscgwSiTask") -> bool:
         for _ in range(10):
             save_dialog = self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False, timeout=0.5)
@@ -220,6 +237,18 @@ class SiFillContainerCargoMixin:
 
         self.si_shadow.click(selectors.CARGO_TAB, name=f"第{container_number}个集装箱 Cargo 标签")
         time.sleep(2)
+        actual_cargo_count = len(
+            self.si_shadow._find_eles(
+                selectors.CARGO_LIST_ITEMS, required=False, timeout=5,
+                name=f"第{container_number}个集装箱货物列表",
+            )
+        )
+        expected_cargo_count = len(container.get("goods", []))
+        if actual_cargo_count != expected_cargo_count:
+            raise FormValidationError(
+                f"第{container_number}个集装箱货物数量与填写数量不一致 "
+                f"官网数量: {actual_cargo_count} 填写数量: {expected_cargo_count}"
+            )
         for cargo_index, cargo in enumerate(container.get("goods", [])):
             cargo_number = cargo_index + 1
             self.si_shadow.click(

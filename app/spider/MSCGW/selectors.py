@@ -94,6 +94,8 @@ CONTAINER_SEAL_NO_INPUT = "c:.edit-modal-container [data-testid=txtFieldCarrierS
 CONTAINER_COMMENTS_INPUT = "c:.edit-modal-container [data-testid=txtFieldCommentsCtrEdit] [name=comments]"
 CONTAINER_TAB = "c:[data-testid=dialogEditContainerModalContent] [data-testid='tabTabbarWrapper-Container']"
 CARGO_TAB = "c:[data-testid=dialogEditContainerModalContent] [data-testid='tabTabbarWrapper-Cargo']"
+CARGO_LIST = "x://*[@class='edit-cargo-list']"
+CARGO_LIST_ITEMS = "x://*[@class='edit-cargo-list']/div"
 CARGO_LIST_ITEM = "x://*[@class='edit-cargo-list']/div[{}]"
 CARGO_CODE = "c:[data-testid=editCargoDetailsContainer] [name='selectedCargo.hsCode']"
 CARGO_HS_OPTIONS = "c:[data-testid=editCargoDetailsContainer] [data-testid=harmonizedCodeContainer] .MuiAutocomplete-listbox li"
