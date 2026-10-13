@@ -6,8 +6,9 @@ from pathlib import Path
 from time import sleep
 
 from app.core.browser.session_lock import build_account_session_key, build_browser_profile_name
-from app.core.logging.logger import log
+from app.core.logging.logger import clear_job_log_context, log, set_job_log_context
 from app.core.task.dispatcher import dispatch_context
+from app.core.task.router import normalize_queue_name
 from app.queue.message import build_task_context
 
 
@@ -41,9 +42,29 @@ def skip_test_job(func):
     return _wrapper
 
 
+def _extract_job_no(task):
+    """从消息 content 中提取单号，优先级与 BaseRpaTask 保持一致。"""
+    content = task.get("content", {}) if isinstance(task, dict) else {}
+    if isinstance(content, dict):
+        for key in ("jobNo", "blNo"):
+            value = str(content.get(key, "") or "").strip()
+            if value:
+                return value
+    return ""
+
+
+def _extract_queue_name(task):
+    """从消息中提取归一化队列名，用作日志子目录。"""
+    if isinstance(task, dict):
+        return normalize_queue_name(task.get("rpaTaskTopic"))
+    return ""
+
+
 @skip_test_job
 def handle_message(task, account_session_coordinator=None):
     """处理单条队列消息。"""
+    # 绑定当前消息的 jobNo 日志文件，任务内所有 log() 会同步写入该文件。
+    set_job_log_context(_extract_job_no(task), _extract_queue_name(task))
     context = build_task_context(task)
     coordinator = account_session_coordinator or _get_local_account_coordinator()
     account_key = build_account_session_key(context)
@@ -57,6 +78,7 @@ def handle_message(task, account_session_coordinator=None):
     try:
         return dispatch_context(context)
     finally:
+        clear_job_log_context()
         coordinator.release_slot(account_key, lease["lease_id"])
 
 

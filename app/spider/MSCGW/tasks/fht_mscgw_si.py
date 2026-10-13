@@ -76,7 +76,7 @@ class FhtMscgwSiTask(
         self._fill_payment_type()
         self.raise_if_unfilled_fields()
         self.capture_business_screenshot("BEFORE_SUBMIT_IMG", "提交前")
-        self.save_submit()
+        # self.save_submit()
         self.capture_business_screenshot("AFTER_SUBMIT_IMG", "提交后")
 
 

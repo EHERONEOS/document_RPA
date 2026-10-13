@@ -2,7 +2,9 @@ from datetime import datetime
 from inspect import currentframe
 from pathlib import Path
 import os
+import re
 import sys
+import threading
 
 
 _LEVEL_COLORS = {
@@ -14,6 +16,11 @@ _LEVEL_COLORS = {
 }
 _RESET = "\033[0m"
 _LOGGER_FILE = Path(__file__).resolve()
+
+# jobNo 维度的本地日志文件：同一单号重复消费时追加到原文件。
+_JOB_LOG_DIR = Path("runtime/logs")
+_ANSI_ESCAPE_RE = re.compile(r"\033\[[0-9;]*m")
+_JOB_CONTEXT = threading.local()
 
 
 def _display_path(file_path):
@@ -54,15 +61,60 @@ def _colorize(level):
     return f"{_LEVEL_COLORS.get(level, _RESET)}{level}{_RESET}"
 
 
+def _safe_job_name(job_no):
+    """将 jobNo 转换为跨平台安全的文件名片段。"""
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", str(job_no)).strip("_")
+    return safe or "unknown"
+
+
+def _resolve_job_log_file(job_no, queue_name=""):
+    """定位该 jobNo 的日志文件：已存在则复用（追加），否则按当前时间创建。"""
+    safe_queue = _safe_job_name(queue_name) if str(queue_name or "").strip() else ""
+    log_dir = _JOB_LOG_DIR / safe_queue if safe_queue else _JOB_LOG_DIR
+    log_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = _safe_job_name(job_no)
+    existing = sorted(log_dir.glob(f"{safe_name}_*.log"))
+    if existing:
+        return existing[-1]
+    created_at = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    return log_dir / f"{safe_name}_{created_at}.log"
+
+
+def set_job_log_context(job_no, queue_name=""):
+    """为当前线程绑定 jobNo 日志文件（按队列名分目录），后续 log() 会同步写入该文件。"""
+    if job_no is None or str(job_no).strip() == "":
+        return None
+    file_path = _resolve_job_log_file(job_no, queue_name)
+    _JOB_CONTEXT.file_path = file_path
+    return file_path
+
+
+def clear_job_log_context():
+    """解除当前线程的 jobNo 日志文件绑定。"""
+    _JOB_CONTEXT.file_path = None
+
+
+def _write_job_file(line):
+    """将去掉颜色码的日志行追加到当前线程绑定的日志文件。"""
+    file_path = getattr(_JOB_CONTEXT, "file_path", None)
+    if not file_path:
+        return
+    try:
+        with open(file_path, "a", encoding="utf-8") as handle:
+            handle.write(f"{_ANSI_ESCAPE_RE.sub('', line)}\n")
+    except OSError:
+        # 文件写入失败不影响控制台日志输出。
+        pass
+
+
 def log(message, level="INFO"):
-    """打印带有时间、调用位置和级别的彩色执行日志。"""
+    """打印带有时间、调用位置和级别的彩色执行日志，并同步写入 jobNo 日志文件。"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     level = str(level).upper()
     file_path, function, line = _caller()
-    print(
-        f"[{now}] [{file_path}] [{function}:{line}] [{_colorize(level)}] {message}",
-        flush=True,
-    )
+    prefix = f"[{now}] [{file_path}] [{function}:{line}]"
+    print(f"{prefix} [{_colorize(level)}] {message}", flush=True)
+    _write_job_file(f"{prefix} [{level}] {message}")
 
 
 def info(message):
