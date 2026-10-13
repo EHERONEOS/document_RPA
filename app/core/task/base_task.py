@@ -83,7 +83,7 @@ class BaseRpaTask:
         self.notifier = notifier or ProcessingNotifier() #通知消息实例
         self.publisher = publisher or ResultPublisher() #发布消息实例
         self.oss_client = oss_client or OssClient() #oss客户端实例
-        # 截图/视频统一仅 OSS 上传；失败一律保留本地文件，不再降级局域网。
+        # 截图/视频统一仅 OSS 上传，不再降级局域网；录屏文件无论上传成败均保留本地（仅任务失败时删除）。
         self.util_redis = get_redis_db_client(self.REDIS_MAIN) # 配置cookies redis客户端实例
         self.redis_client = get_redis_db_client(self.REDIS_HEART_BEAT) # 配置proxy redis客户端实例
 
@@ -267,7 +267,7 @@ class BaseRpaTask:
         self.business_record_files = []
 
     def _remove_local_file(self, file_path):
-        """尽力删除本地文件，删除失败仅记录日志。"""
+        """任务失败时尽力删除本地过程文件，删除失败仅记录日志。"""
         try:
             file_path.unlink()
         except FileNotFoundError:
@@ -349,11 +349,12 @@ class BaseRpaTask:
             return 0
 
     def _upload_execute_video(self, record_file_path):
-        """录屏上传：仅 OSS（成功才删本地）；失败或超 10MB 不再降级局域网。
+        """录屏上传：仅 OSS；无论上传成功与否，本地录屏文件一律保留。
 
-        视频保留在本地，由调用方把失败信息（上传oss失败 视频本地路径:xxx）
-        记入日志服务记录；返回 ``{objectName, fileName, url, storage, fileSize}``，
-        失败返回 None。
+        本地录屏仅在任务失败时由 ``_discard_record_files`` 删除。
+        上传失败或超 10MB 不再降级局域网，由调用方把失败信息
+        （上传oss失败 视频本地路径:xxx）记入日志服务记录；
+        返回 ``{objectName, fileName, url, storage, fileSize}``，失败返回 None。
         """
         record_file_path = Path(record_file_path)
         file_name = record_file_path.name
@@ -382,7 +383,8 @@ class BaseRpaTask:
             self.logger.error(f"上传oss失败 视频本地路径:{record_file_path}")
             return None
 
-        self._remove_local_file(record_file_path)
+        # 上传成功也保留本地录屏文件，仅任务失败时删除
+        self.logger.info(f"录屏已上传 OSS，本地录屏文件保留：{record_file_path}")
         return {
             "objectName": oss_file_info["objectName"],
             "fileName": oss_file_info.get("filename") or file_name,
@@ -390,15 +392,6 @@ class BaseRpaTask:
             "storage": "OSS",
             "fileSize": file_size,
         }
-
-    def _remove_local_file(self, file_path):
-        """上传成功后清理本地文件；删除失败仅告警。"""
-        try:
-            Path(file_path).unlink()
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            self.logger.error(f"上传成功但删除本地文件失败 path={file_path} error={exc}")
 
     def _upload_error_screenshot(self):
         """尽力上传失败截图，不覆盖触发任务失败的原始异常。
