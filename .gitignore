@@ -30,7 +30,6 @@ nacos-data/*
 debug-result-dlx.md
 doc/
 capturesdk/
-queue_sender.py
 
 # System files
 .DS_Store
