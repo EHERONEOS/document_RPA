@@ -32,6 +32,7 @@ class SiSaveSubmitMixin:
             )
             if not is_save_success:
                 raise BusinessError("等待保存成功消息60s失败 拆并单保存失败")
+            self.logger.success(f"截单保存成功")
             self.si_shadow.click(selectors.SAVE_SUCCESS_OK, name="保存成功确认按钮")
             self.page.wait.doc_loaded()
             self.si_shadow = self.dom.get_shadow_root(selectors.FREE_ESI_SHADOW, timeout=20)
@@ -117,6 +118,7 @@ class SiSaveSubmitMixin:
 
     def get_server_free_draft(self):
         """获取服务草稿件"""
+        self.logger.info(f"开始获取服务草稿件 {self.content.get('carrierBookingNumber')}")
         account = str(self.website_info.get("websiteAccount") or "").strip()
         password = str(self.website_info.get("websitePassword") or "").strip()
         response = self.http.request(
