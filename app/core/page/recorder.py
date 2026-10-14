@@ -25,6 +25,24 @@ from app.core.logging.logger import log
 CREATE_NO_WINDOW = 0x08000000
 _ENCODER_CACHE: dict[str, list[str]] = {}
 
+# 录屏质量单参数档位：CAPTURE_QUALITY=low|medium|high（默认 medium），
+# 一档同时决定 screencast JPEG 质量 / H264 CRF / 输出宽度 / 帧率 / 码率顶。
+#   low    "5 分钟 ≤10MB"预算档：capped-CRF（CRF30 + VBV 码率硬顶 240k），
+#          长期平均码率被顶死在 ~1.8MB/分钟，任何页面内容 5 分钟都 <9MB，
+#          稳稳落在 OSS 10MB 上传限内；medium 平衡；high 文字最锐（审计）。
+# 细粒度环境变量（CAPTURE_JPEG_QUALITY / CAPTURE_VIDEO_CRF / CAPTURE_VIDEO_SCALE /
+# CAPTURE_FPS）仍保留：设置后仅覆盖档位中的对应项。
+QUALITY_PROFILES: dict[str, dict[str, Any]] = {
+    "low": {"jpeg_quality": 60, "crf": 30, "scale": "960:-2", "fps": 5, "max_kbps": 240},
+    "medium": {"jpeg_quality": 80, "crf": 23, "scale": "1280:-2", "fps": 5, "max_kbps": None},
+    "high": {"jpeg_quality": 90, "crf": 20, "scale": "1920:-2", "fps": 10, "max_kbps": None},
+}
+DEFAULT_QUALITY = "medium"
+_X264_PRESETS = {
+    "ultrafast", "superfast", "veryfast", "faster", "fast",
+    "medium", "slow", "slower", "veryslow",
+}
+
 
 def _repo_root() -> Path:
     here = Path(__file__).resolve()
@@ -58,6 +76,18 @@ class Recorder:
 
     输出为 CRF 控制的 H264 MP4（无音频，+faststart），体积远小于 1080p/2500kbps
     码率模式。
+
+    录屏质量单参数 ``CAPTURE_QUALITY``：low / medium（默认）/ high，一档同时
+    决定 screencast JPEG 质量、H264 CRF、输出宽度、帧率与码率顶——
+
+    - low：JPEG 60 / CRF 30+240k 码率顶 / 960 宽 / 5fps。"5 分钟 ≤10MB"
+      预算档：VBV 把长期平均码率顶死在 ~1.8MB/分钟，5 分钟 <9MB；
+    - medium：JPEG 80 / CRF 23 / 1280 宽 / 5fps，平衡档（≈3-5MB/分钟）；
+    - high：JPEG 90 / CRF 20 / 1920 宽 / 10fps，文字最锐（≈8-15MB/分钟）。
+
+    需要微调时再设细粒度变量（CAPTURE_JPEG_QUALITY / CAPTURE_VIDEO_CRF /
+    CAPTURE_VIDEO_SCALE / CAPTURE_FPS / CAPTURE_VIDEO_PRESET），只覆盖档位
+    中的对应项。
     """
 
     def __init__(
@@ -85,7 +115,7 @@ class Recorder:
         self._stdin_lock = threading.Lock()
         self._cdp_enabled = False
         # CDP 帧节奏：限制写入频率 + 静止时重复最后一帧，保证时长与真实执行一致。
-        self._frame_interval = 1.0 / max(1, _env_int("CAPTURE_FPS", 5))
+        self._frame_interval = 1.0 / max(1, _capture_fps())
         self._last_frame: bytes | None = None
         self._last_write_at: float | None = None
         self._keepalive_stop = threading.Event()
@@ -178,9 +208,9 @@ class Recorder:
         if _env_flag("CAPTURE_CROP_WINDOW", True) and system == "Windows":
             crop = browser_window_rect(self.page, hwnd=hwnd)
 
-        encoder_args = h264_encoder_args(ffmpeg, _env_int("CAPTURE_VIDEO_CRF", 28))
-        fps = _env_int("CAPTURE_FPS", 5)
-        scale = os.getenv("CAPTURE_VIDEO_SCALE", "1280:-2")
+        encoder_args = h264_encoder_args(ffmpeg, _video_crf(), _video_max_kbps())
+        fps = _capture_fps()
+        scale = _capture_scale()
         screen_device = _macos_screen_device(ffmpeg) if system == "Darwin" else None
         attempts: list[tuple[int | None, tuple[int, int, int, int] | None]] = []
         if system == "Windows" and hwnd:
@@ -222,13 +252,13 @@ class Recorder:
         if self.page is None:
             raise RecorderError("录屏启动失败：page 不能为空。")
 
-        fps = _env_int("CAPTURE_FPS", 5)
+        fps = _capture_fps()
         command = build_image_pipe_command(
             ffmpeg=ffmpeg,
             output=self.file_path,
             fps=fps,
-            scale=os.getenv("CAPTURE_VIDEO_SCALE", "1280:-2"),
-            encoder_args=h264_encoder_args(ffmpeg, _env_int("CAPTURE_VIDEO_CRF", 28)),
+            scale=_capture_scale(),
+            encoder_args=h264_encoder_args(ffmpeg, _video_crf(), _video_max_kbps()),
         )
         self._process = popen_ffmpeg(command, stdin=subprocess.PIPE)
         self._ensure_process_running("FFmpeg image2pipe")
@@ -249,7 +279,7 @@ class Recorder:
         self._cli_session = client.start(
             hwnd=hwnd,
             output=self.file_path,
-            fps=_env_int("CAPTURE_FPS", 5),
+            fps=_capture_fps(),
             width=1280,
             height=720,
             bitrate_kbps=_env_int("CAPTURE_BITRATE_KBPS", 800),
@@ -261,7 +291,11 @@ class Recorder:
         if driver is None or not hasattr(driver, "set_callback"):
             raise RecorderError("当前页面不支持 CDP screencast。")
         driver.set_callback("Page.screencastFrame", self._on_screencast_frame)
-        params: dict[str, Any] = {"format": "jpeg", "quality": 45, "everyNthFrame": 2}
+        params: dict[str, Any] = {
+            "format": "jpeg",
+            "quality": _jpeg_quality(),
+            "everyNthFrame": 2,
+        }
         max_width = _screencast_max_width()
         if max_width:
             # 浏览器端先缩到目标宽度，减小 JPEG 体积与传输开销。
@@ -319,7 +353,7 @@ class Recorder:
             )
         self._wgc_hwnd = int(hwnd)
 
-        fps = _env_int("CAPTURE_FPS", 5)
+        fps = _capture_fps()
         self._frame_interval = 1.0 / max(1, fps)
         self._wgc_closed = False
         self._wgc_first_frame.clear()
@@ -361,8 +395,8 @@ class Recorder:
             output=self.file_path,
             fps=fps,
             size=(width, height),
-            scale=os.getenv("CAPTURE_VIDEO_SCALE", "1280:-2"),
-            encoder_args=h264_encoder_args(ffmpeg, _env_int("CAPTURE_VIDEO_CRF", 28)),
+            scale=_capture_scale(),
+            encoder_args=h264_encoder_args(ffmpeg, _video_crf(), _video_max_kbps()),
         )
         self._process = popen_ffmpeg(command, stdin=subprocess.PIPE)
         self._ensure_process_running("FFmpeg rawvideo")
@@ -568,7 +602,7 @@ class Recorder:
 
     def _write_cdp_screenshot(self) -> None:
         try:
-            result = self._run_cdp("Page.captureScreenshot", format="jpeg", quality=45)
+            result = self._run_cdp("Page.captureScreenshot", format="jpeg", quality=_jpeg_quality())
             data = (result or {}).get("data")
             if data:
                 self._write_jpeg(b64decode(data))
@@ -719,27 +753,33 @@ def resolve_ffmpeg_path() -> Path:
     )
 
 
-def h264_encoder_args(ffmpeg: Path, crf: int = 28) -> list[str]:
-    """Return H264 encoder arguments, preferring small CRF files."""
+def h264_encoder_args(ffmpeg: Path, crf: int, max_kbps: int | None = None) -> list[str]:
+    """Return H264 encoder arguments, balancing clarity and file size.
+
+    ``max_kbps`` 启用 capped-CRF：平时按 CRF 取质，复杂画面被 VBV 顶在
+    码率上限内，长任务体积因此有硬上限（low 档"5 分钟 ≤10MB"靠这里）。
+    """
     cache_key = str(ffmpeg)
     if cache_key not in _ENCODER_CACHE:
         _ENCODER_CACHE[cache_key] = _probe_h264_encoder(ffmpeg)
     encoder = _ENCODER_CACHE[cache_key]
     if encoder == ["libx264"]:
-        return [
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            str(crf),
-            "-pix_fmt",
-            "yuv420p",
-        ]
-    if encoder == ["h264_mf"]:
-        return ["-c:v", "h264_mf", "-b:v", _crf_to_bitrate(crf), "-pix_fmt", "yuv420p"]
-    if encoder == ["libopenh264"]:
-        return ["-c:v", "libopenh264", "-b:v", _crf_to_bitrate(crf), "-pix_fmt", "yuv420p"]
+        preset = os.getenv("CAPTURE_VIDEO_PRESET", "veryfast").strip().lower()
+        if preset not in _X264_PRESETS:
+            preset = "veryfast"
+        args = ["-c:v", "libx264", "-preset", preset, "-crf", str(crf)]
+        if max_kbps:
+            args += ["-maxrate", f"{max_kbps}k", "-bufsize", f"{max_kbps * 2}k"]
+        args += ["-pix_fmt", "yuv420p"]
+        return args
+    if encoder in (["h264_mf"], ["libopenh264"]):
+        # 定码率编码器：优先显式 CAPTURE_BITRATE_KBPS，否则按 CRF 档推导，
+        # 最终再被档位码率顶（如有）压住。
+        kbps = _env_int("CAPTURE_BITRATE_KBPS", 0)
+        bitrate = kbps if kbps > 0 else _crf_to_bitrate(crf)
+        if max_kbps and bitrate > max_kbps:
+            bitrate = max_kbps
+        return ["-c:v", encoder[0], "-b:v", f"{bitrate}k", "-pix_fmt", "yuv420p"]
     raise RecorderError("ffmpeg 不支持 H264 编码，无法生成可在浏览器播放的 MP4。")
 
 
@@ -909,7 +949,7 @@ def _ffmpeg_executes(ffmpeg: Path) -> bool:
 
 def _screencast_max_width() -> int | None:
     """Derive the screencast maxWidth from CAPTURE_VIDEO_SCALE (e.g. 1280:-2)."""
-    scale = os.getenv("CAPTURE_VIDEO_SCALE", "1280:-2").strip()
+    scale = _capture_scale()
     match = re.match(r"^(\d+)(?::|$)", scale)
     if not match:
         return None
@@ -952,10 +992,72 @@ def _macos_screen_device(ffmpeg: Path) -> str:
     return "1"
 
 
-def _crf_to_bitrate(crf: int) -> str:
-    # CRF 28 ≈ 600kbps for 720p UI; clamp to a small but watchable range.
-    kbps = max(350, min(1200, int(2400 - crf * 60)))
-    return f"{kbps}k"
+def _crf_to_bitrate(crf: int) -> int:
+    # CRF 23 ≈ 1.1Mbps for 720p UI; clamp to a watchable range.
+    return max(500, min(2400, int(3000 - crf * 80)))
+
+
+def _capture_scale() -> str:
+    """输出宽度：显式 CAPTURE_VIDEO_SCALE 优先，否则取 CAPTURE_QUALITY 档位。"""
+    raw = (os.getenv("CAPTURE_VIDEO_SCALE") or "").strip()
+    return raw or str(_quality_profile()["scale"])
+
+
+def _video_crf() -> int:
+    """H264 CRF：显式 CAPTURE_VIDEO_CRF 优先，否则取 CAPTURE_QUALITY 档位。"""
+    explicit = _env_int_or_none("CAPTURE_VIDEO_CRF")
+    if explicit is not None:
+        return explicit
+    return int(_quality_profile()["crf"])
+
+
+def _video_max_kbps() -> int | None:
+    """码率硬顶（capped-CRF）：low 档 240k（5 分钟 ≤10MB），其余档不设顶。"""
+    value = _quality_profile().get("max_kbps")
+    return int(value) if value else None
+
+
+def _capture_fps() -> int:
+    """帧率：显式 CAPTURE_FPS 优先，否则取 CAPTURE_QUALITY 档位。"""
+    explicit = _env_int_or_none("CAPTURE_FPS")
+    if explicit is not None:
+        return explicit
+    return int(_quality_profile()["fps"])
+
+
+def _jpeg_quality() -> int:
+    """CDP screencast/截图 JPEG 质量：显式变量优先，否则取档位；收敛到 [1,100]。"""
+    explicit = _env_int_or_none("CAPTURE_JPEG_QUALITY")
+    if explicit is not None:
+        quality = explicit
+    else:
+        quality = int(_quality_profile()["jpeg_quality"])
+    return max(1, min(100, quality))
+
+
+def _quality_profile() -> dict[str, Any]:
+    """解析 CAPTURE_QUALITY 档位；非法值告警并回退默认档。"""
+    raw = (os.getenv("CAPTURE_QUALITY") or "").strip().lower()
+    profile = QUALITY_PROFILES.get(raw)
+    if profile is None:
+        if raw:
+            log(
+                f"CAPTURE_QUALITY={raw!r} 无效（可选 {'/'.join(QUALITY_PROFILES)}），"
+                f"使用 {DEFAULT_QUALITY} 档。"
+            )
+        profile = QUALITY_PROFILES[DEFAULT_QUALITY]
+    return profile
+
+
+def _env_int_or_none(name: str) -> int | None:
+    """读取整型环境变量；未设置/非法返回 None（交由档位或调用方默认）。"""
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def _env_int(name: str, default: int) -> int:
