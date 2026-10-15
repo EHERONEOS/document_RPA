@@ -40,8 +40,14 @@ class MySQLControlRepository:
     """保存设备、队列分配（含观测状态）、命令和事件流水。"""
 
     # 保存 MySQL 连接地址，连接在实际查询时按需创建。
-    def __init__(self, mysql_url: str):
+    # no_persist_event_types：跳过 queue_events 流水落库的事件类型（默认 heartbeat）。
+    # 心跳每设备 15 秒一条且 queue_events 无读取方，落库只会无限膨胀；
+    # 设备在线状态（devices）与队列观测（queue_assignments）仍照常更新。
+    def __init__(self, mysql_url: str, no_persist_event_types={"heartbeat"}):
         self.mysql_url = mysql_url
+        self.no_persist_event_types = frozenset(
+            event_type.lower() for event_type in no_persist_event_types
+        )
 
     # 解析 MySQL URL 并创建一个字典行格式的数据库连接。
     def _connect(self):
@@ -523,6 +529,8 @@ class MySQLControlRepository:
         }
 
     # 将设备上报的事件去重后写入状态快照和命令结果。
+    # 黑名单类型（默认 heartbeat）不写 queue_events 流水：其 event_id 去重随 INSERT
+    # 一并失效，但后续 UPDATE 与 _reconcile_assignments 均幂等，重投递安全。
     def record_agent_event(self, event_id: str, event: dict[str, Any]) -> bool:
         device_id = self._normalize_device_id(str(event.get("deviceId") or ""))
         token = str(event.get("token") or "")
@@ -542,16 +550,17 @@ class MySQLControlRepository:
                 """,
                 (token, device_id),
             )
-            cursor.execute(
-                """
-                INSERT IGNORE INTO queue_events
-                (event_id, device_id, event_type, payload, received_at)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (event_id, device_id, event_type, _serialize(safe_payload), now),
-            )
-            if cursor.rowcount == 0:
-                return False
+            if event_type.lower() not in self.no_persist_event_types:
+                cursor.execute(
+                    """
+                    INSERT IGNORE INTO queue_events
+                    (event_id, device_id, event_type, payload, received_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (event_id, device_id, event_type, _serialize(safe_payload), now),
+                )
+                if cursor.rowcount == 0:
+                    return False
             cursor.execute(
                 """
                 UPDATE devices SET status = 'ONLINE', last_seen_at = %s, updated_at = %s

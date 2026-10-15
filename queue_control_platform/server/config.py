@@ -6,6 +6,9 @@
     QUEUE_CONTROL_MYSQL_URL   统一库 rpa_platform 连接串（仅中央机代码直连）
     QUEUE_CONTROL_REDIS_URL   队列命令总线 Redis（中央机与 Agent 共用）
     QUEUE_CONTROL_HOST/PORT   服务监听地址（中央机部署 0.0.0.0，本地开发 127.0.0.1 即可）
+    QUEUE_CONTROL_NO_PERSIST_EVENTS
+                              跳过 queue_events 流水落库的事件类型（逗号分隔，
+                              默认 heartbeat；设为空字符串恢复全部落库，用于排查）
 
 本地开发中央机服务时，把 .env 中上述变量直接指向线上地址即可连线上库调试。
 """
@@ -19,6 +22,11 @@ from dotenv import load_dotenv
 
 # 项目根目录（queue_control_platform/server/config.py 向上两级）
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _parse_no_persist_events(raw: str) -> frozenset[str]:
+    """解析不落库事件类型黑名单：逗号分隔、忽略空白、统一小写；空串表示全部落库。"""
+    return frozenset(item.strip().lower() for item in raw.split(",") if item.strip())
 
 
 def _load_local_env() -> None:
@@ -39,6 +47,7 @@ class PlatformSettings:
     redis_url: str
     host: str
     port: int
+    no_persist_event_types: frozenset[str]
 
     @classmethod
     def from_environment(cls) -> "PlatformSettings":
@@ -53,4 +62,9 @@ class PlatformSettings:
             redis_url=os.getenv("QUEUE_CONTROL_REDIS_URL", "redis://127.0.0.1:6379/0"),
             host=os.getenv("QUEUE_CONTROL_HOST", "127.0.0.1"),
             port=int(os.getenv("QUEUE_CONTROL_PORT", "8766")),
+            # 心跳默认不写 queue_events：每设备 15 秒一条的流水只增不减，
+            # 而该表无任何读取方；在线状态与队列观测走同事务的 UPDATE，不受影响。
+            no_persist_event_types=_parse_no_persist_events(
+                os.getenv("QUEUE_CONTROL_NO_PERSIST_EVENTS", "heartbeat")
+            ),
         )

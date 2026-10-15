@@ -17,7 +17,10 @@ from queue_control_platform.server.web import create_app
 # 初始化数据库和事件处理器后，通过 Uvicorn 启动独立维护页面与 API。
 def main() -> None:
     settings = PlatformSettings.from_environment()
-    repository = MySQLControlRepository(settings.mysql_url)
+    repository = MySQLControlRepository(
+        settings.mysql_url,
+        no_persist_event_types=settings.no_persist_event_types,
+    )
     repository.initialize_schema()
     init_rpa_schema()  # RPA 日志模块 5 张 rpa_* 表（幂等，统一库）
     bus = RedisStreamBus(settings.redis_url)
