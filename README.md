@@ -75,10 +75,7 @@ RPA_QUEUES=
 RABBITMQ_CONFIG_SOURCE=nacos
 NACOS_ENABLED=false
 CONTROL_DRAIN_TIMEOUT_SECONDS=1800
-QUEUE_CONTROL_MYSQL_URL=mysql://queue_control:queue_control@127.0.0.1:3306/queue_control
 QUEUE_CONTROL_REDIS_URL=redis://127.0.0.1:6379/0
-QUEUE_CONTROL_HOST=127.0.0.1
-QUEUE_CONTROL_PORT=8766
 QUEUE_CONTROL_DEVICE_ID=
 QUEUE_CONTROL_DEVICE_TOKEN=
 BROWSER_PORT_START=10000
@@ -117,30 +114,22 @@ uv run python -m app.dev.local_runner --message /Users/wangchao/weisi_code/docum
 - 路由到 `app/Spider/WHL/FL_WHL.py` 中的 `fl_whl_si`
 - 本地模式跳过处理中通知、录屏和结果回传
 
-### 2.7 启动本地 MySQL 和 Redis
+### 2.7 控制平台（已迁出）
 
-```bash
-docker compose -f queue_control_platform/docker/compose.yml up -d
-```
-
-MySQL 数据和 Redis AOF 都由 Docker volume 持久化。开发环境默认地址分别为
-`127.0.0.1:3306` 和 `127.0.0.1:6379`。
+中央平台（FastAPI + MySQL + Redis + 前端）已独立为 `../document_RPA_server` 仓库，
+本地开发不再需要自建 MySQL。Agent 侧只依赖中心 Redis（`QUEUE_CONTROL_REDIS_URL`）
+与 RabbitMQ（Nacos 下发）。
 
 ### 2.8 启动维护平台并注册设备
 
-```bash
-uv run python -m queue_control_platform.server.main
-```
-
-该入口通过 Uvicorn 启动 FastAPI 服务，并在服务生命周期内启动和停止 Redis 事件处理器。
-
-浏览器访问 `http://127.0.0.1:8766`，新增设备 ID。页面会显示一次性注册令牌；将该令牌
-以及设备 ID 填入待执行机器的 `.env`：
+维护平台代码已迁至 `../document_RPA_server`（本地启动见其 README，线上地址
+`http://47.98.135.67:8766`）。在平台页面新增设备 ID 后，将令牌与设备 ID 填入
+待执行机器的 `.env`：
 
 ```dotenv
 QUEUE_CONTROL_DEVICE_ID=MAC-RPA-01
 QUEUE_CONTROL_DEVICE_TOKEN=页面生成的注册令牌
-QUEUE_CONTROL_REDIS_URL=redis://127.0.0.1:6379/0
+QUEUE_CONTROL_REDIS_URL=redis://:密码@平台IP:6379/0
 ```
 
 ### 2.9 启动设备侧队列控制客户端
@@ -237,15 +226,15 @@ uv run python -m app.dev.local_runner --message .\message_list\msg_demo.json
 
 ### 3.7 队列 Agent 启动
 
-先在运行 Docker 的控制机上启动 MySQL、Redis 和维护平台，使用浏览器创建设备 ID 并取得
-注册令牌。将令牌配置到 Windows 机器的 `.env` 后执行：
+先在中心平台（`../document_RPA_server` 或线上 `http://47.98.135.67:8766`）创建
+设备 ID 并取得注册令牌。将令牌配置到 Windows 机器的 `.env` 后执行：
 
 ```powershell
 uv run python -m app.main
 ```
 
-维护页面默认位于 `http://127.0.0.1:8766`。多台机器时，`QUEUE_CONTROL_REDIS_URL`
-必须指向控制机可访问的 Redis 地址，不能继续使用各机器自己的 `127.0.0.1`。
+多台机器时，`QUEUE_CONTROL_REDIS_URL` 必须指向中心平台可访问的 Redis 地址，
+不能继续使用各机器自己的 `127.0.0.1`。
 
 ## 4. 常用验证命令
 
@@ -277,7 +266,6 @@ uv pip list
 
 - 本地调试入口：`app.dev.local_runner`
 - 设备侧 Queue Agent 入口：`app.main`
-- 独立维护平台入口：`queue_control_platform.server.main`
 - 消息解析：`app/queue/message.py`
 - 船司路由：`app/core/task/dispatcher.py`
 - WHL 路由表：`app/Spider/WHL/router.py`
@@ -288,8 +276,7 @@ uv pip list
 - `uv run` 会在运行命令前自动同步项目环境，日常启动优先使用 `uv run ...`。
 - 第一次运行 `uv sync` 会下载依赖，网络不可用时会失败。
 - 队列模式依赖 RabbitMQ；只想验证业务骨架时优先使用本地模板调试命令。
-- 维护页面与业务 `app` 解耦，默认监听 `127.0.0.1:8766`。队列状态和命令记录保存在
-  MySQL，设备命令和状态事件经 Redis Streams 传递。
+- 队列控制平台（设备/队列管理、8766 日志服务）见 `../document_RPA_server` 仓库。
 - RabbitMQ 默认从 Nacos 的 `rabbitmq.yml` 按 `APP_ENV` 读取；如需改用本地 `.env`，设置
   `RABBITMQ_CONFIG_SOURCE=env` 并补齐连接参数。
 - `ENABLE_BROWSER=false` 时不会启动真实浏览器，适合开发路由、消息解析和业务骨架。
