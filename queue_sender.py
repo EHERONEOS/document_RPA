@@ -4,6 +4,7 @@ Usage:
     uv run python queue_sender.py --queue QTCT_ZIM_SI --message ./message_list/msg_demo.json
     uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI.json --direct
     uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI_chai.json --direct
+    uv run python queue_sender.py --queue gcp_cutoff_result --message ./message_list/FHT_MSCGW_SI_chai.json --direct
     
 """
 from __future__ import annotations
@@ -93,7 +94,7 @@ def send_queue_messages_for_job_numbers(
             delay=delay,
             passive=passive,
         )
-        print(f"sent queue={queue_name.strip().upper()} job_no={job_number}")
+        print(f"sent queue={queue_name.strip()} job_no={job_number}")
 
 
 def close_publishers() -> None:
@@ -142,7 +143,7 @@ def _broker_config(*, passive: bool) -> dict[str, Any]:
 
 
 def _normalize_queue_name(queue_name: str) -> str:
-    normalized = str(queue_name or "").strip().upper()
+    normalized = str(queue_name or "").strip()
     if not normalized:
         raise ValueError("queue_name 不能为空")
     return normalized
@@ -191,7 +192,7 @@ def main() -> None:
             passive=not args.declare,
             normalize_task=False,
         )
-        print(f"sent queue={args.queue.strip().upper()}")
+        print(f"sent queue={args.queue.strip()}")
     else:
         send_queue_messages_for_job_numbers(
             args.queue,

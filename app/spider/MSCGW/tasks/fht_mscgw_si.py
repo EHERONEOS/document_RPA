@@ -13,6 +13,7 @@ from app.spider.MSCGW.actions.si_fill_free_router_details import SiFillFreeRoute
 from app.spider.MSCGW.actions.si_fill_payment_type import SiFillPaymentTypeMixin
 from app.spider.MSCGW.actions.si_fill_router_details import SiFillRouterDetailsMixin
 from app.spider.MSCGW.actions.si_navigation import SiNavigationMixin
+from app.spider.MSCGW.actions.si_download import SiDownloadMixin
 from app.spider.MSCGW.actions.si_save_submit import SiSaveSubmitMixin
 
 
@@ -26,6 +27,7 @@ class FhtMscgwSiTask(
     SiFillContainerCargoMixin,
     SiFillPaymentTypeMixin,
     SiSaveSubmitMixin,
+    SiDownloadMixin,
     MscgwBase,
 ):
     """执行 FHT_MSCGW_SI。"""
