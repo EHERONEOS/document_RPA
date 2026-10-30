@@ -63,7 +63,8 @@ class SiSaveSubmitMixin:
                     raise BusinessError("保存草稿件成功后等待60s下载预览按钮未可用 请勿重新发起任务!!!")
                 self.si_shadow.click(selectors.DOWNLOAD_CLOSE_BTN, name="关闭下载预览按钮")
             else:
-                self.get_server_free_draft()
+                self.attachments.append(self.download_draft_attachment(self.content.get("carrierBookingNumber")))
+                # self.get_server_free_draft()
             if self.context.rpa_operate == "SUBMIT_DIRECT":
                 self.si_shadow.click(selectors.FREE_SUBMIT_BOOKING_BTN, name="提交按钮")
                 self.si_shadow.click(selectors.FREE_SUBMIT_OK, name="提交成功确认按钮")

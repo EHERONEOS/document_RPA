@@ -7,6 +7,7 @@ from app.core.task.errors import ElementNotFoundError, ElementOperationError
 from DrissionPage.errors import BaseError, CanNotClickError, NoRectError
 from DrissionPage._elements.none_element import NoneElement
 from DrissionPage._pages.chromium_base import ChromiumBase
+from DrissionPage._functions.keys import Keys
 
 
 def _value_text(value, limit: int = 500) -> str:
@@ -18,6 +19,10 @@ def _value_text(value, limit: int = 500) -> str:
 
 class DomHelper:
     """页面 DOM 操作封装。"""
+
+    # 命中这些 class 的输入框（Element UI 受控组件）需用 JS 清空并触发 input/change 事件，
+    # 否则 DrissionPage 在 mac 上的 clear 只派发 change，框架状态不会同步导致旧值回填
+    JS_CLEAR_CLASSES = ["el-input__inner", "el-textarea__inner"]
 
     def __init__(
         self,
@@ -200,7 +205,16 @@ class DomHelper:
             return True
         log(f"输入{name}: {_value_text(expected_value)}")
         element.click()
-        element.input(expected_value, clear=True)
+        element_class = element.attr("class") or ""
+        if any(cls in element_class.split() for cls in self.JS_CLEAR_CLASSES):
+            element.run_js("""
+                this.value = ''; 
+                this.dispatchEvent(new Event('input', { bubbles: true })); 
+                this.dispatchEvent(new Event('change', { bubbles: true }));
+            """)
+            element.input(expected_value, clear=False)
+        else:
+            element.input(expected_value, clear=True)
         if blur:
             self.page.run_js("arguments[0].blur();", element)
         return True
@@ -239,20 +253,31 @@ class DomHelper:
         self.page.run_js("arguments[0].blur();", element)
         return True
 
-    def select_by_word(self, locator, value, child_locator, clear_locator=None, name=None, required=True,timeout=5):
-        """非原生select下拉选择 通过文本匹配"""
+    def select_by_word(self, locator, value, child_locator, clear_locator=None, name=None, required=True,timeout=5, ignore_space=False):
+        """非原生select下拉选择 通过文本匹配。
+
+        ignore_space 为 True 时，下发值和选项都去掉全部空白后再比较。
+        用于「B 正本提单」这类中间带空格、页面却把代码和名称拆开展示的选项。
+        """
         name = name or locator
         element = self._find(locator, name, required, timeout)
         if not element:
             return False
 
+        def match_text(text):
+            text = str(text or "")
+            if ignore_space:
+                return "".join(text.split())
+            return text.strip()
+
+        expected = match_text(value)
         element.click()
         if clear_locator:
             self.click(clear_locator, name="清除",required=False)
-        time.sleep(1)
+        # time.sleep(1)
         options = self.page.eles(child_locator, timeout=timeout)
         for option in options:
-            if str(getattr(option, "text", "") or "").strip() != str(value).strip():
+            if match_text(getattr(option, "text", "")) != expected:
                 continue
             option.click()
             log(f"选择{name}: {_value_text(value)}")

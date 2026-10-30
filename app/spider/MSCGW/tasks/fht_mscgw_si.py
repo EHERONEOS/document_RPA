@@ -37,7 +37,7 @@ class FhtMscgwSiTask(
     # FHT-specific fields can be added here without changing other task types.
     ignored_unfilled_fields = [
         *MscgwBase.ignored_unfilled_fields,
-        "blankBill", "splitBill", "consolidatedBill",
+        "blankBill", "splitBill", "consolidatedBill","isDeleteExtraContainer"
     ]
 
     def __init__(self, context: TaskContext):
@@ -77,6 +77,7 @@ class FhtMscgwSiTask(
         self._fill_container_cargo()
         self._fill_payment_type()
         self.raise_if_unfilled_fields()
+        
         self.capture_business_screenshot("BEFORE_SUBMIT_IMG", "提交前")
         # self.save_submit()
         self.capture_business_screenshot("AFTER_SUBMIT_IMG", "提交后")

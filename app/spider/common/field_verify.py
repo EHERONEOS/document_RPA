@@ -25,10 +25,36 @@ class FieldVerificationMixin:
     ) -> None:
         """读取页面字段并校验，成功后默认标记对应消息字段已处理。
 
-        ``page`` 未传时使用任务的底层 ``self.page``；传入 ``DomHelper``
-        或 Shadow Root 包装对象时，复用其统一的元素定位能力。
-        ``skip_if_empty`` 为真时，空值或缺失字段不读取页面，直接标记完成。
-        ``ignore_case`` 为真时，文本和值类型的字符串比较忽略大小写。
+        Args:
+            selector: 页面元素定位表达式，同时作为 ``name`` 缺省时的报错名称。
+            field_path: 消息内容中期望值的字段路径，支持 ``a.b``、``list[0]``
+                形式的嵌套写法，也可直接传入路径列表或元组。
+            selector_type: 页面取值方式，默认 ``value``。支持：
+                - ``text``：读取元素可见文本；
+                - ``value``：读取元素 ``value`` 属性；
+                - ``select``：读取下拉框当前选中值；
+                - ``checked``：读取复选/单选框选中状态，期望值必须为布尔值。
+            page: 可选。未传时使用任务的底层 ``self.page``；传入 ``DomHelper``
+                或 Shadow Root 包装对象时，复用其统一的元素定位能力。
+            name: 可选。字段业务名称，仅用于异常与日志定位，缺省时取 ``selector``。
+            expected_value: 可选。显式指定期望值；未传时自动按 ``field_path``
+                从 ``self.content`` 读取。
+            mark_done: 校验通过后是否调用 ``mark_field_done`` 将该字段从
+                ``remain_content`` 中移除，默认 ``True``；设为 ``False`` 时
+                该字段仍会参与 ``raise_if_unfilled_fields`` 的漏填检查。
+            skip_if_empty: 设为 ``True`` 时，期望字段缺失或期望值为空（``None``
+                或纯空白字符串）则不读取页面，直接按 ``mark_done`` 标记完成并
+                返回，视为无需校验；设为 ``False`` 时字段缺失会抛出
+                ``BusinessError``。
+            ignore_case: 设为 ``True`` 时，``text``/``value`` 类型的字符串比较
+                忽略大小写，对 ``select``/``checked`` 不生效。
+
+        Raises:
+            BusinessError: 期望字段缺失且未启用 ``skip_if_empty``、字段路径
+                格式非法、``checked`` 期望值不是布尔值或 ``selector_type``
+                不受支持。
+            ElementNotFoundError: 页面上未找到 ``selector`` 对应元素。
+            FormValidationError: 页面实际值与期望值不一致。
         """
         name = name or selector
         source = page or self.page

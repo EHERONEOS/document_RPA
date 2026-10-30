@@ -546,3 +546,26 @@ class BaseRpaTask:
         # 兼容两种格式：如果是字典且包含cookies键则取其值，否则直接使用原始cookies
         cookies = cookies["cookies"] if isinstance(cookies, dict) and "cookies" in cookies else cookies
         self.page.set.cookies(cookies)
+
+    def save_session_storage(self, storage_redis_key, expire_hours=None):
+        """保存浏览器 sessionStorage。
+
+        expire_hours: Redis 失效时间（小时）。不传则不过期。
+        """
+        storage = self.page.session_storage()
+        payload = json.dumps({"sessionStorage": storage}, ensure_ascii=False)
+        if expire_hours is None:
+            self.util_redis.set(storage_redis_key, payload)
+        else:
+            self.util_redis.set(storage_redis_key, payload, ex=int(expire_hours * 3600))
+
+    def set_page_session_storage(self, storage_redis_key):
+        """设置浏览器 sessionStorage。"""
+        storage_str = self.util_redis.get(storage_redis_key)
+        if not storage_str:
+            return
+        storage = json.loads(storage_str)
+        # 兼容两种格式：如果是字典且包含sessionStorage键则取其值，否则直接使用原始storage
+        storage = storage["sessionStorage"] if isinstance(storage, dict) and "sessionStorage" in storage else storage
+        for key, value in storage.items():
+            self.page.set.session_storage(key, value)

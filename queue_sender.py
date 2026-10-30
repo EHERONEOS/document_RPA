@@ -4,7 +4,7 @@ Usage:
     uv run python queue_sender.py --queue QTCT_ZIM_SI --message ./message_list/msg_demo.json
     uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI.json --direct
     uv run python queue_sender.py --queue FHT_MSCGW_SI --message ./message_list/FHT_MSCGW_SI_chai.json --direct
-    uv run python queue_sender.py --queue gcp_cutoff_result --message ./message_list/FHT_MSCGW_SI_chai.json --direct
+    uv run python queue_sender.py --queue FZ_SNLWY_SI --message ./message_list/FZ_SNLWY_SI.json --direct
     
 """
 from __future__ import annotations

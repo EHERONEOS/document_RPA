@@ -23,8 +23,30 @@ class SiFillContainerCargoMixin:
 
         if not self.splitOrConsolidatedBill:
             container_ele = self.dom._find_eles(selectors.CONTAINER_ITEM)
-            if len(container_ele) != len(containers):
-                raise FormValidationError(f"官网 SI 集装箱数量与填写数量不一致 官网数量: {len(container_ele)} 填写数量: {len(containers)}")
+            page_container_count = len(container_ele)
+            expected_container_count = len(containers)
+            if (
+                self.content.get("isDeleteExtraContainer", False)
+                and expected_container_count < page_container_count
+            ):
+                for panel_index in range(page_container_count, expected_container_count, -1):
+                    self.si_shadow.click(
+                        f"c:#panel{panel_index}-header [data-testid=container-options-button]",
+                        name=f"{panel_index}集装箱操作按钮",
+                    )
+                    self.si_shadow.click(
+                        f"x://*[@id='panel{panel_index}-header']//*[@id='split-button-menu']//li["
+                        "normalize-space()='Delete Container']",
+                        name=f"{panel_index}集装箱删除按钮",
+                    )
+                    time.sleep(1)
+                container_ele = self.dom._find_eles(selectors.CONTAINER_ITEM)
+                page_container_count = len(container_ele)
+            if page_container_count != expected_container_count:
+                raise FormValidationError(
+                    f"官网 SI 集装箱数量与填写数量不一致 官网数量: {page_container_count} "
+                    f"填写数量: {expected_container_count}"
+                )
 
         for index, container in enumerate(containers):
             if self.splitOrConsolidatedBill:
@@ -201,7 +223,7 @@ class SiFillContainerCargoMixin:
         )
 
     def _wait_for_container_save(self: "FhtMscgwSiTask") -> bool:
-        for _ in range(10):
+        for _ in range(50):
             save_dialog = self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False, timeout=0.5)
             if not save_dialog:
                 return True
