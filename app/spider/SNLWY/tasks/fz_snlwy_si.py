@@ -22,15 +22,6 @@ class FzSnlwySiTask(
     SiFillContainerCargoMixin,
     SiFillRequirementMixin,
     SiSaveSubmitMixin,
-    # SiFillFreeBookingFormMixin,
-    # SiFillDocumentGroupMixin,
-    # SiFillAddressInfoMixin,
-    # SiFillRouterDetailsMixin,
-    # SiFillFreeRouterDetailsMixin,
-    # SiFillContainerCargoMixin,
-    # SiFillPaymentTypeMixin,
-    # SiSaveSubmitMixin,
-    # SiDownloadMixin,
     SnlwyBase,
 ):
     """执行 FZ_SNLWY_SI。"""

@@ -445,7 +445,7 @@ class BaseRpaTask:
         return bool(
             self.enable_record
             and self.context.enable_result_publish
-            and platform.system() in {"Windows", "Darwin"}
+            # and platform.system() in {"Windows", "Darwin"}
         )
 
     def login(self):
