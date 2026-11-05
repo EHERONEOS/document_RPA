@@ -100,12 +100,16 @@ class SiFillContainerCargoMixin:
     """封装集装箱及货物信息。"""
 
     def _fill_container_cargo(self: "FzSnlwySiTask") -> None:
-        """填写货物汇总。表单项都在 .cargo-content 内。"""
+        """兼容原有组合入口；主任务分别展示货物与箱信息步骤。"""
+        self._fill_cargo_summary()
+        self._fill_containers()
+
+    def _fill_cargo_summary(self: "FzSnlwySiTask") -> None:
+        """填写并校验货物汇总，表单项都在 .cargo-content 内。"""
         self.dom.scroll_to_see("c:.cargo-content", name="货物信息")
         for config in _CARGO_SUMMARY_FIELDS:
             self._fill_cargo_field(config)
         self._verify_cargo_summary()
-        self._fill_containers()
 
     def _fill_cargo_field(self: "FzSnlwySiTask", config: dict) -> None:
         label, key = config["label"], config["key"]
@@ -238,7 +242,8 @@ class SiFillContainerCargoMixin:
             if not self._container_row_exists(_text(container.get("containerNo")).strip())
         ]
         if not pending:
-            self._mark_containers_done(containers)
+            # 重跑时箱号可能已存在，但重量、封号或 VGM 仍可能与下发不一致。
+            self._verify_container_rows(containers)
             return
 
         self.dom.scroll_to_see(selectors.ADD_CONTAINER_BTN, name="添加箱")
@@ -248,7 +253,8 @@ class SiFillContainerCargoMixin:
             if offset:
                 self.dom.click(selectors.DIALOG_ADD_CONTAINER_BTN, name=f"添加第{index + 1}个箱")
                 time.sleep(0.5)
-            self._fill_one_container(container, index)
+            with self._step(f"集装箱 第{index + 1}箱 {container.get('containerNo', '')} 填写"):
+                self._fill_one_container(container, index)
         self._click_in_dialog(selectors.DIALOG_CONFIRM_BTN, "确定添加")
         self._continue_if_container_type_mismatch()
         for _ in range(10):
@@ -390,13 +396,15 @@ class SiFillContainerCargoMixin:
         """按页面实际展示校验箱详情和 VGM，通过后删除剩余字段。"""
         self.dom.click(selectors.CNTR_TAB, "箱详情")
         for index, container in enumerate(containers):
-            self._verify_cntr_tab_row(container, index)
+            with self._step(f"集装箱 第{index + 1}箱 {container.get('containerNo', '')} 校验"):
+                self._verify_cntr_tab_row(container, index)
         if any(_as_bool(container.get("isVgm")) for container in containers):
             self.dom.click(selectors.VGM_TAB, "VGM")
             time.sleep(0.5)
             for index, container in enumerate(containers):
                 if _as_bool(container.get("isVgm")):
-                    self._verify_vgm_tab_row(container, index)
+                    with self._step(f"VGM 第{index + 1}箱 {container.get('containerNo', '')} 校验"):
+                        self._verify_vgm_tab_row(container, index)
             self.dom.click(selectors.CNTR_TAB, "箱详情")
         self._mark_containers_done(containers)
 
@@ -475,7 +483,7 @@ class SiFillContainerCargoMixin:
 
     def _mark_containers_done(self: "FzSnlwySiTask", containers: list[dict]) -> None:
         keys = [config["key"] for config in (*_CONTAINER_FIELDS, *_VGM_FIELDS)]
-        keys.extend(("isVgm", "containerStatus"))
+        keys.extend(("isVgm", "containerStatus", "isOog"))
         for index in range(len(containers)):
             for key in keys:
                 self.mark_field_done(["containers", index, key])

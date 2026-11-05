@@ -1,4 +1,4 @@
-"""MSCGW SI 普通单港口信息填写。"""
+"""SNLWY SI 普通单港口信息填写。"""
 
 from __future__ import annotations
 

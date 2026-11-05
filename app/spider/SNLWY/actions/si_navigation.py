@@ -1,8 +1,7 @@
-"""MSCGW SI 页面导航与地点搜索。"""
+"""SNLWY SI 页面导航与地点搜索。"""
 
 from __future__ import annotations
 
-import re
 import time
 from typing import TYPE_CHECKING
 
@@ -23,8 +22,8 @@ class SiNavigationMixin:
         页面加载时会先查订舱列表，这段时间查询按钮不可点。
         必须先等初始化接口结束，再等按钮恢复，然后才填订舱号并搜索。
         """
-        self.confirm_submit()
-        bookingNo = self.content["bookingNo"]
+        self._dismiss_optional_dialog()
+        booking_no = self.content["bookingNo"]
         self.http.wait_api_finished(
             selectors.BOOKING_LIST_API,
             trigger=lambda: self.page.get(selectors.BOOKING_URL),
@@ -32,7 +31,7 @@ class SiNavigationMixin:
             timeout=60,
         )
         self._wait_booking_search_ready()
-        self.dom.input_text(selectors.BOOKING_SEARCH_INPUT, bookingNo, "搜索框", timeout=30)
+        self.dom.input_text(selectors.BOOKING_SEARCH_INPUT, booking_no, "搜索框", timeout=30)
         self._wait_booking_search_ready()
         self.http.wait_api_finished(
             selectors.BOOKING_LIST_API,
@@ -45,15 +44,15 @@ class SiNavigationMixin:
             selectors.BOOKING_ROW, "订舱列表行", required=False
         )
         if not booking_row:
-            raise BusinessError(f"查不到订舱号{bookingNo}")
+            raise BusinessError(f"查不到订舱号{booking_no}")
         page_booking_no = self.dom.get_text(
             selectors.BOOKING_ROW_NO, "查询订舱号", required=False
         )
-        if page_booking_no != bookingNo:
-            raise BusinessError(f"查不到订舱号{bookingNo}")
+        if page_booking_no != booking_no:
+            raise BusinessError(f"查不到订舱号{booking_no}")
         open_bl_no_btn = self.dom._find(selectors.OPEN_BL_NO_BTN, "生成提单按钮", timeout=1,required=False)
         if not open_bl_no_btn:
-            raise BusinessError(f"该订舱号{bookingNo}无法生成提单")
+            raise BusinessError(f"该订舱号{booking_no}无法生成提单")
         res = self.http.wait_api_finished(
             selectors.BOOKING_CHECK_API,
             trigger=lambda: self.dom.click(selectors.OPEN_BL_NO_BTN, "生成提单按钮"),
@@ -81,6 +80,6 @@ class SiNavigationMixin:
             time.sleep(0.3)
         raise ElementOperationError("订舱列表仍在初始化，搜索按钮不可点击")
 
-    def confirm_submit(self: "FzSnlwySiTask") -> None:
-        """确认提交。"""
+    def _dismiss_optional_dialog(self: "FzSnlwySiTask") -> None:
+        """关闭可能遗留的提示弹窗，避免遮挡订舱查询。"""
         self.dom.click(selectors.DIALOG_CANCEL_BTN, "弹窗取消按钮",required=False,timeout=1)

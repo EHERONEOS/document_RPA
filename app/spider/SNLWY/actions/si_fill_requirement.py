@@ -76,14 +76,37 @@ def _same_emails(expected, page_text: str) -> bool:
 class SiFillRequirementMixin:
     """填写装船、订舱、货物要求，以及运费及附加费。"""
 
+    def _fill_destination_requirements(self: "FzSnlwySiTask") -> None:
+        """印度模板填写进出口注册号，其他模板无需填写。"""
+        if self.content.get("podTemplate") != "印度":
+            self.mark_field_done("iecNo")
+            return
+        self.dom.scroll_to_see(selectors.IEC_NO, name="进出口注册号")
+        self._fill_field_if_changed(
+            selectors.IEC_NO,
+            selectors.IEC_NO_CLEAR,
+            "进出口注册号",
+            "iecNo",
+        )
+        self.verify_page_value(
+            selector=selectors.IEC_NO,
+            field_path="iecNo",
+            selector_type="text",
+            name="进出口注册号",
+        )
+
     def _fill_requirement(self: "FzSnlwySiTask") -> None:
-        """按组同步复选框。含电池在订舱和货物里各有一项，不能混点。"""
-        for config in _REQUIREMENT_FIELDS:
-            self._fill_requirement_group(config)
-        self._verify_requirements()
+        """兼容原有组合入口；主任务逐步调用下面四个业务区块。"""
+        self._fill_requirements()
         self._fill_surcharges()
         self._fill_attachments()
         self._fill_notification_emails()
+
+    def _fill_requirements(self: "FzSnlwySiTask") -> None:
+        """按组同步并校验复选框，同名选项必须限定在对应分组内。"""
+        for config in _REQUIREMENT_FIELDS:
+            self._fill_requirement_group(config)
+        self._verify_requirements()
 
     def _fill_requirement_group(self: "FzSnlwySiTask", config: dict) -> None:
         label, key = config["label"], config["key"]
@@ -144,7 +167,7 @@ class SiFillRequirementMixin:
             self.mark_field_done(key)
 
     def _fill_surcharges(self: "FzSnlwySiTask") -> None:
-        """按下发数组顺序逐行填写。第一行费用代码对不上就停止，不按代码找行。"""
+        """按下发顺序逐行核对费用代码并填写，代码不一致立即停止。"""
         if "surcharges" not in self.content:
             self.mark_field_done("surcharges")
             return
@@ -173,6 +196,12 @@ class SiFillRequirementMixin:
             if not isinstance(item, dict):
                 raise BusinessError(f"第{index + 1}个附加费必须是对象")
             code = _cell_text(item.get("surchargeCode"))
+            # 每行都核对代码，防止官网排序改变后把付款方式填入其他费用行。
+            if codes[index] != code:
+                raise FormValidationError(
+                    f"第{index + 1}行费用代码不一致，实际值：{codes[index]}，期望值：{code}"
+                )
+            self.logger.info(f"[SNLWY][附加费 第{index + 1}行 {code}] 开始填写并校验")
             if index == 0:
                 self.mark_field_done(["surcharges", index, "isPrintOnBL"])
             self._fill_surcharge_payment(index, code, item)
@@ -262,7 +291,8 @@ class SiFillRequirementMixin:
         for index, item in enumerate(files):
             if not isinstance(item, dict):
                 raise BusinessError(f"第{index + 1}个附件必须是对象")
-            self._upload_one_attachment(index, item)
+            with self._step(f"附件 第{index + 1}个 {item.get('filename', '')}"):
+                self._upload_one_attachment(index, item)
 
     def _upload_one_attachment(self: "FzSnlwySiTask", index: int, item: dict) -> None:
         filename = Path(str(item.get("filename") or "")).name

@@ -1,12 +1,12 @@
-"""MSC myMSC 登录流程。"""
+"""SNLWY 会话复用与浏览器登录。"""
 
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from app.core.task.errors import BusinessError, LoginError
+from app.core.task.errors import LoginError
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
@@ -14,9 +14,9 @@ if TYPE_CHECKING:
 
 
 class LoginMixin:
-    """复用 myMSC 会话，并在失效时通过 Azure AD B2C 登录。"""
+    """优先复用 sessionStorage，会话失效时通过官网表单登录。"""
 
-    login_wait_seconds = 10
+    login_wait_seconds = 30
     session_expire_hours = 12
     # 会话失效时首页会先渲染，等接口 401 后才跳登录页。这段时间不能判成已登录。
     login_redirect_grace_seconds = 8
@@ -24,8 +24,7 @@ class LoginMixin:
 
 
     def login(self: "SnlwyBase") -> None:
-        """优先复用 Cookie，必要时只由一个任务提交账号凭据。"""
-        # return
+        """优先复用会话，必要时只由一个任务提交账号凭据。"""
         self._open_home_page()
         if self._wait_until_login_settled():
             self.save_session_storage(self.session_redis_key, expire_hours=self.session_expire_hours)
@@ -34,8 +33,7 @@ class LoginMixin:
 
 
         self.set_page_session_storage(self.session_redis_key)
-        time.sleep(1)
-        self.page.refresh()
+        self._open_home_page(refresh=True)
         if self._wait_until_login_settled():
             self.save_session_storage(self.session_redis_key, expire_hours=self.session_expire_hours)
             self.logger.info("获取redis sessionStorage 登录成功")
@@ -43,8 +41,7 @@ class LoginMixin:
 
         while not self.claim_credential_login():
             self.set_page_session_storage(self.session_redis_key)
-            time.sleep(1)
-            self.page.refresh()
+            self._open_home_page(refresh=True)
             if self._wait_until_login_settled():
                 self.logger.info("SNLWY 已复用其他任务刷新后的 sessionStorage")
                 return
@@ -53,16 +50,18 @@ class LoginMixin:
         self.save_session_storage(self.session_redis_key, expire_hours=self.session_expire_hours)
 
 
-    def _open_home_page(self: "SnlwyBase") -> None:
-        """打开 SNLWY 首页。"""
+    def _open_home_page(self: "SnlwyBase", *, refresh: bool = False) -> None:
+        """统一从首页加载并校验登录态，doc_loaded 不代表 Vue 接口已完成。"""
         self.page.get(selectors.INDEX_URL, show_errmsg=True)
-        
+        if refresh:
+            # hash 跳转不会重新初始化 Vue，恢复缓存后需刷新以读取新的会话。
+            self.page.refresh()
+        self.page.wait.doc_loaded()
 
 
     def _auto_login(self: "SnlwyBase") -> None:
-        """优先使用登录服务 Cookie，失败时回退至浏览器自动化登录。"""
-        url = str(getattr(self.page, "url", "") or "")
-        if not url.startswith(selectors.LOGIN_URL):
+        """通过官网账号密码表单登录，失败时立即终止任务。"""
+        if not self._is_login_url(self._page_url()):
             self.page.get(selectors.LOGIN_URL, show_errmsg=True)
             self.page.wait.doc_loaded()
         account = str(self.website_info.get("websiteAccount") or "").strip()
@@ -77,10 +76,8 @@ class LoginMixin:
             self._wait_for_login_success()
             return
         except Exception as exc:
-            self.logger.warn(f"SNLWY 登录服务失败，回退浏览器自动化登录：{exc}")
-
-
- 
+            # 当前没有其他登录回退路径，失败必须上抛，不能继续填写业务页面。
+            raise LoginError(f"SNLWY 浏览器登录失败：{exc}") from exc
 
 
     def _wait_for_login_success(self: "SnlwyBase") -> None:
@@ -103,20 +100,17 @@ class LoginMixin:
 
     @staticmethod
     def _hash_path(url: str) -> str:
-        text = str(url or "").strip()
-        if "#" in text:
-            text = text.split("#", 1)[1]
-        text = text.split("?", 1)[0].rstrip("/")
+        parsed = urlparse(str(url or "").strip())
+        text = (parsed.fragment or parsed.path).split("?", 1)[0].rstrip("/")
         return text if text.startswith("/") else ""
 
 
     def _is_login_url(self: "SnlwyBase", url: str) -> bool:
-        return self._hash_path(url) == "/login" or url.startswith(selectors.LOGIN_URL)
+        return self._hash_path(url).endswith("/login")
 
 
     def _is_home_url(self: "SnlwyBase", url: str) -> bool:
-        path = self._hash_path(url)
-        return path == "/search-service/quick-search" or url.startswith(selectors.INDEX_URL)
+        return self._hash_path(url).endswith("/quick-search")
 
 
     def _has_login_button(self: "SnlwyBase") -> bool:
@@ -126,9 +120,21 @@ class LoginMixin:
 
 
     def _home_shell_ready(self: "SnlwyBase") -> bool:
-        return bool(self.dom._find(
+        if not self.dom._find(
             "c:.locale-box", "等待语言选择器加载", timeout=0.5, required=False
-        ))
+        ):
+            return False
+        # 页头可能先于接口数据渲染；可见骨架屏或 loading 遮罩存在时继续等待。
+        try:
+            return self.page.run_js("""
+                return !Array.from(document.querySelectorAll(
+                    '.el-skeleton, .el-loading-mask'
+                )).some(el => el.getClientRects().length > 0 &&
+                    getComputedStyle(el).visibility !== 'hidden');
+            """) is True
+        except Exception:
+            # 路由切换时 JS 上下文可能暂不可用，本轮不能判定成功。
+            return False
 
 
     def _access_token_state(self: "SnlwyBase") -> bool | None:
@@ -144,7 +150,6 @@ class LoginMixin:
             return False
         return True
 
-
     def _wait_until_login_settled(
         self: "SnlwyBase", *, waiting_for_success: bool = False
     ) -> bool:
@@ -153,6 +158,7 @@ class LoginMixin:
         登录失效时，站点会先打开首页，等接口返回 401 后才跳到登录页。
         跳转完成前地址仍是首页，暂时看不到登录按钮也不能当成已登录。
         """
+
         deadline = time.monotonic() + self.login_wait_seconds
         ready_since = None
         while time.monotonic() < deadline:
@@ -179,17 +185,24 @@ class LoginMixin:
                 time.sleep(self.login_state_poll_seconds)
                 continue
 
-            if token_state is not False and self._home_shell_ready():
+            if (
+                self._is_home_url(url)
+                and token_state is not False
+                and self._home_shell_ready()
+            ):
                 now = time.monotonic()
                 if ready_since is None:
                     ready_since = now
                 elif now - ready_since >= self.login_redirect_grace_seconds:
                     if (
-                        self._is_login_url(self._page_url())
+                        not self._is_home_url(self._page_url())
                         or self._has_login_button()
                         or self._access_token_state() is False
+                        or not self._home_shell_ready()
                     ):
-                        return False
+                        ready_since = None
+                        time.sleep(self.login_state_poll_seconds)
+                        continue
                     return True
             else:
                 ready_since = None

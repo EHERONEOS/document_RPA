@@ -164,6 +164,7 @@ class SiFillAddressInfoMixin:
         same_as_consignee = _as_bool(self.content.get("sameAsConsignee"))
         show_second_notify = _as_bool(self.content.get("isShowSecondNotify"))
 
+        # 先处理发货人，再按页面顺序处理收货人、通知人和第二通知人。
         self._fill_party_fields(_PARTY_FIELDS["发货人信息"])
 
         self._set_checkbox_if_needed(selectors.TO_ORDER_CHECK, "TO ORDER", to_order)
@@ -176,7 +177,9 @@ class SiFillAddressInfoMixin:
                 "SAME AS CONSIGNEE",
                 same_as_consignee,
             )
-        self._fill_party_fields(_PARTY_FIELDS["通知人信息"])
+        # 同收货人勾选时由页面带出通知人；TO ORDER 会强制取消该选项。
+        if to_order or not same_as_consignee:
+            self._fill_party_fields(_PARTY_FIELDS["通知人信息"])
 
         self._set_checkbox_if_needed(
             selectors.SECOND_NOTIFY_CHECK,
@@ -187,6 +190,79 @@ class SiFillAddressInfoMixin:
             self._fill_party_fields(_PARTY_FIELDS["第二通知人"])
 
         self._verify_address_info(to_order, same_as_consignee, show_second_notify)
+
+    def _fill_party_fields(self: "FzSnlwySiTask", fields: list[dict]) -> None:
+        for config in fields:
+            self._fill_configured_field(config)
+
+    def _fill_configured_field(self: "FzSnlwySiTask", config: dict) -> None:
+        section, label, key = config["section"], config["label"], config["key"]
+        checkbox = config.get("checkbox")
+        select = config.get("select")
+        if checkbox:
+            value = self.content.get(key)
+            if value is not None:
+                self._set_checkbox_if_needed(
+                    selectors.customer_info_selector(
+                        section,
+                        label,
+                        f"label[normalize-space()='{checkbox}']",
+                    ),
+                    f"{section}{label}{checkbox}",
+                    _as_bool(value),
+                )
+            return
+
+        if select:
+            value = self.content.get(key, "")
+            if value:
+                self.dom.select_by_word(
+                    selectors.customer_info_selector(section, label, select),
+                    value,
+                    config.get("options", selectors.COUNTRY_OPTIONS),
+                    name=f"{section}{label}",
+                )
+            return
+
+        self._fill_field_if_changed(
+            selectors.customer_info_selector(
+                section,
+                label,
+                config.get("part", _CONTENT_PART),
+                config.get("from_parent", False),
+            ),
+            selectors.customer_info_selector(section, label, config.get("clear", _CONTENT_CLEAR)),
+            f"{section}{label}",
+            key,
+        )
+
+    def _fill_field_if_changed(
+        self: "FzSnlwySiTask",
+        field_selector: str,
+        clear_selector: str,
+        label: str,
+        content_key: str,
+    ) -> None:
+        """字段内容与预期不一致时，悬停、清除后重新填写。"""
+        expected_value = self.content.get(content_key, "")
+        is_input = "el-input__inner" in field_selector
+        is_email = "editable-input-tag" in field_selector
+        current_value = (
+            self.dom.get_value(field_selector, label)
+            if is_input
+            else self.dom.get_text(field_selector, label)
+        )
+        changed = (
+            not _same_emails(expected_value, current_value)
+            if is_email
+            else current_value != expected_value
+        )
+        if changed:
+            # 输入框由 input_text 按 el-input__inner 清空，没有富文本清除按钮。
+            if not is_input and current_value and current_value.strip() != "请输入":
+                self.dom._find(field_selector, label).hover()
+                self.dom.click(clear_selector, f"清除{label}")
+            self.dom.input_text(field_selector, expected_value, name=label)
 
     def _verify_address_info(
         self: "FzSnlwySiTask",
@@ -199,7 +275,22 @@ class SiFillAddressInfoMixin:
         self._verify_party_fields(_consignee_fields(to_order))
         if to_order:
             self._mark_fields_done(_skipped_consignee_fields())
-        self._verify_party_fields(_PARTY_FIELDS["通知人信息"])
+        if same_as_consignee and not to_order:
+            # 勾选后名称变为只读文本，其余通知人字段隐藏。
+            self.verify_page_value(
+                selector=selectors.customer_info_selector(
+                    "通知人信息", "通知方名称", "*[contains(@class,'break-all')]"
+                ),
+                field_path="notifyTitle",
+                selector_type="text",
+                name="通知人信息通知方名称",
+            )
+            self._mark_fields_done([
+                field for field in _PARTY_FIELDS["通知人信息"]
+                if field["key"] != "notifyTitle"
+            ])
+        else:
+            self._verify_party_fields(_PARTY_FIELDS["通知人信息"])
         if show_second_notify:
             self._verify_party_fields(_PARTY_FIELDS["第二通知人"])
         else:
@@ -239,7 +330,7 @@ class SiFillAddressInfoMixin:
                     f"label[normalize-space()='{config['checkbox']}']",
                 ),
                 f"{name}{config['checkbox']}",
-                bool(value),
+                _as_bool(value),
                 key,
             )
             return
@@ -318,76 +409,4 @@ class SiFillAddressInfoMixin:
         """页面上无需填写的字段直接从 remain_content 移除。"""
         for config in fields:
             self.mark_field_done(config["key"])
-
-    def _fill_party_fields(self: "FzSnlwySiTask", fields: list[dict]) -> None:
-        for config in fields:
-            self._fill_configured_field(config)
-
-    def _fill_configured_field(self: "FzSnlwySiTask", config: dict) -> None:
-        section, label, key = config["section"], config["label"], config["key"]
-        checkbox = config.get("checkbox")
-        select = config.get("select")
-        if checkbox:
-            value = self.content.get(key)
-            if value is not None:
-                self._set_checkbox_if_needed(
-                    selectors.customer_info_selector(
-                        section,
-                        label,
-                        f"label[normalize-space()='{checkbox}']",
-                    ),
-                    f"{label}{checkbox}",
-                    bool(value),
-                )
-            return
-
-        if select:
-            value = self.content.get(key, "")
-            if value:
-                self.dom.select_by_word(
-                    selectors.customer_info_selector(section, label, select),
-                    value,
-                    config.get("options", selectors.COUNTRY_OPTIONS),
-                    name=label,
-                )
-            return
-
-        self._fill_field_if_changed(
-            selectors.customer_info_selector(
-                section,
-                label,
-                config.get("part", _CONTENT_PART),
-                config.get("from_parent", False),
-            ),
-            selectors.customer_info_selector(section, label, config.get("clear", _CONTENT_CLEAR)),
-            label,
-            key,
-        )
-
-    def _fill_field_if_changed(
-        self: "FzSnlwySiTask",
-        field_selector: str,
-        clear_selector: str,
-        label: str,
-        content_key: str,
-    ) -> None:
-        """字段内容与预期不一致时，悬停、清除后重新填写。"""
-        expected_value = self.content.get(content_key, "")
-        is_input = "el-input__inner" in field_selector
-        is_email = "editable-input-tag" in field_selector
-        current_value = (
-            self.dom.get_value(field_selector, label)
-            if is_input
-            else self.dom.get_text(field_selector, label)
-        )
-        changed = (
-            not _same_emails(expected_value, current_value)
-            if is_email
-            else current_value != expected_value
-        )
-        if changed:
-            # 输入框由 input_text 按 el-input__inner 清空，没有富文本清除按钮。
-            if not is_input and current_value and current_value.strip() != "请输入":
-                self.dom._find(field_selector, label).hover()
-                self.dom.click(clear_selector, f"清除{label}")
-            self.dom.input_text(field_selector, expected_value)
+            self._mark_country_code_done(config["label"], config["key"])

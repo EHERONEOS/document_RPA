@@ -1,4 +1,4 @@
-"""MSCGW 船司队列路由。"""
+"""SNLWY 船司队列路由。"""
 
 from app.core.task.errors import RouteNotFoundError
 from app.core.task.router import CarrierRoute

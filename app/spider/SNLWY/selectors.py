@@ -1,8 +1,5 @@
 """SNLWY  登录页定位器。"""
 
-from app.spider.MSCGW.selectors import POD_INPUT
-
-
 LOGIN_URL = "https://ibs.sinolines.com/#/login"
 INDEX_URL = "https://ibs.sinolines.com/#/search-service/quick-search"
 INDEX_API_URL = "https://ibs.sinolines.com/admin-api/system/fileManage/page"
@@ -10,7 +7,7 @@ INDEX_API_URL = "https://ibs.sinolines.com/admin-api/system/fileManage/page"
 LOGIN_API_URL = "http://115.236.42.234:42000/interface/api/mscgw/login"
 ATTACHMENT_API_URL = "http://115.236.42.234:42000/interface//api/mscgw/get_attachment"
 
-# myMSC 首屏先收集邮箱，再跳转到 Azure AD B2C 密码页。
+# SNLWY 官网登录表单：用户名、密码与登录按钮。
 LOGIN_USERNAME = "x://*[contains(@class, 'login-form')]//input[@placeholder='请输入用户名']"
 LOGIN_PASSWORD = "x://*[contains(@class, 'login-form')]//input[@type='password']"
 LOGIN_SUBMIT = "x://*[contains(@class, 'login-form')]//*[contains(@class, 'submit-btn')]//button"
@@ -54,6 +51,8 @@ RELEASE_MODE_OPTIONS = "x://*[contains(@class,'el-popper')][not(contains(@style,
 # 选中后 input.value 仍为空，真正的展示在 placeholder 里，例如 T、电放、签发 1 份。
 RELEASE_MODE_TEXT = "c:.sign-order .el-select__placeholder"
 HBL_NO = "x://*[contains(@class,'el-form-item__label')][normalize-space()='House B/L No.']/following-sibling::*[1]//input"
+IEC_NO = "x://*[contains(@class,'el-form-item__label')][normalize-space()='进出口注册号']/following-sibling::*[1]//*[contains(@class,'cm-content')]"
+IEC_NO_CLEAR = "x://*[contains(@class,'el-form-item__label')][normalize-space()='进出口注册号']/following-sibling::*[1]//*[contains(@class,'textarea-clear-icon')]"
 
 
 def customer_info_selector(section: str, label: str, part: str, from_parent: bool = False) -> str:

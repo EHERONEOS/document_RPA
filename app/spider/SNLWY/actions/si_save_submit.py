@@ -1,4 +1,4 @@
-"""MSCGW SI 保存、预览下载与提交。"""
+"""SNLWY SI 保存、预览下载与提交。"""
 
 from __future__ import annotations
 
