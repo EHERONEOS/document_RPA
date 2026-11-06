@@ -236,6 +236,8 @@ class SiFillContainerCargoMixin:
         containers = self.content.get("containers") or []
         if not containers:
             raise BusinessError("后台下发的集装箱信息为空")
+        if any(_as_bool(container.get("isOog")) for container in containers):
+            raise BusinessError("添加OOG功能需要调试 请联系RPA人员")
         pending = [
             (index, container)
             for index, container in enumerate(containers)

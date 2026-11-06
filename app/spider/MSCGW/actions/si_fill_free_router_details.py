@@ -27,19 +27,20 @@ class SiFillFreeRouterDetailsMixin:
                 selectors.FREE_RECEIPT_CARRIAGE_MODE_OPTIONS,
                 name="选择收货地运输方式",
             )
-            time.sleep(1)
-            self.search_location_select(
-                selectors.FREE_RECEIPT_LOCATION_INPUT,
-                self.content.get("receiptPlace"),
-                selectors.SEARCH_FREE_LOCATION_API,
-                "SearchMdmLocations",
-                name="选择收货地城市",
-            )
-            self.si_shadow.input_text(
-                selectors.RECEIPT_INPUT,
-                self.content.get("receiptPlacePrintOnBl"),
-                name="输入收货地",
-            )
+            if self.content.get("preCarriageMode") != "None":
+                time.sleep(1)
+                self.search_location_select(
+                    selectors.FREE_RECEIPT_LOCATION_INPUT,
+                    self.content.get("receiptPlace"),
+                    selectors.SEARCH_FREE_LOCATION_API,
+                    "SearchMdmLocations",
+                    name="选择收货地城市",
+                )
+                self.si_shadow.input_text(
+                    selectors.RECEIPT_INPUT,
+                    self.content.get("receiptPlacePrintOnBl"),
+                    name="输入收货地",
+                )
 
         self.search_ports_select(
             selectors.FREE_POL_LOCATION_INPUT,
@@ -62,19 +63,20 @@ class SiFillFreeRouterDetailsMixin:
                 selectors.FREE_DELIVERY_CARRIAGE_MODE_OPTIONS,
                 name="选择交货地运输方式",
             )
-            time.sleep(1)
-            self.search_location_select(
-                selectors.FREE_DELIVERY_LOCATION_INPUT,
-                self.content.get("deliveryPlace"),
-                selectors.SEARCH_FREE_LOCATION_API,
-                "SearchMdmLocations",
-                name="选择交货地城市",
-            )
-            self.si_shadow.input_text(
-                selectors.DELIVERY_INPUT,
-                self.content.get("deliveryPlacePrintOnBl"),
-                name="输入交货地",
-            )
+            if self.content.get("onCarriageMode") != "None":
+                time.sleep(1)
+                self.search_location_select(
+                    selectors.FREE_DELIVERY_LOCATION_INPUT,
+                    self.content.get("deliveryPlace"),
+                    selectors.SEARCH_FREE_LOCATION_API,
+                    "SearchMdmLocations",
+                    name="选择交货地城市",
+                )
+                self.si_shadow.input_text(
+                    selectors.DELIVERY_INPUT,
+                    self.content.get("deliveryPlacePrintOnBl"),
+                    name="输入交货地",
+                )
         self.verify_free_router_details()
 
     def verify_free_router_details(self: "FhtMscgwSiTask") -> None:
