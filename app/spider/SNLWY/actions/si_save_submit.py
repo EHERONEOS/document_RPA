@@ -27,6 +27,7 @@ class SiSaveSubmitMixin:
         """保存并提交。"""
         self.dom.click(selectors.SAVE_BUTTON, name="存草稿按钮")
         self.page.wait.doc_loaded()
+        time.sleep(3)
         self.download_draft()
         self.page.wait.doc_loaded()
         if self.context.rpa_operate == "SUBMIT_DIRECT":
@@ -37,7 +38,7 @@ class SiSaveSubmitMixin:
     def download_draft(self: "FzSnlwySiTask") -> None:
         """下载草稿件。"""
         download_preview_btn = self.dom._find(
-            selectors.ATTACH_BUTTON, name="查看预览按钮", timeout=1, required=False
+            selectors.ATTACH_BUTTON, name="查看预览按钮", timeout=4, required=False
         )
         file_path = self.dom.click_to_download(
             download_preview_btn,

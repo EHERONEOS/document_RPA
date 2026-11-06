@@ -33,6 +33,9 @@ def infer_media_type(file_path) -> str:
 class BaseRpaTask:
     """RPA 任务生命周期基类。"""
 
+    # 配置 CSS 内容根节点后，业务和失败截图均临时展开该区域及其祖先。
+    screenshot_expand_root_selector = None
+
     enable_record = True #是否开启录屏
     incognito = False #是否开启无痕模式
     wait_page_load = False #是否等待页面加载完成
@@ -70,6 +73,9 @@ class BaseRpaTask:
         # 这些集合必须是实例属性，避免复用 Worker 时串到下一条消息。
         self.attachments = []
         self.business_record_files = []
+        # 流程到达需保留执行记录的位置后设为 True，后续失败也上传截图和录屏。
+        # 使用实例属性，避免开关影响同一 Worker 中的其他任务。
+        self.upload_record_files_on_failure = False
         self.result_save_type = 1
         # 日志服务终态/记录文件采集（§6.4，仅旁路上报，不影响回传协议）
         self.fail_img_object_name = "" # 失败截图 objectName（查看页经 /v1/file/url 换临时地址）
@@ -83,7 +89,7 @@ class BaseRpaTask:
         self.notifier = notifier or ProcessingNotifier() #通知消息实例
         self.publisher = publisher or ResultPublisher() #发布消息实例
         self.oss_client = oss_client or OssClient() #oss客户端实例
-        # 截图/视频统一仅 OSS 上传，不再降级局域网；录屏上传成功后删除本地文件，上传失败保留本地（任务失败时也删除）。
+        # 截图/视频统一仅 OSS 上传；未开启失败上传时，失败任务删除本地过程文件。
         self.util_redis = get_redis_db_client(self.REDIS_MAIN) # 配置cookies redis客户端实例
         self.redis_client = get_redis_db_client(self.REDIS_HEART_BEAT) # 配置proxy redis客户端实例
 
@@ -121,7 +127,10 @@ class BaseRpaTask:
             # 初始化http助手
             self.http = HttpHelper(self.page)
             # 初始化截图助手
-            self.screenshot = Screenshot(self.page)
+            self.screenshot = Screenshot(
+                self.page,
+                expand_root_selector=self.screenshot_expand_root_selector,
+            )
             # 执行登录 登录完成后释放登录锁
             login_success = False
             try:
@@ -147,8 +156,8 @@ class BaseRpaTask:
             if self.context.enable_result_publish:
                 screenshot_img = self._upload_error_screenshot()
         finally:
-            # 收集录屏文件；任务失败时不回传过程文件，仅清理本地文件
-            if success:
+            # 成功时上传；流程开启失败上传后，即使任务失败也保留执行记录。
+            if success or self.upload_record_files_on_failure:
                 execute_record_files = self._collect_record_files()
             else:
                 self._discard_record_files()
@@ -250,7 +259,7 @@ class BaseRpaTask:
             return record_files
 
     def _discard_record_files(self):
-        """任务失败时丢弃过程记录：不回传文件，仅停止录屏并删除本地文件。"""
+        """任务失败且未开启失败上传时，停止录屏并删除本地过程文件。"""
         if self.recorder is not None:
             record_file_path = self.recorder.file_path
             try:

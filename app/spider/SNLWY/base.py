@@ -17,6 +17,7 @@ class SnlwyBase(FieldVerificationMixin, LoginMixin, BaseRpaTask):
     carrier_code = "SNLWY"
     login_url = selectors.LOGIN_URL
     index_url = selectors.INDEX_URL
+    screenshot_expand_root_selector = ".si-detail"
 
     def __init__(self, context: TaskContext, **kwargs):
         super().__init__(context, **kwargs)
