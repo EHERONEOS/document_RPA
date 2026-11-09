@@ -3,10 +3,12 @@
 from app.core.task.errors import RouteNotFoundError
 from app.core.task.router import CarrierRoute
 from app.spider.SNLWY.tasks.fz_snlwy_si import fz_snlwy_si
+from app.spider.SNLWY.tasks.wnq_snlwy_si import wnq_snlwy_si
 
 
 ROUTES = {
     "FZ_SNLWY_SI": CarrierRoute("FZ", "SI", fz_snlwy_si),
+    "WNQ_SNLWY_SI": CarrierRoute("WNQ", "SI", wnq_snlwy_si),
 }
 
 

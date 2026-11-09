@@ -74,7 +74,7 @@ class FzSnlwySiTask(
         
         with self._step("10 接收通知邮箱"):
             self._fill_notification_emails()
-
+        
         with self._step("11 漏填检查与填单截图"):
             self.raise_if_unfilled_fields()
             

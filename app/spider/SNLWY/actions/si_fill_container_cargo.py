@@ -176,7 +176,7 @@ class SiFillContainerCargoMixin:
         current_value = (
             self.dom.get_value(field_selector, label)
             if is_value_input
-            else self.dom.get_text(field_selector, label)
+            else self.dom.get_raw_text(field_selector, label)
         )
         if current_value == expected_value:
             return
@@ -208,7 +208,7 @@ class SiFillContainerCargoMixin:
                 self.mark_field_done(key)
                 continue
             part = config["part"]
-            selector_type = "value" if _is_value_input(part) else "text"
+            selector_type = "value" if _is_value_input(part) else "raw_text"
             self.verify_page_value(
                 selector=selectors.cargo_content_selector(label, part),
                 field_path=key,

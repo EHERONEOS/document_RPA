@@ -247,11 +247,12 @@ class SiFillAddressInfoMixin:
         expected_value = self.content.get(content_key, "")
         is_input = "el-input__inner" in field_selector
         is_email = "editable-input-tag" in field_selector
-        current_value = (
-            self.dom.get_value(field_selector, label)
-            if is_input
-            else self.dom.get_text(field_selector, label)
-        )
+        if is_input:
+            current_value = self.dom.get_value(field_selector, label)
+        elif is_email:
+            current_value = self.dom.get_text(field_selector, label)
+        else:
+            current_value = self.dom.get_raw_text(field_selector, label)
         changed = (
             not _same_emails(expected_value, current_value)
             if is_email
@@ -358,7 +359,7 @@ class SiFillAddressInfoMixin:
         if "editable-input-tag" in part:
             self._verify_email_field(config, name)
             return
-        selector_type = "value" if "el-input__inner" in part else "text"
+        selector_type = "value" if "el-input__inner" in part else "raw_text"
         self.verify_page_value(
             selector=selectors.customer_info_selector(
                 section,

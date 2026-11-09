@@ -26,9 +26,21 @@ BOOKING_SEARCH_INPUT = (
 SEARCH_BUTTON = "x://*[contains(@class,'query-condition')]//button[normalize-space()='查询']"
 BOOKING_ROW = "c:.cmg-grid__body-rows>div:nth-child(1)"
 BOOKING_ROW_NO = "c:.cmg-grid__body-rows>div:nth-child(1) .booking-no button"
-# OPEN_BL_NO_BTN = "x://*[contains(@class,'cmg-grid__body-rows')]/div[1]//*[contains(@class,'action-bar')]/div[normalize-space()='生成提单' and not(contains(concat(" ",normalize-space(@class)," "),' disabled '))]"
-# OPEN_BL_NO_BTN = "x://*[contains(@class,'cmg-grid__body-rows')]/div[1]//*[contains(@class,'action-bar')]/div[normalize-space()='生成提单']"
-OPEN_BL_NO_BTN = "x://*[contains(@class,'cmg-grid__body-rows')]/div[1]//*[contains(@class,'action-bar')]/div[normalize-space()='生成提单' and not(contains(@class,'disabled'))]"
+BOOKING_ACTION_BAR = "x://*[contains(@class,'cmg-grid__body-rows')]/div[1]//*[contains(@class,'action-bar')]"
+# 菜单项可能内嵌 span；禁用状态也可能标在父级菜单项上。
+CREATE_BL_ACTION = (
+    "*[normalize-space()='生成提单' and not(*[normalize-space()='生成提单'])]"
+    "[not(ancestor-or-self::*[@disabled or @aria-disabled='true' or contains(@class,'disabled')])]"
+)
+OPEN_BL_NO_BTN = BOOKING_ACTION_BAR + "//" + CREATE_BL_ACTION
+BOOKING_MORE_BTN = (
+    BOOKING_ACTION_BAR
+    # 官网实际文字为“更多...”，同时兼容无省略号和中文省略号。
+    + "//*[translate(normalize-space(),'.…','')='更多' and "
+    "(self::button or self::a or not(*[translate(normalize-space(),'.…','')='更多']))]"
+)
+BOOKING_ACTION_POPUPS = "x://*[contains(concat(' ',normalize-space(@class),' '),' action-bar-popover ')]"
+POPUP_CREATE_BL_BTN = "x:.//" + CREATE_BL_ACTION
 BOOKING_CHECK_API = "https://ibs.sinolines.com/admin-api/system/soAmendApply/checkOperation"
 CREATE_BL_URL = "https://ibs.sinolines.com/#/export/lading/create"
 

@@ -52,6 +52,7 @@ class LoginMixin:
 
     def _open_home_page(self: "SnlwyBase", *, refresh: bool = False) -> None:
         """统一从首页加载并校验登录态，doc_loaded 不代表 Vue 接口已完成。"""
+        self._booking_initialized = False
         self.page.get(selectors.INDEX_URL, show_errmsg=True)
         if refresh:
             # hash 跳转不会重新初始化 Vue，恢复缓存后需刷新以读取新的会话。
@@ -138,7 +139,7 @@ class LoginMixin:
 
 
     def _access_token_state(self: "SnlwyBase") -> bool | None:
-        """读取首页用来维持登录的 ACCESS_TOKEN。读不到时返回 None，不参与判断。"""
+        """令牌存在只是候选会话；有效性还需由受保护接口确认。"""
         try:
             token = self.page.run_js(
                 "return window.sessionStorage.getItem('ACCESS_TOKEN') || ''"
@@ -149,6 +150,32 @@ class LoginMixin:
         if not text or text in {"null", "undefined"}:
             return False
         return True
+
+    def _verify_authenticated_session(self: "SnlwyBase") -> bool:
+        """通过官网自身的订舱列表请求确认会话，不主动拼装令牌或请求头。"""
+        self._booking_initialized = False
+        result = self.http.wait_api_finished(
+            selectors.BOOKING_LIST_API,
+            trigger=lambda: self.page.get(selectors.BOOKING_URL, show_errmsg=True),
+            name="登录会话校验（订舱列表）",
+            timeout=self.login_wait_seconds,
+            required=False,
+        )
+        body = result.get("response") if isinstance(result, dict) else None
+        code = body.get("code") if isinstance(body, dict) else None
+        if code in (401, "401") or self._is_login_url(self._page_url()):
+            self.logger.info("SNLWY 服务端拒绝当前会话，需重新登录")
+            return False
+        if code != 0:
+            # 网络异常、权限错误或响应格式变化不能证明登录有效，也不应盲目重登。
+            raise LoginError(f"SNLWY 无法验证登录会话：订舱列表接口未成功，code={code}")
+        # 留在订舱页，将成功的初始化交给业务阶段复用一次。
+        self._booking_initialized = (
+            self._hash_path(self._page_url()) == self._hash_path(selectors.BOOKING_URL)
+            and not self._has_login_button()
+            and self._access_token_state() is True
+        )
+        return self._booking_initialized
 
     def _wait_until_login_settled(
         self: "SnlwyBase", *, waiting_for_success: bool = False
@@ -187,7 +214,7 @@ class LoginMixin:
 
             if (
                 self._is_home_url(url)
-                and token_state is not False
+                and token_state is True
                 and self._home_shell_ready()
             ):
                 now = time.monotonic()
@@ -197,13 +224,13 @@ class LoginMixin:
                     if (
                         not self._is_home_url(self._page_url())
                         or self._has_login_button()
-                        or self._access_token_state() is False
+                        or self._access_token_state() is not True
                         or not self._home_shell_ready()
                     ):
                         ready_since = None
                         time.sleep(self.login_state_poll_seconds)
                         continue
-                    return True
+                    return self._verify_authenticated_session()
             else:
                 ready_since = None
             time.sleep(self.login_state_poll_seconds)

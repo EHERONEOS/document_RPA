@@ -295,6 +295,24 @@ class DomHelper:
             return ""
         return getattr(element, "text", "") or ""
 
+    def get_raw_text(self, locator, name=None, required=True, timeout=5):
+        """读取原文，保留连续空格、首尾空白和空行。
+
+        CodeMirror 用 cm-line 节点表示逻辑行，需逐行读取 textContent 后
+        拼接换行；直接读取容器 textContent 会把各行连在一起。
+        普通元素直接读取 textContent，不经过 DrissionPage 的 .text 格式化。
+        """
+        element = self._find(locator, name, required, timeout)
+        if not element:
+            return ""
+        if "cm-content" in (element.attr("class") or "").split():
+            return "\n".join(
+                line.run_js("return this.textContent;") or ""
+                for line in element.eles("css:.cm-line")
+            )
+        # property() 也会解码实体和替换 NBSP，直接执行 JS 才能保留原文。
+        return element.run_js("return this.textContent;") or ""
+
     def get_value(self, locator, name=None, required=True,timeout=5):
         """获取 input value。"""
         element = self._find(locator, name, required, timeout)

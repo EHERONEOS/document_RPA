@@ -1,5 +1,6 @@
 """页面字段取值与校验的通用能力。"""
 
+from app.core.page.dom import DomHelper
 from app.core.task.errors import BusinessError, ElementNotFoundError, FormValidationError, UnfilledFieldError
 
 _UNSET = object()
@@ -31,6 +32,7 @@ class FieldVerificationMixin:
                 形式的嵌套写法，也可直接传入路径列表或元组。
             selector_type: 页面取值方式，默认 ``value``。支持：
                 - ``text``：读取元素可见文本；
+                - ``raw_text``：读取原文，保留空白和 CodeMirror 逻辑换行；
                 - ``value``：读取元素 ``value`` 属性；
                 - ``select``：读取下拉框当前选中值；
                 - ``checked``：读取复选/单选框选中状态，期望值必须为布尔值。
@@ -46,7 +48,7 @@ class FieldVerificationMixin:
                 或纯空白字符串）则不读取页面，直接按 ``mark_done`` 标记完成并
                 返回，视为无需校验；设为 ``False`` 时字段缺失会抛出
                 ``BusinessError``。
-            ignore_case: 设为 ``True`` 时，``text``/``value`` 类型的字符串比较
+            ignore_case: 设为 ``True`` 时，``text``/``raw_text``/``value`` 类型的字符串比较
                 忽略大小写，对 ``select``/``checked`` 不生效。
 
         Raises:
@@ -75,13 +77,13 @@ class FieldVerificationMixin:
 
         actual_value = self._read_page_value(source, selector, selector_type, name)
         comparable_expected_value = expected_value
-        if selector_type in {"text", "value"}:
+        if selector_type in {"text", "raw_text", "value"}:
             comparable_expected_value = "" if expected_value is None else str(expected_value)
         elif selector_type == "checked" and not isinstance(expected_value, bool):
             raise BusinessError(f"{name}的期望值必须是布尔值：{expected_value}")
 
         values_match = actual_value == comparable_expected_value
-        if ignore_case and selector_type in {"text", "value"}:
+        if ignore_case and selector_type in {"text", "raw_text", "value"}:
             values_match = actual_value.casefold() == comparable_expected_value.casefold()
 
         if not values_match:
@@ -255,6 +257,7 @@ class FieldVerificationMixin:
 
         readers = {
             "text": "get_text",
+            "raw_text": "get_raw_text",
             "value": "get_value",
             "select": "get_select_value",
         }
@@ -262,12 +265,15 @@ class FieldVerificationMixin:
             reader_name = readers[selector_type]
         except KeyError as error:
             raise BusinessError(
-                f"不支持的 selector_type：{selector_type}，仅支持 text、value、select、checked"
+                f"不支持的 selector_type：{selector_type}，仅支持 text、raw_text、value、select、checked"
             ) from error
 
         reader = getattr(source, reader_name, None)
         if reader:
             return reader(selector, name)
+
+        if selector_type == "raw_text":
+            return DomHelper(source).get_raw_text(selector, name)
 
         element = source.ele(selector, timeout=2)
         if not element:
