@@ -31,19 +31,21 @@ _FALSE_TEXTS = {"0", "false", "no", "n", ""}
 
 
 _EMAIL_SEPARATORS = re.compile(r"[,，]+")
+_EMAIL_PREFIX = re.compile(r"^\s*EMAIL\s*[:：]\s*", re.IGNORECASE)
 _PAGE_EMAIL_SPLIT = re.compile(r"[\s,，×✕✖]+")
 
 
 def _split_email_value(value) -> list[str]:
-    """下发邮箱是逗号分隔字符串。"""
+    """下发邮箱是逗号分隔字符串，可带官网拆分展示的 EMAIL: 前缀。"""
     text = "" if value is None else str(value)
-    return [part.strip() for part in _EMAIL_SEPARATORS.split(text) if part.strip()]
+    return [_EMAIL_PREFIX.sub("", part.strip())
+            for part in _EMAIL_SEPARATORS.split(text) if part.strip()]
 
 
 def _emails_from_page_text(text: str) -> list[str]:
     """从标签展示文本中抽出邮箱，忽略关闭按钮和空白。"""
     return [
-        part.strip()
+        _EMAIL_PREFIX.sub("", part.strip())
         for part in _PAGE_EMAIL_SPLIT.split(text or "")
         if part.strip() and "@" in part
     ]
