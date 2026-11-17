@@ -20,12 +20,18 @@ class SiNavigationMixin:
         """跳转至订舱页面。
 
         页面加载时会先查订舱列表，这段时间查询按钮不可点。
-        必须先等初始化接口结束，再等按钮恢复，然后才填订舱号并搜索。
+        必须先等初始化接口结束、按钮恢复，再选择按订舱号查询并填号搜索。
         """
         self._dismiss_optional_dialog()
         booking_no = self.content["bookingNo"]
         self._ensure_booking_initialized()
         self._wait_booking_search_ready()
+        self.dom.select_by_word(
+            selectors.BOOKING_SEARCH_TYPE,
+            "订舱号",
+            selectors.ELEMENT_SELECT_OPTIONS,
+            name="订舱查询类型",
+        )
         self.dom.input_text(selectors.BOOKING_SEARCH_INPUT, booking_no, "搜索框", timeout=30)
         self._wait_booking_search_ready()
         search_result = self.http.wait_api_finished(

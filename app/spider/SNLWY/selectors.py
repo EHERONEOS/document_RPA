@@ -17,7 +17,12 @@ BOOKING_URL =  "https://ibs.sinolines.com/#/export/booking"
 BOOKING_LIST_API = "https://ibs.sinolines.com/admin-api/system/soManage/pageSo"
 
 DIALOG_CANCEL_BTN= "x://*[contains(@class,'el-dialog__body')]//button[normalize-space(.)='取消']"
-# 查询类型当前展示为「订舱号」时，真正的输入节点在同一组右侧。
+# 查询类型可能记住上次的「提单号」；点击可见 wrapper，不点击隐藏的只读 input。
+BOOKING_SEARCH_TYPE = (
+    "x://input[@id='query-field-queryType']"
+    "/ancestor::*[contains(@class,'el-select__wrapper')][1]"
+)
+# 先切换为「订舱号」，再定位同组右侧输入框。
 BOOKING_SEARCH_INPUT = (
     "x://*[contains(@class,'base-query__group-container')]"
     "[.//*[contains(@class,'el-select__placeholder')][normalize-space()='订舱号']]"
@@ -70,19 +75,26 @@ IEC_NO_CLEAR = "x://*[contains(@class,'el-form-item__label')][normalize-space()=
 def customer_info_selector(section: str, label: str, part: str, from_parent: bool = False) -> str:
     """按 区块名、字段标签、子元素路径 构造客户信息区块选择器。
 
-    part 为 following-sibling 内的 XPath 片段，例如：
+    part 为字段内部的 XPath 片段，例如：
     - 文本内容: "*[contains(@class,'cm-content')]"
     - 清除按钮: "*[contains(@class,'textarea-clear-icon')]"
     - 复选框: "label[normalize-space()='提单中显示']"
     from_parent 为 True 时，从 label 的父元素（表单项）的相邻元素开始查找。
+    名称兼容旧版完整标签；地址的复选框可位于标签内或内容区。
     """
-    anchor = "//*[contains(@class,'el-form-item__label')]" f"[normalize-space()='{label}']"
+    label_match = f"normalize-space()='{label}' or *[normalize-space()='{label}']"
+    if label in {"发货人名称", "收货人名称", "通知方名称"}:
+        label_match += " or normalize-space()='名称'"
+    anchor = "//*[contains(@class,'el-form-item__label')]" f"[{label_match}]"
     if from_parent:
         anchor += "/parent::*/following-sibling::*[1]"
+    elif part.startswith("label["):
+        # 地址打印开关已移入标签，电话/传真/邮箱开关仍位于内容区。
+        anchor += "/parent::*"
     else:
         anchor += "/following-sibling::*[1]"
     return (
-        "x://*[contains(@class,'customer-info')]"
+        "x://*[contains(concat(' ',normalize-space(@class),' '),' customer-info ')]"
         f"[contains(normalize-space(),'{section}')]"
         + anchor
         + f"//{part}"

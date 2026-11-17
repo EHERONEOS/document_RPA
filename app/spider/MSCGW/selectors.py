@@ -14,6 +14,11 @@ IDENTITY_PASSWORD = "c:#password"
 IDENTITY_SUBMIT = "c:#next"
 IDENTITY_ERROR_MESSAGES = "c:#api .error p"
 COOKIE_ACCEPT_BUTTON = "c:#onetrust-accept-btn-handler"
+COOKIE_ACCEPT_ALL_BUTTON = (
+    "x://*[normalize-space()='We value your privacy']"
+    "/ancestor::*[.//button[normalize-space()='Accept All']][1]"
+    "//button[normalize-space()='Accept All']"
+)
 
 
 EBOOKINGS_URL ="https://www.mymsc.com/myMSC/dashboard/ebookings" # 提单列表页面
@@ -149,4 +154,6 @@ FREE_ADD_CONTAINER_BTN = "x://button[normalize-space()='Add Container']"
 CONTAINER_TYPE_CLEAR = "c:.edit-modal-container [data-testid=container-equipment-type] [title=Clear]"
 FREE_SAVE_BOOKING_BTN = "x://*[@title='Save as Draft']"
 FREE_SUBMIT_BOOKING_BTN = "x://*[@title='Submit Request']"
+FREE_SUBMIT_CONFIRM_MSG = "text=Submit to Agency"
+FREE_SUBMIT_ERROR_MSG = "text=Unable to Submit"
 FREE_SUBMIT_OK = "c:[data-testid=btnOkConfirm]"

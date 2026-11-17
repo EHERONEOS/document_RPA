@@ -31,12 +31,13 @@ _FALSE_TEXTS = {"0", "false", "no", "n", ""}
 
 
 _EMAIL_SEPARATORS = re.compile(r"[,，]+")
-_EMAIL_PREFIX = re.compile(r"^\s*EMAIL\s*[:：]\s*", re.IGNORECASE)
+# 仅去掉邮箱前、以中英文冒号结尾的标签，避免吞掉含 @ 的邮箱内容。
+_EMAIL_PREFIX = re.compile(r"^[^@,，]*[:：]\s*")
 _PAGE_EMAIL_SPLIT = re.compile(r"[\s,，×✕✖]+")
 
 
 def _split_email_value(value) -> list[str]:
-    """下发邮箱是逗号分隔字符串，可带官网拆分展示的 EMAIL: 前缀。"""
+    """下发邮箱是逗号分隔字符串，每项可带任意「标签:」前缀。"""
     text = "" if value is None else str(value)
     return [_EMAIL_PREFIX.sub("", part.strip())
             for part in _EMAIL_SEPARATORS.split(text) if part.strip()]

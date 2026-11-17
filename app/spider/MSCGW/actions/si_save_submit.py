@@ -67,6 +67,21 @@ class SiSaveSubmitMixin:
                 # self.get_server_free_draft()
             if self.context.rpa_operate == "SUBMIT_DIRECT":
                 self.si_shadow.click(selectors.FREE_SUBMIT_BOOKING_BTN, name="提交按钮")
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    submit_error = self.si_shadow._find(
+                        selectors.FREE_SUBMIT_ERROR_MSG, name="无法提交提示", timeout=0, required=False
+                    )
+                    if submit_error and submit_error.states.is_displayed:
+                        raise BusinessError("拆并单提交失败：Unable to Submit，请检查必填字段或校验提示")
+                    submit_confirm = self.si_shadow._find(
+                        selectors.FREE_SUBMIT_CONFIRM_MSG, name="提交代理确认弹窗", timeout=0, required=False
+                    )
+                    if submit_confirm and submit_confirm.states.is_displayed:
+                        break
+                    time.sleep(0.5)
+                else:
+                    raise BusinessError("等待提交确认弹窗30s未出现，拆并单提交失败")
                 self.si_shadow.click(selectors.FREE_SUBMIT_OK, name="提交成功确认按钮")
                 is_submit_success = self.si_shadow._find(
                     selectors.SUBMIT_SUCCESS_MSG, name="提交成功消息", timeout=60, required=False
