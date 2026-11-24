@@ -245,6 +245,15 @@ def surcharge_print_selector(index: int) -> str:
     return surcharge_row_selector(index) + "//label[contains(@class,'el-checkbox')]"
 
 
+DISCHARGE_YARD_SELECT = (
+    "x://*[contains(@class,'el-form-item__label')][normalize-space()='选择指定的堆场']"
+    "/following-sibling::*[1]//*[contains(@class,'el-select__wrapper')]"
+)
+DISCHARGE_YARD_SELECTED = (
+    DISCHARGE_YARD_SELECT
+    + "//*[contains(@class,'el-select__placeholder') and not(contains(@class,'is-transparent'))]"
+)
+
 ATTACHMENT_ADD = "x://*[contains(@class,'additional-attach')]//*[contains(@class,'add-box')]"
 ATTACHMENT_LIST = "x://*[contains(@class,'additional-attach')]//*[contains(@class,'attachment-list')]"
 UPLOAD_DIALOG = "c:.upload-dialog"
@@ -271,5 +280,6 @@ def notification_email_selector(part: str) -> str:
 
 SAVE_BUTTON = "x://button[normalize-space()='存为草稿']"
 SUBMIT_BUTTON = "x://button[normalize-space()='提交']"
+SUBMIT_CONFIRM_BUTTON = "x://div[contains(@class,'el-message-box')][.//*[contains(text(),'是否提交')]]//button[.//span[normalize-space()='确定']]"
 ATTACH_BUTTON = "x://button[normalize-space()='预览件']"
 

@@ -125,7 +125,7 @@ class SiFillContainerCargoMixin:
         )
 
     def _fill_cargo_select(self: "FzSnlwySiTask", config: dict) -> None:
-        """下拉与当前展示不一致时才重新选择。"""
+        """包装名称相同时先切换其他选项，触发包装代码联动。"""
         label, key = config["label"], config["key"]
         value = _text(self.content.get(key, "")).strip()
         if not value:
@@ -134,15 +134,30 @@ class SiFillContainerCargoMixin:
             selectors.cargo_content_selector(label, _SELECT_DISPLAY),
             label,
         )
-        if value in display:
+        field_selector = selectors.cargo_content_selector(label, config["select"])
+        options = config.get("options", selectors.COUNTRY_OPTIONS)
+        if key == "totalAmountUnitName" and value == display.strip():
+            # 初始化可能只有包装名称，重复点击同名选项不会触发 change。
+            self.dom.click(field_selector, name=label)
+            for option in self.dom._find_eles(options, name=f"{label}选项"):
+                option_text = _text(getattr(option, "text", "")).strip()
+                if option_text and option_text != value and _option_visible(option):
+                    option.click()
+                    self.dom.page.run_js(
+                        "arguments[0].blur();", self.dom._find(field_selector, label),
+                    )
+                    break
+            else:
+                raise ElementNotFoundError(f"{label}没有可切换的其他选项：{value}")
+        elif key != "totalAmountUnitName" and value in display:
             return
         if config.get("hs_code"):
             self._select_hs_code(label, value)
             return
         self.dom.select_by_word(
-            selectors.cargo_content_selector(label, config["select"]),
+            field_selector,
             value,
-            config.get("options", selectors.COUNTRY_OPTIONS),
+            options,
             name=label,
         )
 
@@ -302,9 +317,23 @@ class SiFillContainerCargoMixin:
             self._fill_dialog_field(container, config, name)
         if not _as_bool(container.get("isVgm")):
             return
-        # VGM 字段折叠时没有布局，不能先读 is_displayed。
-        self._click_in_dialog(selectors.DIALOG_VGM_BTN, f"{name}添加 VGM")
-        time.sleep(0.5)
+        # 选择箱号可能自动带出并展开 VGM，此时页面没有“添加 VGM”按钮。
+        # 折叠字段可能仍在 DOM 中，用原生布局检查避免 is_displayed 抛 NoRectError。
+        vgm_field = self.dom._find(
+            selectors.container_dialog_selector("VGM箱总重", _INPUT_PART),
+            f"{name}VGM箱总重",
+            required=False,
+            timeout=1,
+        )
+        vgm_visible = bool(vgm_field and vgm_field.run_js(
+            "const style = getComputedStyle(this);"
+            "return style.display !== 'none'"
+            " && style.visibility !== 'hidden'"
+            " && this.getClientRects().length > 0;"
+        ))
+        if not vgm_visible:
+            self._click_in_dialog(selectors.DIALOG_VGM_BTN, f"{name}添加 VGM")
+            time.sleep(0.5)
         for config in _VGM_FIELDS:
             self._fill_dialog_field(container, config, name)
 

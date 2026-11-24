@@ -68,6 +68,9 @@ class FzSnlwySiTask(
         
         with self._step("08 运费及附加费"):
             self._fill_surcharges()
+
+        with self._step("08.1 卸货堆场"):
+            self._fill_discharge_yard()
         
         with self._step("09 附件上传"):
             self._fill_attachments()
@@ -81,7 +84,7 @@ class FzSnlwySiTask(
         with self._step("12 保存提交"):
             self.upload_record_files_on_failure = True
             self.capture_business_screenshot("BEFORE_SUBMIT_IMG", "提交前")
-            # self.save_submit() # 保留原有试单保护：填完并截图后交给人工，不保存、不提交。
+            self.save_submit() # 保留原有试单保护：填完并截图后交给人工，不保存、不提交。
             self.capture_business_screenshot("AFTER_SUBMIT_IMG", "提交后")
         # 后续接入保存提交时，应在这里明确处理操作类型与官网成功状态。
         # self.logger.info("[SNLWY][试单结束] 填单及校验完成，等待人工处理")

@@ -68,13 +68,16 @@ class WnqSnlwySiTask(
         
         with self._step("08 运费及附加费"):
             self._fill_surcharges()
+
+        with self._step("08.1 卸货堆场"):
+            self._fill_discharge_yard()
         
         with self._step("09 附件上传"):
             self._fill_attachments()
         
         with self._step("10 接收通知邮箱"):
             self._fill_notification_emails()
-
+        
         with self._step("11 漏填检查与填单截图"):
             self.raise_if_unfilled_fields()
             

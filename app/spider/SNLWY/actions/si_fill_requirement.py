@@ -74,7 +74,7 @@ def _same_emails(expected, page_text: str) -> bool:
 
 
 class SiFillRequirementMixin:
-    """填写装船、订舱、货物要求，以及运费及附加费。"""
+    """填写装船、订舱、货物要求、运费及附加费和卸货堆场。"""
 
     def _fill_destination_requirements(self: "FzSnlwySiTask") -> None:
         """印度模板填写进出口注册号，其他模板无需填写。"""
@@ -96,9 +96,10 @@ class SiFillRequirementMixin:
         )
 
     def _fill_requirement(self: "FzSnlwySiTask") -> None:
-        """兼容原有组合入口；主任务逐步调用下面四个业务区块。"""
+        """兼容原有组合入口，主任务逐步调用各业务区块。"""
         self._fill_requirements()
         self._fill_surcharges()
+        self._fill_discharge_yard()
         self._fill_attachments()
         self._fill_notification_emails()
 
@@ -275,6 +276,34 @@ class SiFillRequirementMixin:
         if actual != expected:
             raise FormValidationError(f"{name}校验失败，实际值：{actual}，期望值：{expected}")
         self.mark_field_done(["surcharges", index, "isPrintOnBL"])
+
+    def _fill_discharge_yard(self: "FzSnlwySiTask") -> None:
+        """按选项显示名称选择卸货堆场，回读一致后才标记完成。"""
+        key, name = "dischargeYard", "卸货堆场"
+        if key not in self.content:
+            return
+        value = self.content[key]
+        if value is not None and not isinstance(value, str):
+            raise BusinessError(f"{key}必须是堆场名称字符串")
+        expected = (value or "").strip()
+        if not expected:
+            self.mark_field_done(key)
+            return
+
+        self.dom.scroll_to_see(selectors.DISCHARGE_YARD_SELECT, name=name)
+        actual = self.dom.get_text(
+            selectors.DISCHARGE_YARD_SELECTED, name, required=False, timeout=1
+        ).strip()
+        if actual != expected:
+            self.dom.select_by_word(
+                selectors.DISCHARGE_YARD_SELECT, expected, selectors.ELEMENT_SELECT_OPTIONS, name=name
+            )
+            actual = self.dom.get_text(
+                selectors.DISCHARGE_YARD_SELECTED, name, required=False, timeout=1
+            ).strip()
+        if actual != expected:
+            raise FormValidationError(f"{name}校验失败，实际值：{actual}，期望值：{expected}")
+        self.mark_field_done(key)
 
     def _fill_attachments(self: "FzSnlwySiTask") -> None:
         """按 cloudFileList 下载附件并上传。不点整页提交。"""
