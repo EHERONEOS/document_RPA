@@ -2,11 +2,13 @@
 
 from app.core.task.errors import RouteNotFoundError
 from app.core.task.router import CarrierRoute
+from app.spider.MSCGW.tasks.dan_mscgw_si import dan_mscgw_si
 from app.spider.MSCGW.tasks.fht_mscgw_si import fht_mscgw_si
 
 
 ROUTES = {
     "FHT_MSCGW_SI": CarrierRoute("FHT", "SI", fht_mscgw_si),
+    "DAN_MSCGW_SI": CarrierRoute("DAN", "SI", dan_mscgw_si),
 }
 
 
