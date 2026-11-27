@@ -9,30 +9,47 @@ from app.core.task.errors import BusinessError, ElementOperationError, LoginErro
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
-    from app.spider.SNLWY.tasks.fz_snlwy_si import FzSnlwySiTask
+    from app.spider.SNLWY.tasks.snlwy_si import SnlwySiTask
 
 
 class SiNavigationMixin:
     """封装 SI 各类填单页面的导航及地点选择。"""
 
+    def _booking_search_query(self: "SnlwySiTask") -> tuple[str, str]:
+        """提单号优先，提单号为空时使用订舱号。"""
+        bl_no = self.content.get("blNo")
+        if bl_no is not None and not isinstance(bl_no, str):
+            raise BusinessError("下发 blNo 必须是字符串")
+        if bl_no and bl_no.strip():
+            return "提单号", bl_no.strip()
 
-    def _goto_booking_page(self: "FzSnlwySiTask") -> None:
+        booking_no = self.content.get("bookingNo")
+        if not isinstance(booking_no, str) or not booking_no.strip():
+            raise BusinessError("提单号为空时，下发 bookingNo 必须是非空字符串")
+        return "订舱号", booking_no.strip()
+
+    def _goto_booking_page(self: "SnlwySiTask") -> None:
         """跳转至订舱页面。
 
         页面加载时会先查订舱列表，这段时间查询按钮不可点。
-        必须先等初始化接口结束、按钮恢复，再选择按订舱号查询并填号搜索。
+        必须先等初始化接口结束、按钮恢复，再切换查询类型并填号搜索。
         """
+        search_type, search_no = self._booking_search_query()
         self._dismiss_optional_dialog()
-        booking_no = self.content["bookingNo"]
         self._ensure_booking_initialized()
         self._wait_booking_search_ready()
         self.dom.select_by_word(
             selectors.BOOKING_SEARCH_TYPE,
-            "订舱号",
+            search_type,
             selectors.ELEMENT_SELECT_OPTIONS,
             name="订舱查询类型",
         )
-        self.dom.input_text(selectors.BOOKING_SEARCH_INPUT, booking_no, "搜索框", timeout=30)
+        self.dom.input_text(
+            selectors.BOOKING_SEARCH_INPUT.format(search_type=search_type),
+            search_no,
+            "搜索框",
+            timeout=30,
+        )
         self._wait_booking_search_ready()
         search_result = self.http.wait_api_finished(
             selectors.BOOKING_LIST_API,
@@ -46,12 +63,16 @@ class SiNavigationMixin:
             selectors.BOOKING_ROW, "订舱列表行", required=False
         )
         if not booking_row:
-            raise BusinessError(f"查不到订舱号{booking_no}")
-        page_booking_no = self.dom.get_text(
-            selectors.BOOKING_ROW_NO, "查询订舱号", required=False
-        )
-        if page_booking_no != booking_no:
-            raise BusinessError(f"查不到订舱号{booking_no}")
+            raise BusinessError(f"查不到{search_type}{search_no}")
+        if search_type == "提单号":
+            # 结果列表会用省略号展示长号码，get_text 读取的是 DOM 中的原文。
+            matches = search_no in booking_row.split()
+        else:
+            matches = self.dom.get_text(
+                selectors.BOOKING_ROW_NO, "查询订舱号", required=False
+            ).strip() == search_no
+        if not matches:
+            raise BusinessError(f"查不到{search_type}{search_no}")
         open_bl_no_btn = self._find_create_bl_button()
         res = self.http.wait_api_finished(
             selectors.BOOKING_CHECK_API,
@@ -66,7 +87,7 @@ class SiNavigationMixin:
             raise BusinessError(f"跳转至生成提单页面失败")
 
 
-    def _ensure_booking_initialized(self: "FzSnlwySiTask") -> None:
+    def _ensure_booking_initialized(self: "SnlwySiTask") -> None:
         """复用登录校验的初始化；离开过订舱页或重复调用时重新加载。"""
         initialized = getattr(self, "_booking_initialized", False)
         self._booking_initialized = False
@@ -87,7 +108,7 @@ class SiNavigationMixin:
         )
         self._check_booking_session(result)
 
-    def _find_create_bl_button(self: "FzSnlwySiTask", timeout: float = 5):
+    def _find_create_bl_button(self: "SnlwySiTask", timeout: float = 5):
         """先找行内可用按钮，再悬浮更多并等待响应式菜单（可能挂在 body）。"""
         def available(elements):
             return next(
@@ -142,17 +163,18 @@ class SiNavigationMixin:
                 if time.monotonic() >= deadline:
                     break
                 time.sleep(0.1)
+        search_type, search_no = self._booking_search_query()
         if not more:
             raise ElementOperationError(
-                f"订舱号{self.content['bookingNo']}未找到可悬浮的更多按钮，无法检查生成提单操作"
+                f"{search_type}{search_no}未找到可悬浮的更多按钮，无法检查生成提单操作"
             )
         if not menu_opened:
             raise ElementOperationError(
-                f"订舱号{self.content['bookingNo']}的更多菜单未成功展开，无法检查生成提单操作"
+                f"{search_type}{search_no}的更多菜单未成功展开，无法检查生成提单操作"
             )
-        raise BusinessError(f"该订舱号{self.content['bookingNo']}无法生成提单")
+        raise BusinessError(f"该{search_type}{search_no}无法生成提单")
 
-    def _check_booking_session(self: "FzSnlwySiTask", result=None) -> None:
+    def _check_booking_session(self: "SnlwySiTask", result=None) -> None:
         """登录校验后也可能失效；区分登录跳转与列表加载慢。"""
         body = result.get("response") if isinstance(result, dict) else None
         code = body.get("code") if isinstance(body, dict) else None
@@ -163,7 +185,7 @@ class SiNavigationMixin:
         ):
             raise LoginError("SNLWY 登录会话已失效，无法继续查询订舱")
 
-    def _wait_booking_search_ready(self: "FzSnlwySiTask", timeout: int = 60) -> None:
+    def _wait_booking_search_ready(self: "SnlwySiTask", timeout: int = 60) -> None:
         """等初始化列表查询结束，搜索按钮恢复可点击。"""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -178,6 +200,6 @@ class SiNavigationMixin:
             time.sleep(0.3)
         raise ElementOperationError("订舱列表仍在初始化，搜索按钮不可点击")
 
-    def _dismiss_optional_dialog(self: "FzSnlwySiTask") -> None:
+    def _dismiss_optional_dialog(self: "SnlwySiTask") -> None:
         """关闭可能遗留的提示弹窗，避免遮挡订舱查询。"""
         self.dom.click(selectors.DIALOG_CANCEL_BTN, "弹窗取消按钮",required=False,timeout=1)

@@ -9,7 +9,7 @@ from app.core.task.errors import BusinessError
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 
@@ -36,7 +36,7 @@ def get_address_content_field_path(content_prefix: str, suffix: str) -> str:
 class SiFillAddressInfoMixin:
     """封装 Shipper、Consignee、Notify 等地址信息。"""
 
-    def _fill_address_info(self: "FhtMscgwSiTask", address_type: str) -> None:
+    def _fill_address_info(self: "MscgwSiTask", address_type: str) -> None:
         self.dom.scroll_to_see(selectors.ADD_NEW_PARTY_BUTTON, name="定位到添加新地址按钮")
         self.si_shadow.click("c:.si-party-modal-title button", required=False, timeout=0.5)
         self.si_shadow.click("c:.confirm-dialog-box button[data-testid=btnOkConfirm]", required=False, timeout=0.5)
@@ -92,7 +92,7 @@ class SiFillAddressInfoMixin:
         if not self._wait_for_address_save():
             raise BusinessError(f"{address_type}保存失败")
 
-    def _wait_for_address_save(self: "FhtMscgwSiTask") -> bool:
+    def _wait_for_address_save(self: "MscgwSiTask") -> bool:
         for _ in range(10):
             save_dialog = self.si_shadow._find(selectors.DIALOG_NAME, required=False, timeout=0.5)
             if not save_dialog:
@@ -101,7 +101,7 @@ class SiFillAddressInfoMixin:
         return False
 
     def _verify_address_info(
-        self: "FhtMscgwSiTask", address_type: str, content_prefix: str
+        self: "MscgwSiTask", address_type: str, content_prefix: str
     ) -> None:
         """校验地址弹窗字段。"""
 

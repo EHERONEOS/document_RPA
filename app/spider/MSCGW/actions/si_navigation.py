@@ -10,14 +10,14 @@ from app.core.task.errors import BusinessError, ElementNotFoundError
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 class SiNavigationMixin:
     """封装 SI 各类填单页面的导航及地点选择。"""
 
 
-    def _goto_navigation(self: "FhtMscgwSiTask") -> None:
+    def _goto_navigation(self: "MscgwSiTask") -> None:
         """跳转至导航页面。"""
         if self.blankBill: #空白单
             self._goto_create_shippinginstruction()
@@ -26,7 +26,7 @@ class SiNavigationMixin:
         else:
             self._goto_shippinginstructions(self.content["bookingNo"])
 
-    def _goto_shippinginstructions(self: "FhtMscgwSiTask", bookingNo: str) -> None:
+    def _goto_shippinginstructions(self: "MscgwSiTask", bookingNo: str) -> None:
         """跳转至 Shipping Instructions 填单页面。"""
         last_error = None
         for _ in range(3):
@@ -59,7 +59,7 @@ class SiNavigationMixin:
         self.dom.click(selectors.BOOKING_FIRST_BUTTON, "跳转填单页面")
         self._wait_for_shippinginstructions()
 
-    def _goto_create_shippinginstruction(self: "FhtMscgwSiTask") -> None:
+    def _goto_create_shippinginstruction(self: "MscgwSiTask") -> None:
         """跳转至空白提单页面。"""
         self.page.get(selectors.CREATE_SHIPPING_INSTRUCTIONS_URL)
         self.page._wait_loaded()
@@ -97,7 +97,7 @@ class SiNavigationMixin:
         else:
             raise BusinessError(f"创建空白单页面异常")
 
-    def _goto_free_form_esi(self: "FhtMscgwSiTask") -> None:
+    def _goto_free_form_esi(self: "MscgwSiTask") -> None:
         """跳转至拆单/并单页面。"""
         self.page.get(selectors.FREE_FORM_ESI_URL)
         for _ in range(60):
@@ -108,7 +108,7 @@ class SiNavigationMixin:
             time.sleep(1)
         raise BusinessError("MSC 未在 60 秒内跳转至 填单页面")
 
-    def _wait_for_shippinginstructions(self: "FhtMscgwSiTask") -> None:
+    def _wait_for_shippinginstructions(self: "MscgwSiTask") -> None:
         """等待跳转到 Shipping Instructions。"""
         for _ in range(60):
             url = str(getattr(self.page, "url", "") or "")
@@ -119,7 +119,7 @@ class SiNavigationMixin:
         raise BusinessError("MSC 未在 60 秒内跳转至 填单页面")
 
     def search_location_select(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         location: str,
         value: str,
         url: str,
@@ -147,7 +147,9 @@ class SiNavigationMixin:
 
         search_keywords = []
         for index in range(1, len(words) + 1):
-            search_keyword = " ".join(words[:index])
+            search_keyword = re.sub(r"[\W_]+$", "", " ".join(words[:index]))
+            if not search_keyword:
+                continue
             search_keywords.append(search_keyword)
             self.logger.info(f"搜索并选择{name}，搜索关键词：{search_keyword}")
             self.http.wait_api_finished(

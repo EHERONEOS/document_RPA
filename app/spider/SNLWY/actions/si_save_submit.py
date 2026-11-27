@@ -14,19 +14,19 @@ from app.core.task.errors import ElementNotFoundError, ElementOperationError
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
-    from app.spider.SNLWY.tasks.fz_snlwy_si import FzSnlwySiTask
+    from app.spider.SNLWY.tasks.snlwy_si import SnlwySiTask
 
 
 class SiSaveSubmitMixin:
     """封装 SI 保存、预览下载和直接提交。"""
 
-    def _build_draft_file_stem(self: "FzSnlwySiTask") -> str:
+    def _build_draft_file_stem(self: "SnlwySiTask") -> str:
         safe_queue_name = re.sub(r"[^A-Za-z0-9_-]+", "_", self.context.queue_name).strip("_") or "task"
         safe_job_no = re.sub(r"[^A-Za-z0-9_-]+", "_", str(self.job_no)).strip("_") or "unknown"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{safe_queue_name}_{safe_job_no}_{timestamp}"
 
-    def save_submit(self: "FzSnlwySiTask") -> None:
+    def save_submit(self: "SnlwySiTask") -> None:
         """保存并提交。"""
         self.dom.click(selectors.SAVE_BUTTON, name="存草稿按钮")
         # 保存通过异步接口完成，doc_loaded() 不会等待遮罩及表单重新渲染。
@@ -42,7 +42,7 @@ class SiSaveSubmitMixin:
             self._wait_submit_result()
         # raise "测试保存"
 
-    def _click_submit_confirm(self: "FzSnlwySiTask", attempt: int) -> tuple[str, dict]:
+    def _click_submit_confirm(self: "SnlwySiTask", attempt: int) -> tuple[str, dict]:
         """在点击前采样按钮落点，保留驱动的实际返回结果。"""
         selector = selectors.SUBMIT_CONFIRM_BUTTON
         name = f"提交确认按钮（第{attempt}次）"
@@ -98,7 +98,7 @@ class SiSaveSubmitMixin:
             reason = "未取得按钮落点"
         return reason, probe
 
-    def _wait_submit_result(self: "FzSnlwySiTask", timeout: float = 60) -> None:
+    def _wait_submit_result(self: "SnlwySiTask", timeout: float = 60) -> None:
         """等待官网提示，确认弹窗仍打开时最多点击三次。"""
         attempts = 1
         reason, probe = self._click_submit_confirm(attempts)
@@ -155,7 +155,7 @@ class SiSaveSubmitMixin:
         raise ElementOperationError(f"未检测到提交成功提示（操作成功）：等待={timeout}s")
 
     def _wait_draft_ready(
-        self: "FzSnlwySiTask", *, after_save: bool = False, timeout: float = 60
+        self: "SnlwySiTask", *, after_save: bool = False, timeout: float = 60
     ):
         """记住短暂的保存成功提示，等刷新结束后返回当前页面的预览按钮。"""
         deadline = time.monotonic() + timeout
@@ -212,7 +212,7 @@ class SiSaveSubmitMixin:
         stage = "保存后页面未就绪" if after_save else "预览件页面未就绪"
         raise ElementOperationError(f"{stage}：等待={timeout}s；{reason}")
 
-    def download_draft(self: "FzSnlwySiTask", *, after_save: bool = False) -> None:
+    def download_draft(self: "SnlwySiTask", *, after_save: bool = False) -> None:
         """下载草稿件。"""
         download_preview_btn = self._wait_draft_ready(after_save=after_save)
         file_path = self.dom.click_to_download(

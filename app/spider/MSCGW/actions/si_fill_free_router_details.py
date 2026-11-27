@@ -11,13 +11,13 @@ from app.core.task.errors import ElementNotFoundError
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 class SiFillFreeRouterDetailsMixin:
     """封装拆并单的收发地、港口和运输方式。"""
 
-    def _fill_free_router_details(self: "FhtMscgwSiTask") -> None:
+    def _fill_free_router_details(self: "MscgwSiTask") -> None:
         self.dom.scroll_to_see("c:#routes", name="滚动到路由详情")
         time.sleep(1)
         if self.content.get("preCarriageMode"):
@@ -79,7 +79,7 @@ class SiFillFreeRouterDetailsMixin:
                 )
         self.verify_free_router_details()
 
-    def verify_free_router_details(self: "FhtMscgwSiTask") -> None:
+    def verify_free_router_details(self: "MscgwSiTask") -> None:
         """验证拆并单路由字段。"""
         required_fields = (
             (
@@ -152,7 +152,7 @@ class SiFillFreeRouterDetailsMixin:
 
 
     def search_ports_select(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         location: str,
         value: str,
         name: str = "选择ports",

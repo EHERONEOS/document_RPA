@@ -8,13 +8,13 @@ from app.core.task.errors import BusinessError
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 class SiFillDocumentGroupMixin:
     """封装 Document Group、Document Type 与 Requested Copies。"""
 
-    def select_document_group(self: "FhtMscgwSiTask") -> None:
+    def select_document_group(self: "MscgwSiTask") -> None:
         self.si_shadow.select_radio(
             selectors.SELECT_DOCUMENT_RADIO, self.content["releaseMode"], "选择出单类型"
         )
@@ -28,7 +28,7 @@ class SiFillDocumentGroupMixin:
             self.select_document_type(release_mode)
         self.verify_document_group()
 
-    def select_document_type(self: "FhtMscgwSiTask", release_mode: str) -> None:
+    def select_document_type(self: "MscgwSiTask", release_mode: str) -> None:
         document_type = self.content.get("originalDocumentType")
         if not document_type:
             raise BusinessError("后台 originalDocumentType 字段为空")
@@ -47,7 +47,7 @@ class SiFillDocumentGroupMixin:
                     "Original Freighted 数量",
                 )
 
-    def select_requested_copies(self: "FhtMscgwSiTask") -> None:
+    def select_requested_copies(self: "MscgwSiTask") -> None:
         if self.content["copyUnfreighted"]:
             dom = self.si_shadow._find(selectors.REQUESTED_COPIES_UNFREIGHTED)
             if not dom.states.is_checked:
@@ -67,7 +67,7 @@ class SiFillDocumentGroupMixin:
                 "Copy Freighted 数量",
             )
 
-    def verify_document_group(self: "FhtMscgwSiTask") -> None:
+    def verify_document_group(self: "MscgwSiTask") -> None:
         """验证 Document Group 及其关联字段。"""
         release_mode = self.content["releaseMode"]
         self.verify_page_value(
@@ -137,7 +137,7 @@ class SiFillDocumentGroupMixin:
             self.mark_field_done(field_name)
 
     def _verify_requested_copy(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         *,
         checkbox_selector: str,
         checkbox_field: str,

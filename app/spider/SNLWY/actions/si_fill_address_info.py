@@ -9,7 +9,7 @@ from app.core.task.errors import FormValidationError
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
-    from app.spider.SNLWY.tasks.fz_snlwy_si import FzSnlwySiTask
+    from app.spider.SNLWY.tasks.snlwy_si import SnlwySiTask
 
 _SHOW_ON_BL = "提单中显示"
 _SELECT_INPUT = "*[contains(@class,'el-select__input')]"
@@ -66,10 +66,10 @@ def _as_bool(value) -> bool:
 class SiFillAddressInfoMixin:
     """封装 Shipper、Consignee、Notify 等地址信息。"""
 
-    def _fill_address_info(self: "FzSnlwySiTask") -> None:
+    def _fill_address_info(self: "SnlwySiTask") -> None:
         """按页面顺序逐项填写；联动分支在对应字段前处理，最后统一校验。"""
         to_order = _as_bool(self.content.get("toOrder"))
-        same_as_consignee = _as_bool(self.content.get("sameAsConsignee"))
+        same_as_consignee = not to_order and _as_bool(self.content.get("sameAsConsignee"))
         show_second_notify = _as_bool(self.content.get("isShowSecondNotify"))
 
         # 1. 发货人：名称 → 地址 → 联系方式 → 地区 → 企业识别码。
@@ -111,13 +111,20 @@ class SiFillAddressInfoMixin:
             self._fill_address_input("收货人信息", "企业唯一识别码", "consigneeEnterpriseCode", from_parent=True)
 
         # 3. 通知人：TO ORDER 会强制取消并置灰 SAME AS CONSIGNEE。
-        if not to_order:
+        # 有下发国家时先恢复下拉框，选好后再勾选，页面会将国家显示为只读文本。
+        if not to_order and (not same_as_consignee or self.content.get("notifyCountry")):
             self._set_checkbox_if_needed(
                 selectors.SAMEASCONSIGNEE_CHECK,
                 "SAME AS CONSIGNEE",
-                same_as_consignee,
+                False,
             )
-        # 同收货人时由页面自动带出；否则逐项填写通知人。
+        self._fill_address_select("通知人信息", "国家及地区", "notifyCountry")
+        if same_as_consignee:
+            self._set_checkbox_if_needed(
+                selectors.SAMEASCONSIGNEE_CHECK,
+                "SAME AS CONSIGNEE",
+                True,
+            )
         if not same_as_consignee:
             self._fill_rich_text("通知人信息", "通知方名称", "notifyTitle")
             self._fill_rich_text("通知人信息", "地址", "notifyAddress")
@@ -131,7 +138,6 @@ class SiFillAddressInfoMixin:
             self._fill_rich_text("通知人信息", "省份", "notifyProvince")
             self._fill_rich_text("通知人信息", "城市", "notifyCity")
             self._fill_rich_text("通知人信息", "邮编", "notifyZipCode")
-            self._fill_address_select("通知人信息", "国家及地区", "notifyCountry")
             self._fill_address_select("通知人信息", "企业唯一识别码", "notifyAbbreviationCode", options=selectors.ELEMENT_SELECT_OPTIONS)
             self._fill_address_input("通知人信息", "企业唯一识别码", "notifyEnterpriseCode", from_parent=True)
 
@@ -158,7 +164,7 @@ class SiFillAddressInfoMixin:
         self._verify_address_info(to_order, same_as_consignee, show_second_notify)
 
     def _fill_rich_text(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
         *, part: str = _CONTENT_PART, clear: str = _CONTENT_CLEAR,
         from_parent: bool = False,
     ) -> None:
@@ -171,17 +177,17 @@ class SiFillAddressInfoMixin:
         )
 
     def _fill_address_input(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
         *, from_parent: bool = False,
     ) -> None:
         """普通输入框使用 value 比较，并由 input_text 清空。"""
         self._fill_rich_text(section, label, key, part=_INPUT_PART, from_parent=from_parent)
 
-    def _fill_email(self: "FzSnlwySiTask", section: str, label: str, key: str) -> None:
+    def _fill_email(self: "SnlwySiTask", section: str, label: str, key: str) -> None:
         """邮箱按标签内容比较，兼容逗号分隔值及邮箱标签前缀。"""
         self._fill_rich_text(section, label, key, part=_EMAIL_PART, clear=_EMAIL_CLEAR)
 
-    def _fill_show_on_bl(self: "FzSnlwySiTask", section: str, label: str, key: str) -> None:
+    def _fill_show_on_bl(self: "SnlwySiTask", section: str, label: str, key: str) -> None:
         """仅在下发值非 None 时同步「提单中显示」。"""
         value = self.content.get(key)
         if value is not None:
@@ -194,7 +200,7 @@ class SiFillAddressInfoMixin:
             )
 
     def _fill_address_select(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
         *, options: str = selectors.COUNTRY_OPTIONS,
     ) -> None:
         """仅在下发值非空时选择国家或企业识别码类型。"""
@@ -208,7 +214,7 @@ class SiFillAddressInfoMixin:
             )
 
     def _fill_field_if_changed(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         field_selector: str,
         clear_selector: str,
         label: str,
@@ -237,7 +243,7 @@ class SiFillAddressInfoMixin:
             self.dom.input_text(field_selector, expected_value, name=label)
 
     def _verify_address_info(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         to_order: bool,
         same_as_consignee: bool,
         show_second_notify: bool,
@@ -280,7 +286,7 @@ class SiFillAddressInfoMixin:
             self._verify_address_select("收货人信息", "企业唯一识别码", "consigneeAbbreviationCode")
             self._verify_address_input("收货人信息", "企业唯一识别码", "consigneeEnterpriseCode", from_parent=True)
 
-        # 3. 通知人：同收货人时只校验只读名称，其余字段隐藏。
+        # 3. 通知人：同收货人时，国家及地区以只读文本展示。
         if not same_as_consignee:
             self._verify_address_text("通知人信息", "通知方名称", "notifyTitle")
             self._verify_address_text("通知人信息", "地址", "notifyAddress")
@@ -298,6 +304,15 @@ class SiFillAddressInfoMixin:
             self._verify_address_select("通知人信息", "企业唯一识别码", "notifyAbbreviationCode")
             self._verify_address_input("通知人信息", "企业唯一识别码", "notifyEnterpriseCode", from_parent=True)
         else:
+            self.verify_page_value(
+                selector=selectors.customer_info_selector("通知人信息", "国家及地区"),
+                field_path="notifyCountry",
+                selector_type="text",
+                page=self.dom,
+                name="通知人信息国家及地区",
+                skip_if_empty=True,
+            )
+            self.mark_field_done("notifyCountryCode")
             self.mark_field_done("notifyTitle")
 
         # 4. 第二通知人：仅在启用时逐字段校验。
@@ -317,11 +332,10 @@ class SiFillAddressInfoMixin:
 
         # 5. 校验三个联动开关的最终页面状态。
         self._verify_checkbox(selectors.TO_ORDER_CHECK, "TO ORDER", to_order, "toOrder")
-        # TO ORDER 勾选后页面会强制取消 SAME AS CONSIGNEE。
         self._verify_checkbox(
             selectors.SAMEASCONSIGNEE_CHECK,
             "SAME AS CONSIGNEE",
-            False if to_order else same_as_consignee,
+            same_as_consignee,
             "sameAsConsignee",
         )
         self._verify_checkbox(
@@ -332,7 +346,7 @@ class SiFillAddressInfoMixin:
         )
 
     def _verify_address_text(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
         *, part: str = _CONTENT_PART, selector_type: str = "raw_text",
         from_parent: bool = False,
     ) -> None:
@@ -348,7 +362,7 @@ class SiFillAddressInfoMixin:
         )
 
     def _verify_address_input(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
         *, from_parent: bool = False,
     ) -> None:
         """普通输入框按 value 校验。"""
@@ -358,7 +372,7 @@ class SiFillAddressInfoMixin:
         )
 
     def _verify_address_email(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
     ) -> None:
         """邮箱标签按规范化后的邮箱列表校验。"""
         if key not in self.content:
@@ -374,7 +388,7 @@ class SiFillAddressInfoMixin:
         self.mark_field_done(key)
 
     def _verify_show_on_bl(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
     ) -> None:
         """校验提单显示开关；未下发值时保留页面状态。"""
         value = self.content.get(key)
@@ -391,7 +405,7 @@ class SiFillAddressInfoMixin:
         )
 
     def _verify_address_select(
-        self: "FzSnlwySiTask", section: str, label: str, key: str,
+        self: "SnlwySiTask", section: str, label: str, key: str,
     ) -> None:
         """校验下拉展示文本，国家字段完成时同步移除国家代码。"""
         value = self.content.get(key, "")
@@ -408,7 +422,7 @@ class SiFillAddressInfoMixin:
             self.mark_field_done(f"{key}Code")
 
     def _verify_checkbox(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         selector: str,
         label: str,
         expected: bool,

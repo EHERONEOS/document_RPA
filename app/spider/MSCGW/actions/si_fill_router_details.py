@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 ROUTER_DETAIL_FIELDS = (
     ("receiptPlace", selectors.RECEIPT_INPUT, "收货地", False),
@@ -19,7 +19,7 @@ ROUTER_DETAIL_FIELDS = (
 class SiFillRouterDetailsMixin:
     """封装普通 SI 的收发港及路由字段。"""
 
-    def _fill_router_details(self: "FhtMscgwSiTask") -> None:
+    def _fill_router_details(self: "MscgwSiTask") -> None:
         for field_path, selector, name, required in ROUTER_DETAIL_FIELDS:
             value = self.content.get(field_path)
             if value:
@@ -27,7 +27,7 @@ class SiFillRouterDetailsMixin:
                 self.si_shadow.input_text(selector, value, name, required=required)
         self._verify_router_details()
 
-    def _verify_router_details(self: "FhtMscgwSiTask") -> None:
+    def _verify_router_details(self: "MscgwSiTask") -> None:
         """验证普通单港口字段。"""
         for field_path, selector, name, required in ROUTER_DETAIL_FIELDS:
             self.verify_page_value(

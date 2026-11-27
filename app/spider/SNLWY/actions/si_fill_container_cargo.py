@@ -12,7 +12,7 @@ from app.core.task.errors import BusinessError, ElementNotFoundError, FormValida
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
-    from app.spider.SNLWY.tasks.fz_snlwy_si import FzSnlwySiTask
+    from app.spider.SNLWY.tasks.snlwy_si import SnlwySiTask
 
 _CONTENT_PART = "*[contains(@class,'cm-content')]"
 _CONTENT_CLEAR = "*[contains(@class,'textarea-clear-icon')]"
@@ -99,19 +99,19 @@ def _hs_option_matches(option_text: str, value: str) -> bool:
 class SiFillContainerCargoMixin:
     """封装集装箱及货物信息。"""
 
-    def _fill_container_cargo(self: "FzSnlwySiTask") -> None:
+    def _fill_container_cargo(self: "SnlwySiTask") -> None:
         """兼容原有组合入口；主任务分别展示货物与箱信息步骤。"""
         self._fill_cargo_summary()
         self._fill_containers()
 
-    def _fill_cargo_summary(self: "FzSnlwySiTask") -> None:
+    def _fill_cargo_summary(self: "SnlwySiTask") -> None:
         """填写并校验货物汇总，表单项都在 .cargo-content 内。"""
         self.dom.scroll_to_see("c:.cargo-content", name="货物信息")
         for config in _CARGO_SUMMARY_FIELDS:
             self._fill_cargo_field(config)
         self._verify_cargo_summary()
 
-    def _fill_cargo_field(self: "FzSnlwySiTask", config: dict) -> None:
+    def _fill_cargo_field(self: "SnlwySiTask", config: dict) -> None:
         label, key = config["label"], config["key"]
         if config.get("verify_only"):
             return
@@ -124,7 +124,7 @@ class SiFillContainerCargoMixin:
             key,
         )
 
-    def _fill_cargo_select(self: "FzSnlwySiTask", config: dict) -> None:
+    def _fill_cargo_select(self: "SnlwySiTask", config: dict) -> None:
         """包装名称相同时先切换其他选项，触发包装代码联动。"""
         label, key = config["label"], config["key"]
         value = _text(self.content.get(key, "")).strip()
@@ -161,7 +161,7 @@ class SiFillContainerCargoMixin:
             name=label,
         )
 
-    def _select_hs_code(self: "FzSnlwySiTask", label: str, value: str) -> None:
+    def _select_hs_code(self: "SnlwySiTask", label: str, value: str) -> None:
         """HS Code 需先输入编码过滤，再点编码完全匹配的选项。"""
         field_selector = selectors.cargo_content_selector(label, _SELECT_INPUT)
         self.dom.input_text(field_selector, value, name=label, blur=False)
@@ -177,7 +177,7 @@ class SiFillContainerCargoMixin:
         self.dom.page.run_js("arguments[0].blur();", self.dom._find(field_selector, label))
 
     def _fill_cargo_field_if_changed(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         field_selector: str,
         label: str,
         content_key: str,
@@ -203,7 +203,7 @@ class SiFillContainerCargoMixin:
             )
         self.dom.input_text(field_selector, expected_value, name=label)
 
-    def _verify_cargo_summary(self: "FzSnlwySiTask") -> None:
+    def _verify_cargo_summary(self: "SnlwySiTask") -> None:
         """校验已填货物汇总字段，通过后从 remain_content 删除。"""
         for config in _CARGO_SUMMARY_FIELDS:
             label, key = config["label"], config["key"]
@@ -231,7 +231,7 @@ class SiFillContainerCargoMixin:
                 name=label,
             )
 
-    def _verify_cargo_select(self: "FzSnlwySiTask", config: dict) -> None:
+    def _verify_cargo_select(self: "SnlwySiTask", config: dict) -> None:
         """下拉展示文本包含下发值即通过，和收发通国家及地区一致。"""
         label, key = config["label"], config["key"]
         value = _text(self.content.get(key, "")).strip()
@@ -246,7 +246,7 @@ class SiFillContainerCargoMixin:
             raise FormValidationError(f"{label}校验失败，实际值：{actual}，期望值：{value}")
         self.mark_field_done(key)
 
-    def _fill_containers(self: "FzSnlwySiTask") -> None:
+    def _fill_containers(self: "SnlwySiTask") -> None:
         """点击添加箱，按 containers 逐箱填写后确定添加。"""
         containers = self.content.get("containers") or []
         if not containers:
@@ -282,7 +282,7 @@ class SiFillContainerCargoMixin:
             raise FormValidationError("确定添加后箱信息弹窗未关闭")
         self._verify_container_rows(containers)
 
-    def _container_dialog_visible(self: "FzSnlwySiTask") -> bool:
+    def _container_dialog_visible(self: "SnlwySiTask") -> bool:
         """关闭后弹窗节点可能还在，真正隐藏的是外层遮罩。"""
         dialog = self.dom._find(
             selectors.CONTAINER_DIALOG,
@@ -300,7 +300,7 @@ class SiFillContainerCargoMixin:
             " && overlay.getClientRects().length > 0;"
         ))
 
-    def _continue_if_container_type_mismatch(self: "FzSnlwySiTask") -> None:
+    def _continue_if_container_type_mismatch(self: "SnlwySiTask") -> None:
         """尺寸箱型与系统不一致时，保留录入值并点继续。没有弹窗则跳过。"""
         continue_btn = self.dom._find(
             selectors.CONTAINER_TYPE_MISMATCH_CONTINUE,
@@ -311,7 +311,7 @@ class SiFillContainerCargoMixin:
         if continue_btn:
             self.dom.click(selectors.CONTAINER_TYPE_MISMATCH_CONTINUE, "继续")
 
-    def _fill_one_container(self: "FzSnlwySiTask", container: dict, index: int) -> None:
+    def _fill_one_container(self: "SnlwySiTask", container: dict, index: int) -> None:
         name = f"第{index + 1}个箱"
         for config in _CONTAINER_FIELDS:
             self._fill_dialog_field(container, config, name)
@@ -337,7 +337,7 @@ class SiFillContainerCargoMixin:
         for config in _VGM_FIELDS:
             self._fill_dialog_field(container, config, name)
 
-    def _fill_dialog_field(self: "FzSnlwySiTask", container: dict, config: dict, name: str) -> None:
+    def _fill_dialog_field(self: "SnlwySiTask", container: dict, config: dict, name: str) -> None:
         label, key = config["label"], config["key"]
         value = _text(container.get(key, "")).strip()
         if not value:
@@ -358,7 +358,7 @@ class SiFillContainerCargoMixin:
         self.dom.input_text(selector, value, name=field_name)
 
     def _fill_dialog_select(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         label: str,
         value: str,
         field_name: str,
@@ -386,7 +386,7 @@ class SiFillContainerCargoMixin:
             return
         self.dom._find(field_selector, field_name).input(Keys.ENTER)
 
-    def _click_exact_option(self: "FzSnlwySiTask", value: str) -> bool:
+    def _click_exact_option(self: "SnlwySiTask", value: str) -> bool:
         for option in self.dom._find_eles(
             selectors.ELEMENT_SELECT_OPTIONS,
             name="下拉选项",
@@ -399,12 +399,12 @@ class SiFillContainerCargoMixin:
                 return True
         return False
 
-    def _scroll_dialog_field(self: "FzSnlwySiTask", selector: str, name: str) -> None:
+    def _scroll_dialog_field(self: "SnlwySiTask", selector: str, name: str) -> None:
         """弹窗内部滚动，避免折叠或视口外元素没有位置。"""
         element = self.dom._find(selector, name)
         element.run_js("this.scrollIntoView({block:'center', inline:'nearest'})")
 
-    def _click_in_dialog(self: "FzSnlwySiTask", selector: str, name: str) -> None:
+    def _click_in_dialog(self: "SnlwySiTask", selector: str, name: str) -> None:
         element = self.dom._find(selector, name)
         element.run_js("this.scrollIntoView({block:'center', inline:'nearest'})")
         time.sleep(0.2)
@@ -413,7 +413,7 @@ class SiFillContainerCargoMixin:
         except NoRectError:
             element.click(by_js=True)
 
-    def _container_row_exists(self: "FzSnlwySiTask", container_no: str) -> bool:
+    def _container_row_exists(self: "SnlwySiTask", container_no: str) -> bool:
         if not container_no:
             return False
         return bool(self.dom._find(
@@ -423,7 +423,7 @@ class SiFillContainerCargoMixin:
             timeout=1,
         ))
 
-    def _verify_container_rows(self: "FzSnlwySiTask", containers: list[dict]) -> None:
+    def _verify_container_rows(self: "SnlwySiTask", containers: list[dict]) -> None:
         """按页面实际展示校验箱详情和 VGM，通过后删除剩余字段。"""
         self.dom.click(selectors.CNTR_TAB, "箱详情")
         for index, container in enumerate(containers):
@@ -439,7 +439,7 @@ class SiFillContainerCargoMixin:
             self.dom.click(selectors.CNTR_TAB, "箱详情")
         self._mark_containers_done(containers)
 
-    def _container_row_cells(self: "FzSnlwySiTask", container_no: str, name: str) -> dict[str, str]:
+    def _container_row_cells(self: "SnlwySiTask", container_no: str, name: str) -> dict[str, str]:
         headers = self.dom._find_eles(
             "x://*[contains(@class,'cntr-card')]"
             "//*[contains(@class,'el-table__header-wrapper')][1]//th",
@@ -450,7 +450,7 @@ class SiFillContainerCargoMixin:
         values = [str(getattr(cell, "text", "") or "").strip() for cell in row.eles("css:td")]
         return dict(zip(names, values))
 
-    def _verify_cntr_tab_row(self: "FzSnlwySiTask", container: dict, index: int) -> None:
+    def _verify_cntr_tab_row(self: "SnlwySiTask", container: dict, index: int) -> None:
         """箱详情列：箱号和铅封号同格，尺寸箱型拼成 20RH，体积保留 3 位小数。"""
         name = f"第{index + 1}个箱"
         container_no = _text(container.get("containerNo")).strip()
@@ -479,7 +479,7 @@ class SiFillContainerCargoMixin:
         self._require_same_cell(cells, "毛重(KGS)", _text(container.get("grossWeight")), name)
         self._require_same_cell(cells, "体积(CBM)", _text(container.get("volume")), name)
 
-    def _verify_vgm_tab_row(self: "FzSnlwySiTask", container: dict, index: int) -> None:
+    def _verify_vgm_tab_row(self: "SnlwySiTask", container: dict, index: int) -> None:
         """VGM 列：箱总重显示为 3 位小数，时间和签名按原文比对。"""
         name = f"第{index + 1}个箱"
         container_no = _text(container.get("containerNo")).strip()
@@ -490,13 +490,13 @@ class SiFillContainerCargoMixin:
         self._require_same_cell(cells, "VGM称重地点", _text(container.get("weightingPlace")), name, numeric=False)
         self._require_same_cell(cells, "VGM签名验证", _text(container.get("signature")), name, numeric=False)
 
-    def _require_container_cell(self: "FzSnlwySiTask", cells: dict, header: str, name: str) -> str:
+    def _require_container_cell(self: "SnlwySiTask", cells: dict, header: str, name: str) -> str:
         if header not in cells:
             raise FormValidationError(f"{name}缺少列：{header}，实际列：{list(cells)}")
         return cells[header]
 
     def _require_same_cell(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         cells: dict,
         header: str,
         expected: str,
@@ -512,7 +512,7 @@ class SiFillContainerCargoMixin:
         if not matched:
             raise FormValidationError(f"{name}{header}校验失败，实际值：{actual}，期望值：{expected}")
 
-    def _mark_containers_done(self: "FzSnlwySiTask", containers: list[dict]) -> None:
+    def _mark_containers_done(self: "SnlwySiTask", containers: list[dict]) -> None:
         keys = [config["key"] for config in (*_CONTAINER_FIELDS, *_VGM_FIELDS)]
         keys.extend(("isVgm", "containerStatus", "isOog"))
         for index in range(len(containers)):

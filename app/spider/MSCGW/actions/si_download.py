@@ -22,7 +22,7 @@ from DrissionPage.errors import JavaScriptError
 from app.core.task.errors import BusinessError
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 _BASE_URL = "https://www.mymsc.com"
@@ -144,7 +144,7 @@ class SiDownloadMixin:
     """使用当前浏览器会话按单号下载拆并单草稿件。"""
 
     def download_draft_attachment(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         booking_numbers: str,
         *,
         from_date: str | None = None,
@@ -189,7 +189,7 @@ class SiDownloadMixin:
         self.logger.info(f"草稿件已下载：{file_path}")
         return str(file_path)
 
-    def _require_browser_login(self: "FhtMscgwSiTask") -> None:
+    def _require_browser_login(self: "MscgwSiTask") -> None:
         """确认当前页面属于已登录的 myMSC。"""
         current_url = str(getattr(self.page, "url", "") or "")
         host = (urlparse(current_url).hostname or "").lower()
@@ -204,7 +204,7 @@ class SiDownloadMixin:
         if not logged_in:
             raise BusinessError("浏览器中没有 MSC 登录 Cookie，请确认已完成自动化登录")
 
-    def _read_browser_session(self: "FhtMscgwSiTask") -> tuple[dict[str, str], str]:
+    def _read_browser_session(self: "MscgwSiTask") -> tuple[dict[str, str], str]:
         """用浏览器 Cookie 换 AccessToken，并从浏览器会话补齐请求头。"""
         try:
             result = self.page.run_js(_BROWSER_SESSION_JS, timeout=_REQUEST_TIMEOUT)
@@ -248,7 +248,7 @@ class SiDownloadMixin:
         return identity, access_token
 
     def _find_free_form_item(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         *,
         booking: str,
         from_date: str,
@@ -289,7 +289,7 @@ class SiDownloadMixin:
         raise BusinessError(f"{from_date} 至 {to_date} 的草稿件列表中查不到单号：{booking}")
 
     def _request_document_url(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         *,
         booking_numbers: str,
         header_id: str,
@@ -319,7 +319,7 @@ class SiDownloadMixin:
             raise BusinessError(f"草稿件响应中没有下载地址：{_brief(response['text'])}")
         return file_url
 
-    def _download_pdf(self: "FhtMscgwSiTask", file_url: str) -> bytes:
+    def _download_pdf(self: "MscgwSiTask", file_url: str) -> bytes:
         """通过浏览器下载 PDF，并校验内容。"""
         response = self._browser_request(
             "GET",
@@ -337,7 +337,7 @@ class SiDownloadMixin:
             )
         return content
 
-    def _save_draft_pdf(self: "FhtMscgwSiTask", content: bytes, booking_numbers: str) -> Path:
+    def _save_draft_pdf(self: "MscgwSiTask", content: bytes, booking_numbers: str) -> Path:
         """把 PDF 保存到任务下载目录。"""
         download_dir = getattr(self.dom, "download_dir", None) or self.browser_manager.settings.download_dir
         queue_name = self.context.queue_name or "MSCGW"
@@ -350,7 +350,7 @@ class SiDownloadMixin:
         return file_path
 
     def _browser_request(
-        self: "FhtMscgwSiTask",
+        self: "MscgwSiTask",
         method: str,
         url: str,
         *,

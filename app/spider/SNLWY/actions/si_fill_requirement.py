@@ -16,7 +16,7 @@ from app.core.task.errors import BusinessError, ElementNotFoundError, FormValida
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
-    from app.spider.SNLWY.tasks.fz_snlwy_si import FzSnlwySiTask
+    from app.spider.SNLWY.tasks.snlwy_si import SnlwySiTask
 
 # 页面分组标题、下发字段名。选项是组内复选框，不是下拉。
 _REQUIREMENT_FIELDS = (
@@ -76,7 +76,7 @@ def _same_emails(expected, page_text: str) -> bool:
 class SiFillRequirementMixin:
     """填写装船、订舱、货物要求、运费及附加费和卸货堆场。"""
 
-    def _fill_destination_requirements(self: "FzSnlwySiTask") -> None:
+    def _fill_destination_requirements(self: "SnlwySiTask") -> None:
         """印度模板填写进出口注册号，其他模板无需填写。"""
         if self.content.get("podTemplate") != "印度":
             self.mark_field_done("iecNo")
@@ -95,7 +95,7 @@ class SiFillRequirementMixin:
             name="进出口注册号",
         )
 
-    def _fill_requirement(self: "FzSnlwySiTask") -> None:
+    def _fill_requirement(self: "SnlwySiTask") -> None:
         """兼容原有组合入口，主任务逐步调用各业务区块。"""
         self._fill_requirements()
         self._fill_surcharges()
@@ -103,13 +103,13 @@ class SiFillRequirementMixin:
         self._fill_attachments()
         self._fill_notification_emails()
 
-    def _fill_requirements(self: "FzSnlwySiTask") -> None:
+    def _fill_requirements(self: "SnlwySiTask") -> None:
         """按组同步并校验复选框，同名选项必须限定在对应分组内。"""
         for config in _REQUIREMENT_FIELDS:
             self._fill_requirement_group(config)
         self._verify_requirements()
 
-    def _fill_requirement_group(self: "FzSnlwySiTask", config: dict) -> None:
+    def _fill_requirement_group(self: "SnlwySiTask", config: dict) -> None:
         label, key = config["label"], config["key"]
         if key not in self.content:
             return
@@ -128,7 +128,7 @@ class SiFillRequirementMixin:
                 option in expected_set,
             )
 
-    def _requirement_option_texts(self: "FzSnlwySiTask", label: str) -> list[str]:
+    def _requirement_option_texts(self: "SnlwySiTask", label: str) -> list[str]:
         elements = self.dom._find_eles(
             selectors.requirement_option_selector(label),
             f"{label}选项",
@@ -138,7 +138,7 @@ class SiFillRequirementMixin:
             for element in elements
         ]
 
-    def _checked_requirement_texts(self: "FzSnlwySiTask", label: str) -> list[str]:
+    def _checked_requirement_texts(self: "SnlwySiTask", label: str) -> list[str]:
         elements = self.dom._find_eles(
             selectors.requirement_checked_selector(label),
             f"{label}已选",
@@ -152,7 +152,7 @@ class SiFillRequirementMixin:
                 texts.append(text)
         return texts
 
-    def _verify_requirements(self: "FzSnlwySiTask") -> None:
+    def _verify_requirements(self: "SnlwySiTask") -> None:
         """按已勾选的 label 校验，通过后才从 remain_content 删除。"""
         for config in _REQUIREMENT_FIELDS:
             label, key = config["label"], config["key"]
@@ -167,7 +167,7 @@ class SiFillRequirementMixin:
                 )
             self.mark_field_done(key)
 
-    def _fill_surcharges(self: "FzSnlwySiTask") -> None:
+    def _fill_surcharges(self: "SnlwySiTask") -> None:
         """按下发顺序逐行核对费用代码并填写，代码不一致立即停止。"""
         if "surcharges" not in self.content:
             self.mark_field_done("surcharges")
@@ -212,7 +212,7 @@ class SiFillRequirementMixin:
                 self._fill_surcharge_print(index, code, item)
             self.mark_field_done(["surcharges", index, "defaultPaymentType"])
 
-    def _surcharge_codes(self: "FzSnlwySiTask") -> list[str]:
+    def _surcharge_codes(self: "SnlwySiTask") -> list[str]:
         codes = []
         for row in self.dom._find_eles(selectors.SURCHARGE_ROWS, "运费及附加费"):
             cells = row.eles("css:td")
@@ -220,7 +220,7 @@ class SiFillRequirementMixin:
             codes.append(_cell_text(text))
         return codes
 
-    def _scroll_surcharge_field(self: "FzSnlwySiTask", selector: str, name: str):
+    def _scroll_surcharge_field(self: "SnlwySiTask", selector: str, name: str):
         """下拉关闭后下一行可能暂时没有布局，用脚本滚入视口并重试。"""
         last_error = None
         for _ in range(3):
@@ -236,7 +236,7 @@ class SiFillRequirementMixin:
         raise last_error
 
     def _fill_surcharge_payment(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         index: int,
         code: str,
         item: dict,
@@ -261,7 +261,7 @@ class SiFillRequirementMixin:
             raise FormValidationError(f"{name}校验失败，实际值：{actual}，期望值：{payment}")
 
     def _fill_surcharge_print(
-        self: "FzSnlwySiTask",
+        self: "SnlwySiTask",
         index: int,
         code: str,
         item: dict,
@@ -277,7 +277,7 @@ class SiFillRequirementMixin:
             raise FormValidationError(f"{name}校验失败，实际值：{actual}，期望值：{expected}")
         self.mark_field_done(["surcharges", index, "isPrintOnBL"])
 
-    def _fill_discharge_yard(self: "FzSnlwySiTask") -> None:
+    def _fill_discharge_yard(self: "SnlwySiTask") -> None:
         """按选项显示名称选择卸货堆场，回读一致后才标记完成。"""
         key, name = "dischargeYard", "卸货堆场"
         if key not in self.content:
@@ -305,7 +305,7 @@ class SiFillRequirementMixin:
             raise FormValidationError(f"{name}校验失败，实际值：{actual}，期望值：{expected}")
         self.mark_field_done(key)
 
-    def _fill_attachments(self: "FzSnlwySiTask") -> None:
+    def _fill_attachments(self: "SnlwySiTask") -> None:
         """按 cloudFileList 下载附件并上传。不点整页提交。"""
         if "cloudFileList" not in self.content:
             self.mark_field_done("cloudFileList")
@@ -323,7 +323,7 @@ class SiFillRequirementMixin:
             with self._step(f"附件 第{index + 1}个 {item.get('filename', '')}"):
                 self._upload_one_attachment(index, item)
 
-    def _upload_one_attachment(self: "FzSnlwySiTask", index: int, item: dict) -> None:
+    def _upload_one_attachment(self: "SnlwySiTask", index: int, item: dict) -> None:
         filename = Path(str(item.get("filename") or "")).name
         file_type = _cell_text(item.get("fileType"))
         if not filename:
@@ -347,7 +347,7 @@ class SiFillRequirementMixin:
             raise FormValidationError(f"第{index + 1}个附件校验失败，实际值：{shown}，期望值：{filename}")
         self._mark_attachment_done(index)
 
-    def _download_cloud_file(self: "FzSnlwySiTask", item: dict, filename: str) -> Path:
+    def _download_cloud_file(self: "SnlwySiTask", item: dict, filename: str) -> Path:
         """用 objectName 换临时地址，再把文件下到本地。"""
         object_name = _cell_text(item.get("objectName"))
         if not object_name:
@@ -370,7 +370,7 @@ class SiFillRequirementMixin:
         local_path.write_bytes(file_response.content)
         return local_path
 
-    def _attachment_dialog_visible(self: "FzSnlwySiTask") -> bool:
+    def _attachment_dialog_visible(self: "SnlwySiTask") -> bool:
         """弹窗节点关闭后仍留在页面里，真正隐藏的是外层遮罩。"""
         dialog = self.dom._find(selectors.UPLOAD_DIALOG, "附件上传", required=False, timeout=0.5)
         if not dialog:
@@ -383,13 +383,13 @@ class SiFillRequirementMixin:
             " && overlay.getClientRects().length > 0;"
         ))
 
-    def _open_attachment_dialog(self: "FzSnlwySiTask") -> None:
+    def _open_attachment_dialog(self: "SnlwySiTask") -> None:
         if self._attachment_dialog_visible():
             return
         self.dom.click(selectors.ATTACHMENT_ADD, "添加附件")
         self.dom._find(selectors.UPLOAD_DIALOG, "附件上传")
 
-    def _select_attachment_type(self: "FzSnlwySiTask", file_type: str) -> None:
+    def _select_attachment_type(self: "SnlwySiTask", file_type: str) -> None:
         """选项正文是类型名，旁边还有收电子件或收纸质原件，不能整段精确匹配。"""
         display = _cell_text(self.dom.get_text(selectors.UPLOAD_TYPE_SELECT, "附件类型"))
         if display == file_type:
@@ -410,7 +410,7 @@ class SiFillRequirementMixin:
         if display != file_type:
             raise FormValidationError(f"附件类型校验失败，实际值：{display}，期望值：{file_type}")
 
-    def _confirm_attachment_upload(self: "FzSnlwySiTask") -> None:
+    def _confirm_attachment_upload(self: "SnlwySiTask") -> None:
         confirm = None
         for _ in range(10):
             confirm = self.dom._find(selectors.UPLOAD_CONFIRM, "确定上传", required=False, timeout=1)
@@ -426,11 +426,11 @@ class SiFillRequirementMixin:
             time.sleep(0.3)
         raise FormValidationError("确定上传后附件弹窗未关闭")
 
-    def _mark_attachment_done(self: "FzSnlwySiTask", index: int) -> None:
-        for key in ("url", "filename", "objectName", "fileType"):
+    def _mark_attachment_done(self: "SnlwySiTask", index: int) -> None:
+        for key in ("url", "filename", "objectName", "fileType", "uploadTime"):
             self.mark_field_done(["cloudFileList", index, key])
 
-    def _fill_notification_emails(self: "FzSnlwySiTask") -> None:
+    def _fill_notification_emails(self: "SnlwySiTask") -> None:
         """接收通知邮箱和收货人邮箱一样，下发值按逗号拆成标签。"""
         key = "notificationEmails"
         if key not in self.content:

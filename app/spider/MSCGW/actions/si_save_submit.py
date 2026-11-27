@@ -11,19 +11,19 @@ from app.core.task.errors import BusinessError
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 class SiSaveSubmitMixin:
     """封装 SI 保存、预览下载和直接提交。"""
 
-    def _build_draft_file_stem(self: "FhtMscgwSiTask") -> str:
+    def _build_draft_file_stem(self: "MscgwSiTask") -> str:
         safe_queue_name = re.sub(r"[^A-Za-z0-9_-]+", "_", self.context.queue_name).strip("_") or "task"
         safe_job_no = re.sub(r"[^A-Za-z0-9_-]+", "_", str(self.job_no)).strip("_") or "unknown"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{safe_queue_name}_{safe_job_no}_{timestamp}"
 
-    def save_submit(self: "FhtMscgwSiTask") -> None:
+    def save_submit(self: "MscgwSiTask") -> None:
         if self.splitOrConsolidatedBill:
             # raise BusinessError("并单拆单还未支持保存提交 请通知RPA处理")
             self.si_shadow.click(selectors.FREE_SAVE_BOOKING_BTN, name="保存按钮")

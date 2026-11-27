@@ -9,13 +9,13 @@ from app.core.task.errors import BusinessError, FormValidationError
 from app.spider.MSCGW import selectors
 
 if TYPE_CHECKING:
-    from app.spider.MSCGW.tasks.fht_mscgw_si import FhtMscgwSiTask
+    from app.spider.MSCGW.tasks.mscgw_si import MscgwSiTask
 
 
 class SiFillContainerCargoMixin:
     """封装集装箱及货物信息。"""
 
-    def _fill_container_cargo(self: "FhtMscgwSiTask") -> None:
+    def _fill_container_cargo(self: "MscgwSiTask") -> None:
         containers = self.content.get("containers", [])
         if not containers:
             raise BusinessError("后台下发的集装箱信息为空")
@@ -203,7 +203,7 @@ class SiFillContainerCargoMixin:
                 raise BusinessError(f"集装箱 {index + 1} 保存失败")
 
     def _find_existing_cargo_item(
-        self: "FhtMscgwSiTask", container_number: int, cargo_number: int, timeout: int = 15
+        self: "MscgwSiTask", container_number: int, cargo_number: int, timeout: int = 15
     ):
         """等待货物列表渲染完成后查找指定序号的已有货物条目。
 
@@ -222,7 +222,7 @@ class SiFillContainerCargoMixin:
             name=name,
         )
 
-    def _wait_for_container_save(self: "FhtMscgwSiTask") -> bool:
+    def _wait_for_container_save(self: "MscgwSiTask") -> bool:
         for _ in range(50):
             save_dialog = self.si_shadow._find(selectors.CONTAINER_SAVE_BTN, required=False, timeout=0.5)
             if not save_dialog:
@@ -230,13 +230,13 @@ class SiFillContainerCargoMixin:
             time.sleep(1)
         return False
 
-    def _verify_container_number(self: "FhtMscgwSiTask", container_index: int) -> None:
+    def _verify_container_number(self: "MscgwSiTask", container_index: int) -> None:
         """校验箱号已通过 MSC 官网校验。"""
         verify_tip = self.si_shadow.get_text(selectors.CONTAINER_NUM_VERIFY)
         if verify_tip != "Container verified!":
             raise BusinessError(f"集装箱 {container_index + 1} 号箱号检验失败官网提示:{verify_tip}")
 
-    def _verify_container_cargo(self: "FhtMscgwSiTask", container: dict, container_index: int) -> None:
+    def _verify_container_cargo(self: "MscgwSiTask", container: dict, container_index: int) -> None:
         """在保存前校验箱信息与每条货物信息。"""
         container_number = container_index + 1
         container_path = ["containers", container_index]
@@ -280,7 +280,7 @@ class SiFillContainerCargoMixin:
             self._verify_cargo(container_index, cargo_index, cargo)
 
     def _verify_cargo(
-        self: "FhtMscgwSiTask", container_index: int, cargo_index: int, cargo: dict
+        self: "MscgwSiTask", container_index: int, cargo_index: int, cargo: dict
     ) -> None:
         """校验当前货物标签字段。"""
         container_number = container_index + 1

@@ -8,7 +8,7 @@ from app.core.task.errors import FormValidationError
 from app.spider.SNLWY import selectors
 
 if TYPE_CHECKING:
-    from app.spider.SNLWY.tasks.fz_snlwy_si import FzSnlwySiTask
+    from app.spider.SNLWY.tasks.snlwy_si import SnlwySiTask
 
 ROUTER_DETAIL_FIELDS = (
     ("receiptPlace", selectors.RECEIPT_TEXT, selectors.RECEIPT_EDIT, "接货地"),
@@ -26,7 +26,7 @@ def _compact_text(value) -> str:
 class SiFillPortInfoMixin:
     """填写SI 收发通港口信息。"""
 
-    def _fill_port_info(self: "FzSnlwySiTask") -> None:
+    def _fill_port_info(self: "SnlwySiTask") -> None:
         for field_path, text_sel, edit_sel, name in ROUTER_DETAIL_FIELDS:
             value = self.content.get(field_path)
             port_text = self.dom.get_text(text_sel, name=name)
@@ -51,7 +51,7 @@ class SiFillPortInfoMixin:
         
         self._verify_port_info()
 
-    def _verify_port_info(self: "FzSnlwySiTask") -> None:
+    def _verify_port_info(self: "SnlwySiTask") -> None:
         """验证普通单港口字段。"""
         for field_path, selector,edit_sel, name in ROUTER_DETAIL_FIELDS:
             self.verify_page_value(

@@ -1,4 +1,4 @@
-"""FHT 客户的 MSCGW Shipping Instruction 任务。"""
+"""MSCGW Shipping Instruction 任务。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from app.spider.MSCGW.actions.si_download import SiDownloadMixin
 from app.spider.MSCGW.actions.si_save_submit import SiSaveSubmitMixin
 
 
-class FhtMscgwSiTask(
+class MscgwSiTask(
     SiNavigationMixin,
     SiFillFreeBookingFormMixin,
     SiFillDocumentGroupMixin,
@@ -30,11 +30,10 @@ class FhtMscgwSiTask(
     SiDownloadMixin,
     MscgwBase,
 ):
-    """执行 FHT_MSCGW_SI。"""
+    """执行 MSCGW SI 业务。"""
 
     enable_record = True
     job_type = "SI"
-    # FHT-specific fields can be added here without changing other task types.
     ignored_unfilled_fields = [
         *MscgwBase.ignored_unfilled_fields,
         "blankBill", "splitBill", "consolidatedBill","isDeleteExtraContainer"
@@ -77,13 +76,13 @@ class FhtMscgwSiTask(
         self._fill_container_cargo()
         self._fill_payment_type()
         self.raise_if_unfilled_fields()
-        
+
         self.capture_business_screenshot("BEFORE_SUBMIT_IMG", "提交前")
         self.upload_record_files_on_failure = True
         self.save_submit()
         self.capture_business_screenshot("AFTER_SUBMIT_IMG", "提交后")
 
 
-def fht_mscgw_si(context):
-    """提供给 FHT_MSCGW_SI 路由调用的任务入口。"""
-    return FhtMscgwSiTask(context).run()
+def mscgw_si(context):
+    """提供给 MSCGW SI 队列共用的任务入口。"""
+    return MscgwSiTask(context).run()

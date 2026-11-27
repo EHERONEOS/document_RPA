@@ -22,10 +22,10 @@ BOOKING_SEARCH_TYPE = (
     "x://input[@id='query-field-queryType']"
     "/ancestor::*[contains(@class,'el-select__wrapper')][1]"
 )
-# 先切换为「订舱号」，再定位同组右侧输入框。
+# 等查询类型切换完成后，再定位同组右侧输入框。
 BOOKING_SEARCH_INPUT = (
     "x://*[contains(@class,'base-query__group-container')]"
-    "[.//*[contains(@class,'el-select__placeholder')][normalize-space()='订舱号']]"
+    "[.//*[contains(@class,'el-select__placeholder')][normalize-space()='{search_type}']]"
     "//*[contains(@class,'base-query__group-field--last')]//input[contains(@class,'el-input__inner')]"
 )
 SEARCH_BUTTON = "x://*[contains(@class,'query-condition')]//button[normalize-space()='查询']"
@@ -72,13 +72,14 @@ IEC_NO = "x://*[contains(@class,'el-form-item__label')][normalize-space()='进�
 IEC_NO_CLEAR = "x://*[contains(@class,'el-form-item__label')][normalize-space()='进出口注册号']/following-sibling::*[1]//*[contains(@class,'textarea-clear-icon')]"
 
 
-def customer_info_selector(section: str, label: str, part: str, from_parent: bool = False) -> str:
+def customer_info_selector(section: str, label: str, part: str | None = None, from_parent: bool = False) -> str:
     """按 区块名、字段标签、子元素路径 构造客户信息区块选择器。
 
     part 为字段内部的 XPath 片段，例如：
     - 文本内容: "*[contains(@class,'cm-content')]"
     - 清除按钮: "*[contains(@class,'textarea-clear-icon')]"
     - 复选框: "label[normalize-space()='提单中显示']"
+    part 为空时直接定位表单内容区，用于只读文本。
     from_parent 为 True 时，从 label 的父元素（表单项）的相邻元素开始查找。
     名称兼容旧版完整标签；地址的复选框可位于标签内或内容区。
     """
@@ -88,6 +89,8 @@ def customer_info_selector(section: str, label: str, part: str, from_parent: boo
     anchor = "//*[contains(@class,'el-form-item__label')]" f"[{label_match}]"
     if from_parent:
         anchor += "/parent::*/following-sibling::*[1]"
+    elif part is None:
+        anchor += "/following-sibling::*[contains(@class,'el-form-item__content')][1]"
     elif part.startswith("label["):
         # 地址打印开关已移入标签，电话/传真/邮箱开关仍位于内容区。
         anchor += "/parent::*"
@@ -97,7 +100,7 @@ def customer_info_selector(section: str, label: str, part: str, from_parent: boo
         "x://*[contains(concat(' ',normalize-space(@class),' '),' customer-info ')]"
         f"[contains(normalize-space(),'{section}')]"
         + anchor
-        + f"//{part}"
+        + (f"//{part}" if part is not None else "")
     )
 
 COUNTRY_OPTIONS = "x://*[contains(@class,'el-popper')][not(contains(@style,'display: none')) and not(contains(@style,'display:none'))]//ul/li/div/span[1]"
